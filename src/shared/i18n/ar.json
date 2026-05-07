@@ -1,0 +1,49 @@
+{
+  "app": {
+    "title": "صيانة أبكس",
+    "subtitle": "إدارة الصيانة، الشاسيه والإطارات"
+  },
+  "status": {
+    "online": "متصل",
+    "offline": "غير متصل",
+    "syncing": "بيزامن"
+  },
+  "actions": {
+    "login": "تسجيل الدخول",
+    "logout": "تسجيل خروج",
+    "save": "حفظ",
+    "cancel": "إلغاء",
+    "toggle_language": "تغيير اللغة",
+    "loading": "جاري التحميل…"
+  },
+  "login": {
+    "title": "تسجيل الدخول",
+    "subtitle": "ادخل بياناتك عشان تكمّل",
+    "email_label": "البريد الإلكتروني",
+    "email_placeholder": "ahmed@apex.eg",
+    "password_label": "كلمة السر",
+    "password_placeholder": "••••••••",
+    "submit": "دخول",
+    "submitting": "جاري الدخول…",
+    "errors": {
+      "required": "كل الخانات مطلوبة",
+      "invalid_credentials": "البريد أو كلمة السر غلط",
+      "network": "في مشكلة في الاتصال — جرب تاني",
+      "generic": "حصلت مشكلة — جرب تاني"
+    }
+  },
+  "dashboard": {
+    "welcome": "أهلاً بيك يا {{name}}",
+    "phase1_notice_title": "Phase 1 — جاهز",
+    "phase1_notice_body": "تسجيل الدخول، قاعدة البيانات المحلية والترحيلات شغّالة. باقي شاشات الصيانة هتتبني في الـ phase اللي جاي.",
+    "db_health_title": "حالة قاعدة البيانات",
+    "ping_title": "Tauri ping",
+    "version_title": "إصدار البرنامج",
+    "migrations_applied": "ترحيلات منفّذة",
+    "outbox_pending": "عمليات في الانتظار",
+    "seeded_categories": "تصنيفات الصيانة"
+  },
+  "errors": {
+    "session_expired": "انتهت صلاحية الجلسة. الكتابات في الانتظار حتى تسجيل الدخول مرة أخرى."
+  }
+}

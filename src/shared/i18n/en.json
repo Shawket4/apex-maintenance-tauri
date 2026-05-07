@@ -1,0 +1,49 @@
+{
+  "app": {
+    "title": "Apex Maintenance",
+    "subtitle": "Maintenance, chassis & tire management"
+  },
+  "status": {
+    "online": "Online",
+    "offline": "Offline",
+    "syncing": "Syncing"
+  },
+  "actions": {
+    "login": "Sign in",
+    "logout": "Sign out",
+    "save": "Save",
+    "cancel": "Cancel",
+    "toggle_language": "Toggle language",
+    "loading": "Loading…"
+  },
+  "login": {
+    "title": "Sign in",
+    "subtitle": "Enter your credentials to continue",
+    "email_label": "Email",
+    "email_placeholder": "ahmed@apex.eg",
+    "password_label": "Password",
+    "password_placeholder": "••••••••",
+    "submit": "Sign in",
+    "submitting": "Signing in…",
+    "errors": {
+      "required": "All fields are required",
+      "invalid_credentials": "Email or password is incorrect",
+      "network": "Connection problem — please try again",
+      "generic": "Something went wrong — please try again"
+    }
+  },
+  "dashboard": {
+    "welcome": "Welcome, {{name}}",
+    "phase1_notice_title": "Phase 1 — ready",
+    "phase1_notice_body": "Login, local database, and migrations are wired up. The maintenance screens are coming in the next phase.",
+    "db_health_title": "Database health",
+    "ping_title": "Tauri ping",
+    "version_title": "App version",
+    "migrations_applied": "Migrations applied",
+    "outbox_pending": "Outbox pending",
+    "seeded_categories": "Maintenance categories"
+  },
+  "errors": {
+    "session_expired": "Session expired. Local writes are queued until you sign in again."
+  }
+}
