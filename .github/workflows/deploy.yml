@@ -7,7 +7,7 @@ on:
 
 jobs:
   build-and-release:
-    name: Build & Release
+    name: Build Desktop & Release
     runs-on: ${{ matrix.platform }}
     permissions:
       contents: write
@@ -62,3 +62,51 @@ jobs:
           releaseDraft: false
           prerelease: false
           args: --target ${{ matrix.target }}
+
+  build-android:
+    name: Build Android APK
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: "zulu"
+          java-version: "17"
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+
+      - name: Setup Android NDK
+        uses: nttld/setup-ndk@v1
+        id: setup-ndk
+        with:
+          ndk-version: r26b
+          local-cache: false
+
+      - name: Install NPM dependencies
+        run: npm install
+
+      - name: Build Android APK
+        env:
+          NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+        run: npm run tauri android build
+
+      # Since tauri-action automatically created the release, we just append the APK to it
+      - name: Upload APK to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk
