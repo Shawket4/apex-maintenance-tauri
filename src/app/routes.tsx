@@ -1,17 +1,15 @@
 /**
  * TanStack Router setup.
  *
- * Phase 1 routes:
+ * Phase 2 routes:
  *   /login      → LoginPage
- *   /           → DashboardPage (placeholder)
+ *   /           → DashboardPage
+ *   /vehicles   → VehiclesListPage
+ *   /invoices   → InvoicesListPage
  *
  * Auth gating: a `beforeLoad` on the protected branch reads the cached user
  * via Tauri and redirects unauthenticated visitors to /login. The login page
  * does the inverse (already-logged-in users go to /).
- *
- * Per the architecture doc §11 we'll migrate to file-based routes once the
- * route surface grows beyond a handful — the `pages/` directory is already
- * laid out so the migration is mechanical.
  */
 
 import {
@@ -30,6 +28,8 @@ import { AuthLayout } from "./layouts/AuthLayout";
 import { fetchCurrentUser } from "@/shared/api/auth";
 import { LoginPage } from "@/pages/login/LoginPage";
 import { DashboardPage } from "@/pages/dashboard/DashboardPage";
+import { VehiclesListPage } from "@/pages/vehicles/list/VehiclesListPage";
+import { InvoicesListPage } from "@/pages/invoices/list/InvoicesListPage";
 
 const rootRoute = createRootRoute({
   component: () => <Outlet />,
@@ -74,23 +74,32 @@ const dashboardRoute = createRoute({
   component: () => <DashboardPage />,
 });
 
-// Catch-all for any unknown path → /login (until we have more routes)
+const vehiclesRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: "/vehicles",
+  component: () => <VehiclesListPage />,
+});
+
+const invoicesRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: "/invoices",
+  component: () => <InvoicesListPage />,
+});
+
 const notFoundRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "*",
-  component: () => <Navigate to="/login" />,
+  component: () => <Navigate to="/" />,
 });
 
 const routeTree = rootRoute.addChildren([
   loginRoute,
-  protectedRoute.addChildren([dashboardRoute]),
+  protectedRoute.addChildren([dashboardRoute, vehiclesRoute, invoicesRoute]),
   notFoundRoute,
 ]);
 
 const router = createRouter({
   routeTree,
-  // Memory history keeps URLs internal to the Tauri shell so refresh & deep
-  // links behave predictably without a real address bar.
   history: createMemoryHistory({ initialEntries: ["/"] }),
   defaultPreload: "intent",
 });

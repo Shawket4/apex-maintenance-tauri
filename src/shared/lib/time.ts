@@ -6,10 +6,12 @@
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import timezone from "dayjs/plugin/timezone";
+import relativeTime from "dayjs/plugin/relativeTime";
 import "dayjs/locale/ar";
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
+dayjs.extend(relativeTime);
 dayjs.tz.setDefault("Africa/Cairo");
 
 export const CAIRO_TZ = "Africa/Cairo";

@@ -3,6 +3,13 @@
     "title": "Apex Maintenance",
     "subtitle": "Maintenance, chassis & tire management"
   },
+  "nav": {
+    "dashboard": "Dashboard",
+    "vehicles": "Vehicles",
+    "invoices": "Service invoices",
+    "maintenance": "Maintenance",
+    "chassis": "Chassis & tires"
+  },
   "status": {
     "online": "Online",
     "offline": "Offline",
@@ -14,7 +21,14 @@
     "save": "Save",
     "cancel": "Cancel",
     "toggle_language": "Toggle language",
-    "loading": "Loading…"
+    "loading": "Loading…",
+    "refresh": "Refresh",
+    "previous": "Previous",
+    "next": "Next"
+  },
+  "freshness": {
+    "never": "Never refreshed",
+    "last_refreshed": "Last refreshed {{ago}}"
   },
   "login": {
     "title": "Sign in",
@@ -34,14 +48,56 @@
   },
   "dashboard": {
     "welcome": "Welcome, {{name}}",
-    "phase1_notice_title": "Phase 1 — ready",
-    "phase1_notice_body": "Login, local database, and migrations are wired up. The maintenance screens are coming in the next phase.",
+    "phase1_notice_title": "Phase 2 — ready",
+    "phase1_notice_body": "Login, local database, and cache for vehicles and invoices are wired up. The maintenance and chassis screens are coming in the next phase.",
     "db_health_title": "Database health",
     "ping_title": "Tauri ping",
     "version_title": "App version",
     "migrations_applied": "Migrations applied",
     "outbox_pending": "Outbox pending",
     "seeded_categories": "Maintenance categories"
+  },
+  "vehicles": {
+    "title": "Vehicles",
+    "subtitle": "{{countStr}} vehicles in the fleet",
+    "search_placeholder": "Search by plate, type, transporter or driver…",
+    "empty_total": "No vehicles in cache yet — tap refresh.",
+    "empty_filtered": "No results for that search.",
+    "error": "Could not load vehicles.",
+    "col": {
+      "plate": "Plate",
+      "type": "Type",
+      "transporter": "Transporter",
+      "driver": "Driver",
+      "odometer": "Odometer",
+      "car_license": "Car license",
+      "calibration": "Calibration"
+    }
+  },
+  "invoices": {
+    "title": "Service invoices",
+    "subtitle": "{{countStr}} invoices in cache",
+    "subtitle_search": "{{matches}} matches for \"{{query}}\"",
+    "search_placeholder": "Search invoice services and notes…",
+    "empty_total": "No invoices in cache yet — tap refresh.",
+    "empty_search": "No results for \"{{query}}\".",
+    "error": "Could not load invoices.",
+    "pagination": "Page {{page}} of {{total}}",
+    "source": {
+      "online": "Server search",
+      "online_hint": "Results from maint-rust",
+      "offline": "Local search",
+      "offline_hint": "Server unreachable — results from local FTS5 index"
+    },
+    "col": {
+      "date": "Date",
+      "plate": "Plate",
+      "services": "Services",
+      "driver": "Driver",
+      "region": "Region",
+      "items": "Items",
+      "meter": "Meter"
+    }
   },
   "errors": {
     "session_expired": "Session expired. Local writes are queued until you sign in again."

@@ -3,6 +3,13 @@
     "title": "صيانة أبكس",
     "subtitle": "إدارة الصيانة، الشاسيه والإطارات"
   },
+  "nav": {
+    "dashboard": "الرئيسية",
+    "vehicles": "العربيات",
+    "invoices": "فواتير الصيانة",
+    "maintenance": "الصيانة",
+    "chassis": "الشاسيه والإطارات"
+  },
   "status": {
     "online": "متصل",
     "offline": "غير متصل",
@@ -14,7 +21,14 @@
     "save": "حفظ",
     "cancel": "إلغاء",
     "toggle_language": "تغيير اللغة",
-    "loading": "جاري التحميل…"
+    "loading": "جاري التحميل…",
+    "refresh": "تحديث",
+    "previous": "السابق",
+    "next": "التالي"
+  },
+  "freshness": {
+    "never": "لسه ما تحدثش",
+    "last_refreshed": "آخر تحديث {{ago}}"
   },
   "login": {
     "title": "تسجيل الدخول",
@@ -34,14 +48,56 @@
   },
   "dashboard": {
     "welcome": "أهلاً بيك يا {{name}}",
-    "phase1_notice_title": "Phase 1 — جاهز",
-    "phase1_notice_body": "تسجيل الدخول، قاعدة البيانات المحلية والترحيلات شغّالة. باقي شاشات الصيانة هتتبني في الـ phase اللي جاي.",
+    "phase1_notice_title": "Phase 2 — جاهز",
+    "phase1_notice_body": "تسجيل الدخول، قاعدة البيانات المحلية، الكاش لقايمة العربيات والفواتير — كله شغّال. شاشات الصيانة والشاسيه هتتبني في الـ phase اللي جاي.",
     "db_health_title": "حالة قاعدة البيانات",
     "ping_title": "Tauri ping",
     "version_title": "إصدار البرنامج",
     "migrations_applied": "ترحيلات منفّذة",
     "outbox_pending": "عمليات في الانتظار",
     "seeded_categories": "تصنيفات الصيانة"
+  },
+  "vehicles": {
+    "title": "العربيات",
+    "subtitle": "{{countStr}} عربية في الأسطول",
+    "search_placeholder": "ابحث برقم اللوحة، النوع، الناقل أو السائق…",
+    "empty_total": "مفيش عربيات في الكاش لسه — اضغط تحديث.",
+    "empty_filtered": "مفيش نتائج للبحث ده.",
+    "error": "تعذّر تحميل قائمة العربيات.",
+    "col": {
+      "plate": "رقم اللوحة",
+      "type": "النوع",
+      "transporter": "الناقل",
+      "driver": "السائق",
+      "odometer": "العداد",
+      "car_license": "ر. السيارة",
+      "calibration": "ر. المعايرة"
+    }
+  },
+  "invoices": {
+    "title": "فواتير الصيانة",
+    "subtitle": "{{countStr}} فاتورة في الكاش",
+    "subtitle_search": "{{matches}} نتيجة للبحث «{{query}}»",
+    "search_placeholder": "ابحث في خدمات وملاحظات الفواتير…",
+    "empty_total": "مفيش فواتير في الكاش لسه — اضغط تحديث.",
+    "empty_search": "مفيش نتائج لـ «{{query}}».",
+    "error": "تعذّر تحميل الفواتير.",
+    "pagination": "صفحة {{page}} من {{total}}",
+    "source": {
+      "online": "بحث السيرفر",
+      "online_hint": "النتائج جايّة من maint-rust",
+      "offline": "بحث محلي",
+      "offline_hint": "السيرفر مش متاح — النتائج من فهرس FTS5 المحلي"
+    },
+    "col": {
+      "date": "التاريخ",
+      "plate": "اللوحة",
+      "services": "الخدمات",
+      "driver": "السائق",
+      "region": "المنطقة",
+      "items": "البنود",
+      "meter": "العداد"
+    }
   },
   "errors": {
     "session_expired": "انتهت صلاحية الجلسة. الكتابات في الانتظار حتى تسجيل الدخول مرة أخرى."

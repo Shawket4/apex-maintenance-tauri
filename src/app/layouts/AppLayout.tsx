@@ -5,6 +5,7 @@ import { LogOut, Languages, Wifi, WifiOff } from "lucide-react";
 import { Button } from "@/shared/ui/button";
 import { useAuth } from "@/shared/api/auth";
 import { useNetworkStatus } from "@/shared/hooks/useNetworkStatus";
+import { AppSidebar } from "@/widgets/AppSidebar/AppSidebar";
 
 export function AppLayout({ children }: { children: ReactNode }) {
   const { t, i18n } = useTranslation();
@@ -18,7 +19,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      <header className="h-14 border-b border-border flex items-center justify-between px-4 sticky top-0 bg-background/95 backdrop-blur z-10">
+      <header className="h-14 border-b border-border flex items-center justify-between px-4 sticky top-0 bg-background/95 backdrop-blur z-20">
         <div className="flex items-center gap-3">
           <div className="h-8 w-8 rounded-md bg-primary text-primary-foreground grid place-items-center font-bold">
             A
@@ -64,7 +65,12 @@ export function AppLayout({ children }: { children: ReactNode }) {
         </div>
       </header>
 
-      <main className="flex-1 p-6 max-w-7xl mx-auto w-full">{children}</main>
+      <div className="flex flex-1 min-h-0">
+        <AppSidebar />
+        <main className="flex-1 p-6 overflow-auto">
+          <div className="max-w-7xl mx-auto w-full">{children}</div>
+        </main>
+      </div>
     </div>
   );
 }

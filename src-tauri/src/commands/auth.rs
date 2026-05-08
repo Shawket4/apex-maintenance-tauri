@@ -4,16 +4,15 @@
 //! 1. POST <base>/api/go/api/login  with { email, password }
 //! 2. Response is JSON. The architecture doc says it includes
 //!    { id, email, name, permission, driver_id, jwt, success }, but real-world
-//!    servers drift. We treat **HTTP 200 with a `jwt` field present** as the
-//!    authoritative success signal. Everything else about the body is
-//!    best-effort.
+//!    servers drift. We treat the `success` flag as authoritative; the JWT
+//!    may be empty initially.
 //! 3. We persist `jwt` to the OS keychain.
 //! 4. We persist a small `UserInfo` JSON blob alongside it so
 //!    `auth_current_user` doesn't need to re-decode the JWT.
 //!
 //! Error kinds the JS layer needs to distinguish:
 //!   - `auth_failed`  → server clearly said "wrong credentials"
-//!                      (4xx with no `jwt`, or 200 with explicit `success:false`)
+//!                      (success:false, or 4xx with no jwt)
 //!   - `http`         → connection / 5xx / non-JSON body / malformed payload
 //!   - `unauthorized` → 401 (used after login for stale tokens)
 
@@ -124,8 +123,8 @@ pub async fn auth_login(
     };
 
     // 5. Persist.
-    keyring_store::store_jwt(jwt)?;
-    keyring_store::store_user_json(&serde_json::to_string(&user)?)?;
+    keyring_store::store_jwt(&state.config, jwt)?;
+    keyring_store::store_user_json(&state.config, &serde_json::to_string(&user)?)?;
 
     tracing::info!(user_id = user.id, email = %user.email, jwt_exp = user.jwt_exp, "login successful");
     Ok(user)
@@ -135,34 +134,36 @@ pub async fn auth_login(
 pub async fn auth_logout(state: State<'_, AppState>) -> AppResult<()> {
     // Best-effort server-side logout. We don't fail the local logout if this
     // call fails — the keychain is the source of truth for "am I logged in?".
-    if let Ok(Some(jwt)) = keyring_store::read_jwt() {
-        match state
-            .http
-            .falcon_post_authed_raw("/api/logout", &serde_json::json!({}), &jwt)
-            .await
-        {
-            Ok(r) => tracing::debug!(status = %r.status, "logout returned"),
-            Err(e) => tracing::warn!(error = ?e, "logout call failed (continuing)"),
+    if let Ok(Some(jwt)) = keyring_store::read_jwt(&state.config) {
+        if !jwt.is_empty() {
+            match state
+                .http
+                .falcon_post_authed_raw("/api/logout", &serde_json::json!({}), &jwt)
+                .await
+            {
+                Ok(r) => tracing::debug!(status = %r.status, "logout returned"),
+                Err(e) => tracing::warn!(error = ?e, "logout call failed (continuing)"),
+            }
         }
     }
 
-    keyring_store::delete_jwt()?;
-    keyring_store::delete_user_json()?;
+    keyring_store::delete_jwt(&state.config)?;
+    keyring_store::delete_user_json(&state.config)?;
     tracing::info!("logged out");
     Ok(())
 }
 
 #[tauri::command]
-pub async fn auth_current_user() -> AppResult<Option<UserInfo>> {
-    let Some(json) = keyring_store::read_user_json()? else {
+pub async fn auth_current_user(state: State<'_, AppState>) -> AppResult<Option<UserInfo>> {
+    let Some(json) = keyring_store::read_user_json(&state.config)? else {
         return Ok(None);
     };
     match serde_json::from_str::<UserInfo>(&json) {
         Ok(user) => Ok(Some(user)),
         Err(e) => {
             tracing::warn!(error = %e, "stale user blob in keychain — clearing");
-            let _ = keyring_store::delete_user_json();
-            let _ = keyring_store::delete_jwt();
+            let _ = keyring_store::delete_user_json(&state.config);
+            let _ = keyring_store::delete_jwt(&state.config);
             Ok(None)
         }
     }

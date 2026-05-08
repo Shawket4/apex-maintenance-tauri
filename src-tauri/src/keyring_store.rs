@@ -4,25 +4,20 @@
 //! - Windows: Credential Manager
 //! - Linux:  Secret Service (libsecret)
 //!
-//! The token is stored under the service "apex_maintenance.jwt" with an
-//! account name of "default" so we don't accidentally leak per-user state if
-//! we ever support multi-account in the future.
+//! Service / account strings come from `AppConfig` so a developer can swap
+//! to a different keychain entry for testing without disturbing their real
+//! production session.
 
-use crate::AppResult;
+use crate::{config::AppConfig, AppResult};
 
-const SERVICE: &str = "apex_maintenance.jwt";
-const ACCOUNT: &str = "default";
-
-const SERVICE_USER: &str = "apex_maintenance.user";
-
-pub fn store_jwt(jwt: &str) -> AppResult<()> {
-    let entry = keyring::Entry::new(SERVICE, ACCOUNT)?;
+pub fn store_jwt(config: &AppConfig, jwt: &str) -> AppResult<()> {
+    let entry = keyring::Entry::new(&config.keychain.service_jwt, &config.keychain.account)?;
     entry.set_password(jwt)?;
     Ok(())
 }
 
-pub fn read_jwt() -> AppResult<Option<String>> {
-    let entry = keyring::Entry::new(SERVICE, ACCOUNT)?;
+pub fn read_jwt(config: &AppConfig) -> AppResult<Option<String>> {
+    let entry = keyring::Entry::new(&config.keychain.service_jwt, &config.keychain.account)?;
     match entry.get_password() {
         Ok(s) => Ok(Some(s)),
         Err(keyring::Error::NoEntry) => Ok(None),
@@ -30,8 +25,8 @@ pub fn read_jwt() -> AppResult<Option<String>> {
     }
 }
 
-pub fn delete_jwt() -> AppResult<()> {
-    let entry = keyring::Entry::new(SERVICE, ACCOUNT)?;
+pub fn delete_jwt(config: &AppConfig) -> AppResult<()> {
+    let entry = keyring::Entry::new(&config.keychain.service_jwt, &config.keychain.account)?;
     match entry.delete_credential() {
         Ok(()) => Ok(()),
         Err(keyring::Error::NoEntry) => Ok(()),
@@ -39,14 +34,14 @@ pub fn delete_jwt() -> AppResult<()> {
     }
 }
 
-pub fn store_user_json(user_json: &str) -> AppResult<()> {
-    let entry = keyring::Entry::new(SERVICE_USER, ACCOUNT)?;
+pub fn store_user_json(config: &AppConfig, user_json: &str) -> AppResult<()> {
+    let entry = keyring::Entry::new(&config.keychain.service_user, &config.keychain.account)?;
     entry.set_password(user_json)?;
     Ok(())
 }
 
-pub fn read_user_json() -> AppResult<Option<String>> {
-    let entry = keyring::Entry::new(SERVICE_USER, ACCOUNT)?;
+pub fn read_user_json(config: &AppConfig) -> AppResult<Option<String>> {
+    let entry = keyring::Entry::new(&config.keychain.service_user, &config.keychain.account)?;
     match entry.get_password() {
         Ok(s) => Ok(Some(s)),
         Err(keyring::Error::NoEntry) => Ok(None),
@@ -54,8 +49,8 @@ pub fn read_user_json() -> AppResult<Option<String>> {
     }
 }
 
-pub fn delete_user_json() -> AppResult<()> {
-    let entry = keyring::Entry::new(SERVICE_USER, ACCOUNT)?;
+pub fn delete_user_json(config: &AppConfig) -> AppResult<()> {
+    let entry = keyring::Entry::new(&config.keychain.service_user, &config.keychain.account)?;
     match entry.delete_credential() {
         Ok(()) => Ok(()),
         Err(keyring::Error::NoEntry) => Ok(()),

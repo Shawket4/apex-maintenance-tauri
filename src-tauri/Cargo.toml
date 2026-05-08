@@ -57,6 +57,9 @@ keyring = { version = "3", features = ["apple-native", "windows-native", "linux-
 once_cell = "1"
 parking_lot = "0.12"
 
+# Env-file loading at startup (.env in dev, OS env vars in prod)
+dotenvy = "0.15"
+
 [features]
 # By default Tauri runs in production mode unless `dev` is set
 default = ["custom-protocol"]

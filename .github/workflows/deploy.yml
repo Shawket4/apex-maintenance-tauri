@@ -65,6 +65,7 @@ jobs:
 
   build-android:
     name: Build Android APK
+    needs: build-and-release
     runs-on: ubuntu-22.04
     permissions:
       contents: write
@@ -115,11 +116,11 @@ jobs:
       - name: Build Android APK
         env:
           NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
-        run: npm run tauri android build
+        run: npm run tauri android build -- --apk
 
       # Since tauri-action automatically created the release, we just append the APK to it
       - name: Upload APK to Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          files: src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk
+          files: src-tauri/gen/android/app/build/outputs/apk/**/*.apk

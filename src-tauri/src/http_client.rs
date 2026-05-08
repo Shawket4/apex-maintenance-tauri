@@ -1,35 +1,22 @@
-//! HTTP client wrapping reqwest.
+//! HTTP client wrapping reqwest. Every outbound call is centralised here so
+//! we have one place that handles:
+//!   - Bearer-JWT injection from the keychain
+//!   - 401 → re-login signalling (via `AppError::Unauthorized`)
+//!   - timeouts and base-URL resolution from `AppConfig`
+//!   - structured logging of every request and response
 //!
-//! Every outbound call to `maint-rust` (and the Falcon login passthrough)
-//! goes through here so we have one place that handles:
-//! - Bearer-JWT injection from the keychain
-//! - 401 → re-login signalling (via `AppError::Unauthorized`)
-//! - timeouts and base-URL configuration
-//! - structured logging of every request and response
-//!
-//! Design note: this layer deliberately does NOT json-decode the response
-//! body. Decoding is the caller's job, because the caller knows the actual
-//! response shape and can produce a much better error message than a
-//! generic "couldn't decode body". This was the root cause of the Phase 1
-//! login regression — every parse failure looked like a 401.
+//! Design note: this layer deliberately does NOT json-decode response bodies.
+//! Decoding is the caller's job — they know the expected shape and can produce
+//! a much better error than a generic "couldn't decode body". Phase 1's login
+//! regression came from putting decode into the transport layer and conflating
+//! shape-mismatch with authentication failure.
 
-use std::time::Duration;
+use std::sync::Arc;
 
 use reqwest::{header, Client, Response, StatusCode};
 use serde::Serialize;
 
-use crate::{keyring_store, AppError, AppResult};
-
-const DEFAULT_BASE: &str = "https://apextransport.ddns.net";
-const FALCON_PREFIX: &str = "/api/go";
-const MAINT_PREFIX: &str = "/api/maint";
-const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
-
-/// Configurable base URL — Phase 6 will surface this in settings; for now
-/// pulled from `APEX_BASE_URL` env var, defaulting to production.
-pub fn resolve_base_url() -> String {
-    std::env::var("APEX_BASE_URL").unwrap_or_else(|_| DEFAULT_BASE.to_string())
-}
+use crate::{config::AppConfig, keyring_store, AppError, AppResult};
 
 /// Successful HTTP response body, kept as text so the caller can decide how
 /// to parse it (and we can log raw payloads on parse failure).
@@ -41,27 +28,30 @@ pub struct RawResponse {
 #[derive(Clone)]
 pub struct HttpClient {
     inner: Client,
-    base: String,
+    config: Arc<AppConfig>,
 }
 
 impl HttpClient {
-    pub fn new() -> AppResult<Self> {
+    pub fn new(config: Arc<AppConfig>) -> AppResult<Self> {
         let inner = Client::builder()
-            .timeout(REQUEST_TIMEOUT)
+            .timeout(config.backend.request_timeout)
             .user_agent(format!("apex-maintenance/{}", env!("CARGO_PKG_VERSION")))
             .build()?;
-        Ok(Self {
-            inner,
-            base: resolve_base_url(),
-        })
+        Ok(Self { inner, config })
     }
 
     fn falcon_url(&self, path: &str) -> String {
-        format!("{}{}{}", self.base, FALCON_PREFIX, path)
+        format!(
+            "{}{}{}",
+            self.config.backend.base_url, self.config.backend.falcon_prefix, path
+        )
     }
 
     fn maint_url(&self, path: &str) -> String {
-        format!("{}{}{}", self.base, MAINT_PREFIX, path)
+        format!(
+            "{}{}{}",
+            self.config.backend.base_url, self.config.backend.maint_prefix, path
+        )
     }
 
     /// POST to Falcon login. No auth header.
@@ -95,9 +85,10 @@ impl HttpClient {
         consume_response(&url, resp).await
     }
 
-    /// GET maint-rust with stored JWT auto-injected.
+    /// GET maint-rust with stored JWT auto-injected. `path` is appended to
+    /// the configured maint prefix.
     pub async fn maint_get_raw(&self, path: &str) -> AppResult<RawResponse> {
-        let jwt = require_jwt()?;
+        let jwt = self.require_jwt()?;
         let url = self.maint_url(path);
         tracing::debug!(%url, "maint GET");
         let resp = self
@@ -115,7 +106,7 @@ impl HttpClient {
         path: &str,
         body: &B,
     ) -> AppResult<RawResponse> {
-        let jwt = require_jwt()?;
+        let jwt = self.require_jwt()?;
         let url = self.maint_url(path);
         tracing::debug!(%url, "maint POST");
         let resp = self
@@ -128,24 +119,23 @@ impl HttpClient {
         consume_response(&url, resp).await
     }
 
-    pub fn base(&self) -> &str {
-        &self.base
+    fn require_jwt(&self) -> AppResult<String> {
+        keyring_store::read_jwt(&self.config)?.ok_or(AppError::Unauthorized)
+    }
+
+    pub fn base_url(&self) -> &str {
+        &self.config.backend.base_url
     }
 }
 
-fn require_jwt() -> AppResult<String> {
-    keyring_store::read_jwt()?.ok_or(AppError::Unauthorized)
-}
-
-/// Drain the response and return body-as-text, regardless of status.
-/// 401 still becomes `AppError::Unauthorized` because that's a transport-level
-/// concern (it tells the rest of the app to drop into re-login mode).
-/// Every other non-2xx becomes `AppError::Http` carrying status + body snippet.
+/// Drain the response and return body-as-text. 401 still becomes
+/// `AppError::Unauthorized` because that's a transport-level concern (it
+/// tells the rest of the app to drop into re-login mode). Every other
+/// non-2xx becomes `AppError::Http` carrying status + body snippet.
 async fn consume_response(url: &str, resp: Response) -> AppResult<RawResponse> {
     let status = resp.status();
 
     if status == StatusCode::UNAUTHORIZED {
-        // Drain body for logging, but signal Unauthorized to caller.
         let body = resp.text().await.unwrap_or_default();
         tracing::warn!(%url, %status, body = %truncate(&body, 500), "401 unauthorized");
         return Err(AppError::Unauthorized);
@@ -168,7 +158,6 @@ async fn consume_response(url: &str, resp: Response) -> AppResult<RawResponse> {
 
 fn truncate(s: &str, max: usize) -> &str {
     if s.len() > max {
-        // char-boundary safe truncation
         let end = s
             .char_indices()
             .nth(max)
