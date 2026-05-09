@@ -29,8 +29,6 @@ import { invoke } from "@/shared/api/tauri";
 import { useAuth } from "@/shared/api/auth";
 import { fmtNumber } from "@/shared/lib/numbers";
 import { ExportExcelButton } from "@/shared/ui/ExportExcelButton";
-import { TestSyncButton } from "./TestSyncButton";
-import { ResetSyncButton } from "./ResetSyncButton";
 
 interface AppVersion {
   name: string;
@@ -73,8 +71,6 @@ export function DashboardPage() {
           {t("dashboard.welcome", { name: user?.name || user?.email || "" })}
         </h1>
         <div className="flex items-center gap-2">
-          <ResetSyncButton />
-          <TestSyncButton />
           <ExportExcelButton
             config={() => ({
             filename: "dashboard_diagnostics",

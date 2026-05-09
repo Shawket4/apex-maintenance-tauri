@@ -15,8 +15,6 @@ export function SyncIndicator() {
     fetchStatus();
   }, [fetchStatus]);
 
-  console.log("SyncIndicator render:", { status, isSyncing });
-
   const hasConflicts = (status?.conflict_count ?? 0) > 0;
   const isPending = (status?.outbox_count ?? 0) > 0;
 

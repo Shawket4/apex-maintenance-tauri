@@ -102,8 +102,6 @@ pub fn run() {
             commands::sync::sync_now,
             commands::sync::sync_list_conflicts,
             commands::sync::sync_resolve_conflict,
-            commands::sync::test_create_odometer_override,
-            commands::sync::test_reset_sync_state,
         ])
         .run(tauri::generate_context!())
         .expect("error while running apex-maintenance");
