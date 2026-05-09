@@ -1,25 +1,16 @@
-//! HTTP client wrapping reqwest. Every outbound call is centralised here so
-//! we have one place that handles:
-//!   - Bearer-JWT injection from the keychain
-//!   - 401 → re-login signalling (via `AppError::Unauthorized`)
-//!   - timeouts and base-URL resolution from `AppConfig`
-//!   - structured logging of every request and response
-//!
-//! Design note: this layer deliberately does NOT json-decode response bodies.
-//! Decoding is the caller's job — they know the expected shape and can produce
-//! a much better error than a generic "couldn't decode body". Phase 1's login
-//! regression came from putting decode into the transport layer and conflating
-//! shape-mismatch with authentication failure.
+//! HTTP client wrapping reqwest. Centralised so we have one place that:
+//!   - reads the JWT from `<app_data_dir>/session.jwt` and adds Bearer
+//!   - maps 401 → `AppError::Unauthorized` for re-login
+//!   - logs every request and response
 
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use reqwest::{header, Client, Response, StatusCode};
 use serde::Serialize;
 
-use crate::{config::AppConfig, keyring_store, AppError, AppResult};
+use crate::{config::AppConfig, session_store, AppError, AppResult};
 
-/// Successful HTTP response body, kept as text so the caller can decide how
-/// to parse it (and we can log raw payloads on parse failure).
 pub struct RawResponse {
     pub status: StatusCode,
     pub body: String,
@@ -29,15 +20,20 @@ pub struct RawResponse {
 pub struct HttpClient {
     inner: Client,
     config: Arc<AppConfig>,
+    data_dir: PathBuf,
 }
 
 impl HttpClient {
-    pub fn new(config: Arc<AppConfig>) -> AppResult<Self> {
+    pub fn new(config: Arc<AppConfig>, data_dir: PathBuf) -> AppResult<Self> {
         let inner = Client::builder()
             .timeout(config.backend.request_timeout)
             .user_agent(format!("apex-maintenance/{}", env!("CARGO_PKG_VERSION")))
             .build()?;
-        Ok(Self { inner, config })
+        Ok(Self {
+            inner,
+            config,
+            data_dir,
+        })
     }
 
     fn falcon_url(&self, path: &str) -> String {
@@ -54,7 +50,6 @@ impl HttpClient {
         )
     }
 
-    /// POST to Falcon login. No auth header.
     pub async fn falcon_login_raw<B: Serialize>(
         &self,
         path: &str,
@@ -66,7 +61,6 @@ impl HttpClient {
         consume_response(&url, resp).await
     }
 
-    /// POST to Falcon with Bearer JWT (used by /api/logout).
     pub async fn falcon_post_authed_raw<B: Serialize>(
         &self,
         path: &str,
@@ -85,8 +79,6 @@ impl HttpClient {
         consume_response(&url, resp).await
     }
 
-    /// GET maint-rust with stored JWT auto-injected. `path` is appended to
-    /// the configured maint prefix.
     pub async fn maint_get_raw(&self, path: &str) -> AppResult<RawResponse> {
         let jwt = self.require_jwt()?;
         let url = self.maint_url(path);
@@ -100,7 +92,6 @@ impl HttpClient {
         consume_response(&url, resp).await
     }
 
-    /// POST maint-rust with stored JWT auto-injected.
     pub async fn maint_post_raw<B: Serialize>(
         &self,
         path: &str,
@@ -120,7 +111,7 @@ impl HttpClient {
     }
 
     fn require_jwt(&self) -> AppResult<String> {
-        keyring_store::read_jwt(&self.config)?.ok_or(AppError::Unauthorized)
+        session_store::read_jwt(&self.data_dir)?.ok_or(AppError::Unauthorized)
     }
 
     pub fn base_url(&self) -> &str {
@@ -128,10 +119,6 @@ impl HttpClient {
     }
 }
 
-/// Drain the response and return body-as-text. 401 still becomes
-/// `AppError::Unauthorized` because that's a transport-level concern (it
-/// tells the rest of the app to drop into re-login mode). Every other
-/// non-2xx becomes `AppError::Http` carrying status + body snippet.
 async fn consume_response(url: &str, resp: Response) -> AppResult<RawResponse> {
     let status = resp.status();
 

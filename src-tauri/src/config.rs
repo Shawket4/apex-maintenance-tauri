@@ -3,9 +3,6 @@
 //! All tunables come from the environment. In dev `.env` is loaded by `dotenvy`
 //! at startup; in production the OS env wins. Defaults are baked in here so a
 //! freshly cloned repo runs without a `.env` file at all.
-//!
-//! No business logic should ever read `std::env::var` directly — go through
-//! `AppConfig` so we have one place to add validation and defaults.
 
 use std::path::PathBuf;
 use std::time::Duration;
@@ -16,7 +13,6 @@ pub struct AppConfig {
     pub cache: CacheConfig,
     pub sync: SyncConfig,
     pub storage: StorageConfig,
-    pub keychain: KeychainConfig,
 }
 
 #[derive(Debug, Clone)]
@@ -50,22 +46,9 @@ pub struct StorageConfig {
     pub db_filename: String,
 }
 
-#[derive(Debug, Clone)]
-pub struct KeychainConfig {
-    pub service_jwt: String,
-    pub service_user: String,
-    pub account: String,
-}
-
 impl AppConfig {
-    /// Load `.env` (if present) and read every field. Never fails — missing
-    /// vars fall back to compile-time defaults.
     pub fn load() -> Self {
-        // Loading .env is best-effort; in production builds we expect the OS
-        // env to already be populated and this is a no-op.
         if let Err(e) = dotenvy::dotenv() {
-            // Don't even log at info level — most production runs won't have
-            // a .env file and that's fine.
             tracing::trace!(?e, ".env not loaded");
         } else {
             tracing::debug!(".env loaded");
@@ -106,11 +89,6 @@ impl AppConfig {
             storage: StorageConfig {
                 db_filename: env_or("APEX_DB_FILENAME", "apex_maintenance.db"),
             },
-            keychain: KeychainConfig {
-                service_jwt: env_or("APEX_KEYCHAIN_SERVICE_JWT", "apex_maintenance.jwt"),
-                service_user: env_or("APEX_KEYCHAIN_SERVICE_USER", "apex_maintenance.user"),
-                account: env_or("APEX_KEYCHAIN_ACCOUNT", "default"),
-            },
         };
 
         tracing::info!(
@@ -122,15 +100,10 @@ impl AppConfig {
         cfg
     }
 
-    /// Resolve the SQLite path: `<app-data-dir>/<db_filename>`.
     pub fn db_path(&self, app_data_dir: &std::path::Path) -> PathBuf {
         app_data_dir.join(&self.storage.db_filename)
     }
 }
-
-/* ------------------------------------------------------------------------- *
- * env-var readers with sane defaults
- * ------------------------------------------------------------------------- */
 
 fn env_or(key: &str, default: &str) -> String {
     std::env::var(key)

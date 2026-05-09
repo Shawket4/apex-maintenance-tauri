@@ -3,12 +3,26 @@
     "title": "صيانة أبكس",
     "subtitle": "إدارة الصيانة، الشاسيه والإطارات"
   },
+  "common": {
+    "details": "تفاصيل"
+  },
   "nav": {
+    "overview": "نظرة عامة",
+    "fleet": "الأسطول",
+    "operations": "العمليات",
     "dashboard": "الرئيسية",
     "vehicles": "العربيات",
+    "serviceInvoices": "فواتير الصيانة",
     "invoices": "فواتير الصيانة",
     "maintenance": "الصيانة",
     "chassis": "الشاسيه والإطارات"
+  },
+  "settings": {
+    "theme": "المظهر",
+    "themeLight": "فاتح",
+    "themeDark": "داكن",
+    "themeSystem": "حسب النظام",
+    "language": "اللغة"
   },
   "status": {
     "online": "متصل",
@@ -20,11 +34,13 @@
     "logout": "تسجيل خروج",
     "save": "حفظ",
     "cancel": "إلغاء",
+    "back": "رجوع",
     "toggle_language": "تغيير اللغة",
     "loading": "جاري التحميل…",
     "refresh": "تحديث",
     "previous": "السابق",
-    "next": "التالي"
+    "next": "التالي",
+    "print": "طباعة"
   },
   "freshness": {
     "never": "لسه ما تحدثش",
@@ -59,24 +75,29 @@
   },
   "vehicles": {
     "title": "العربيات",
-    "subtitle": "{{countStr}} عربية في الأسطول",
+    "subtitle": "{{formattedCount}} عربية في الأسطول",
     "search_placeholder": "ابحث برقم اللوحة، النوع، الناقل أو السائق…",
     "empty_total": "مفيش عربيات في الكاش لسه — اضغط تحديث.",
     "empty_filtered": "مفيش نتائج للبحث ده.",
     "error": "تعذّر تحميل قائمة العربيات.",
+    "unit": {
+      "liters": "لتر"
+    },
     "col": {
       "plate": "رقم اللوحة",
       "type": "النوع",
+      "tank_capacity": "سعة التانك",
       "transporter": "الناقل",
       "driver": "السائق",
       "odometer": "العداد",
-      "car_license": "ر. السيارة",
-      "calibration": "ر. المعايرة"
+      "car_license": "رخصة السيارة",
+      "calibration": "رخصة المعايرة",
+      "tank_license": "رخصة التانك"
     }
   },
   "invoices": {
     "title": "فواتير الصيانة",
-    "subtitle": "{{countStr}} فاتورة في الكاش",
+    "subtitle": "{{formattedCount}} فاتورة في الكاش",
     "subtitle_search": "{{matches}} نتيجة للبحث «{{query}}»",
     "search_placeholder": "ابحث في خدمات وملاحظات الفواتير…",
     "empty_total": "مفيش فواتير في الكاش لسه — اضغط تحديث.",
@@ -97,6 +118,26 @@
       "region": "المنطقة",
       "items": "البنود",
       "meter": "العداد"
+    }
+  },
+  "serviceInvoices": {
+    "title": "فواتير الصيانة",
+    "pickVehicle": "اختار عربية عشان تشوف فواتير صيانتها — {{formattedCount}} عربية متاحة",
+    "subtitleByVehicle": "{{formattedCount}} فاتورة للعربية دي",
+    "noDriver": "بدون سائق",
+    "unknownVehicle": "عربية غير معروفة",
+    "empty": "مفيش فواتير للعربية دي في الكاش لسه — اضغط تحديث.",
+    "detailError": "تعذّر تحميل تفاصيل الفاتورة.",
+    "noItems": "الفاتورة ما فيهاش بنود.",
+    "receiptTitle": "فاتورة صيانة",
+    "checklistTitle": "قائمة الفحص",
+    "truckSubtitle": "Service Truck Inspection",
+    "billedTo": "بيانات العربية",
+    "verificationNote": "البيانات دي من الكاش المحلي بتاريخ {{date}}.",
+    "fields": {
+      "supervisor": "المشرف",
+      "notes": "الملاحظات",
+      "service": "الخدمة"
     }
   },
   "errors": {

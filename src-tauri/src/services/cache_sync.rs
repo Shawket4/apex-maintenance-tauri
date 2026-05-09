@@ -2,8 +2,7 @@
 //!
 //! All write paths from server → SQLite live here. They run inside a
 //! single transaction per call so a partial failure can't leave the cache
-//! half-rewritten. None of these functions ever talk to the network — that's
-//! the command layer's job.
+//! half-rewritten. None of these functions ever talk to the network.
 
 use chrono::SecondsFormat;
 use rusqlite::{params, OptionalExtension};
@@ -14,7 +13,10 @@ use crate::{
     models::{
         cache_freshness::CacheFreshnessRow,
         driver::{CachedDriver, DriverRow},
-        invoice::{CachedInvoice, InvoiceListResult, InvoiceRow, InvoiceSearchResult, SearchSource},
+        invoice::{
+            CachedInvoice, InvoiceCarInfo, InvoiceDetail, InvoiceItemRow, InvoiceListResult,
+            InvoiceRow, InvoiceSearchResult, SearchSource,
+        },
         vehicle::{CachedVehicle, VehicleRow},
     },
     AppResult,
@@ -309,8 +311,6 @@ pub fn upsert_invoices(pool: &DbPool, invoices: &[CachedInvoice]) -> AppResult<u
                 fetched,
             ])?;
 
-            // Replace items wholesale — simpler than diffing, and the FTS
-            // triggers handle the index updates atomically.
             item_del.execute(params![inv.id])?;
             for item in &inv.items {
                 let item_invoice_id = item.service_invoice_id.unwrap_or(inv.id);
@@ -401,36 +401,77 @@ pub fn list_drivers(pool: &DbPool) -> AppResult<Vec<DriverRow>> {
     Ok(rows)
 }
 
-pub fn list_invoices(pool: &DbPool, page: i32, limit: i32) -> AppResult<InvoiceListResult> {
+/// Lists invoices, optionally filtered by vehicle id. Pagination is server-
+/// like (page,limit) so the same call covers both the "all invoices" and
+/// "all invoices for this vehicle" pages.
+pub fn list_invoices(
+    pool: &DbPool,
+    car_id: Option<i64>,
+    page: i32,
+    limit: i32,
+) -> AppResult<InvoiceListResult> {
     let conn = pool.get()?;
-
-    let total: i64 = conn
-        .query_row(
-            "SELECT COUNT(*) FROM service_invoices_cache WHERE source_deleted_at IS NULL",
-            [],
-            |r| r.get(0),
-        )
-        .unwrap_or(0);
-
     let offset = ((page.max(1) - 1) * limit.max(1)) as i64;
-    let mut stmt = conn.prepare(
-        "SELECT i.id, i.car_id, i.date, i.plate_number, i.driver_name,
-                i.supervisor, i.operating_region, i.meter_reading,
-                (SELECT COUNT(*) FROM service_invoice_items_cache it WHERE it.service_invoice_id = i.id) AS item_count,
-                (SELECT GROUP_CONCAT(it.service, ' • ') FROM (
-                     SELECT service FROM service_invoice_items_cache
-                     WHERE service_invoice_id = i.id
-                     ORDER BY COALESCE(item_order, id) LIMIT 3
-                 ) it) AS preview,
-                i.fetched_at
-         FROM service_invoices_cache i
-         WHERE i.source_deleted_at IS NULL
-         ORDER BY i.date DESC, i.id DESC
-         LIMIT ?1 OFFSET ?2",
-    )?;
-    let rows = stmt
-        .query_map(params![limit as i64, offset], map_invoice_row)?
-        .collect::<Result<Vec<_>, _>>()?;
+
+    let (total, rows) = if let Some(cid) = car_id {
+        let total: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM service_invoices_cache
+                 WHERE source_deleted_at IS NULL AND car_id = ?1",
+                params![cid],
+                |r| r.get(0),
+            )
+            .unwrap_or(0);
+
+        let mut stmt = conn.prepare(
+            "SELECT i.id, i.car_id, i.date, i.plate_number, i.driver_name,
+                    i.supervisor, i.operating_region, i.meter_reading,
+                    (SELECT COUNT(*) FROM service_invoice_items_cache it WHERE it.service_invoice_id = i.id) AS item_count,
+                    (SELECT GROUP_CONCAT(s.service, ' • ') FROM (
+                         SELECT service FROM service_invoice_items_cache
+                         WHERE service_invoice_id = i.id
+                         ORDER BY COALESCE(item_order, id) LIMIT 3
+                     ) s) AS preview,
+                    i.fetched_at
+             FROM service_invoices_cache i
+             WHERE i.source_deleted_at IS NULL AND i.car_id = ?1
+             ORDER BY i.date DESC, i.id DESC
+             LIMIT ?2 OFFSET ?3",
+        )?;
+        let rows = stmt
+            .query_map(params![cid, limit as i64, offset], map_invoice_row)?
+            .collect::<Result<Vec<_>, _>>()?;
+        (total, rows)
+    } else {
+        let total: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM service_invoices_cache WHERE source_deleted_at IS NULL",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap_or(0);
+
+        let mut stmt = conn.prepare(
+            "SELECT i.id, i.car_id, i.date, i.plate_number, i.driver_name,
+                    i.supervisor, i.operating_region, i.meter_reading,
+                    (SELECT COUNT(*) FROM service_invoice_items_cache it WHERE it.service_invoice_id = i.id) AS item_count,
+                    (SELECT GROUP_CONCAT(s.service, ' • ') FROM (
+                         SELECT service FROM service_invoice_items_cache
+                         WHERE service_invoice_id = i.id
+                         ORDER BY COALESCE(item_order, id) LIMIT 3
+                     ) s) AS preview,
+                    i.fetched_at
+             FROM service_invoices_cache i
+             WHERE i.source_deleted_at IS NULL
+             ORDER BY i.date DESC, i.id DESC
+             LIMIT ?1 OFFSET ?2",
+        )?;
+        let rows = stmt
+            .query_map(params![limit as i64, offset], map_invoice_row)?
+            .collect::<Result<Vec<_>, _>>()?;
+        (total, rows)
+    };
+
     Ok(InvoiceListResult {
         rows,
         total,
@@ -439,7 +480,72 @@ pub fn list_invoices(pool: &DbPool, page: i32, limit: i32) -> AppResult<InvoiceL
     })
 }
 
-/// Offline FTS5 fallback per architecture §4.3.
+pub fn get_invoice(pool: &DbPool, id: i64) -> AppResult<Option<InvoiceDetail>> {
+    let conn = pool.get()?;
+
+    let header_opt = conn
+        .query_row(
+            "SELECT i.id, i.car_id, i.date, i.plate_number, i.driver_name,
+                    i.supervisor, i.operating_region, i.meter_reading, i.fetched_at,
+                    v.id, v.car_no_plate, v.car_type, v.transporter, v.tank_capacity
+             FROM service_invoices_cache i
+             LEFT JOIN vehicles_cache v ON v.id = i.car_id
+             WHERE i.id = ?1 AND i.source_deleted_at IS NULL",
+            params![id],
+            |r| {
+                let veh_id: Option<i64> = r.get(9)?;
+                let car = match veh_id {
+                    Some(vid) => Some(InvoiceCarInfo {
+                        id: vid,
+                        car_no_plate: r.get::<_, Option<String>>(10)?.unwrap_or_default(),
+                        car_type: r.get(11)?,
+                        transporter: r.get(12)?,
+                        tank_capacity: r.get(13)?,
+                    }),
+                    None => None,
+                };
+                Ok(InvoiceDetail {
+                    id: r.get(0)?,
+                    car_id: r.get(1)?,
+                    date: r.get(2)?,
+                    plate_number: r.get(3)?,
+                    driver_name: r.get(4)?,
+                    supervisor: r.get(5)?,
+                    operating_region: r.get(6)?,
+                    meter_reading: r.get(7)?,
+                    fetched_at: r.get(8)?,
+                    car,
+                    items: Vec::new(),
+                })
+            },
+        )
+        .optional()?;
+
+    let mut detail = match header_opt {
+        Some(d) => d,
+        None => return Ok(None),
+    };
+
+    let mut stmt = conn.prepare(
+        "SELECT id, service, notes, item_order
+         FROM service_invoice_items_cache
+         WHERE service_invoice_id = ?1
+         ORDER BY COALESCE(item_order, id)",
+    )?;
+    detail.items = stmt
+        .query_map(params![id], |r| {
+            Ok(InvoiceItemRow {
+                id: r.get(0)?,
+                service: r.get(1)?,
+                notes: r.get(2)?,
+                item_order: r.get(3)?,
+            })
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+
+    Ok(Some(detail))
+}
+
 pub fn search_invoices_offline(
     pool: &DbPool,
     query: &str,
@@ -519,10 +625,6 @@ fn map_invoice_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<InvoiceRow> {
     })
 }
 
-/// Wrap a user query for FTS5: we drop syntax characters that would otherwise
-/// turn an innocent-looking term like `"O'Donnell"` into a parse error, and
-/// add a trailing `*` to each token so partial matches work the way users
-/// expect from a search box.
 fn sanitize_fts5_query(raw: &str) -> String {
     let cleaned: String = raw
         .chars()

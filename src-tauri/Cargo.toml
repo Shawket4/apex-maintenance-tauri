@@ -38,8 +38,7 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 # Async runtime
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync", "time"] }
 
-# JWT — we only need to read `exp` from the unverified payload, so plain
-# base64 + serde_json is enough. Server is the only signer/verifier.
+# JWT exp decoding (no signature verification — the server is the only signer)
 base64 = "0.22"
 
 # Logging
@@ -50,17 +49,14 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 thiserror = "1"
 anyhow = "1"
 
-# Cross-platform OS keychain (Keychain / Credential Manager / Secret Service)
-keyring = { version = "3", features = ["apple-native", "windows-native", "linux-native"] }
-
 # Misc
 once_cell = "1"
 parking_lot = "0.12"
 
 # Env-file loading at startup (.env in dev, OS env vars in prod)
 dotenvy = "0.15"
+keyring = "3.6.3"
 
 [features]
-# By default Tauri runs in production mode unless `dev` is set
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]

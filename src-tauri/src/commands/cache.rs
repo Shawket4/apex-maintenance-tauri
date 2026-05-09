@@ -1,19 +1,5 @@
 //! Phase 2 Tauri commands: cached vehicles / drivers / invoices, plus the
-//! online + offline search.
-//!
-//! Pattern for every read-through command:
-//!
-//!   `*_list`     — pure local SQLite read, fast, never hits the network.
-//!                  Used by the UI's normal `useQuery`.
-//!   `*_refresh`  — calls maint-rust's /cache/* proxy, upserts the result
-//!                  via `services::cache_sync`, marks `cache_freshness`,
-//!                  returns counts so the UI can show a toast.
-//!   `*_search`   — online: server search; offline: FTS5 fallback.
-//!
-//! Errors:
-//!   - `unauthorized` (401) → frontend drops to login screen
-//!   - `http`               → non-2xx, network failure, malformed body
-//!   - `db`                 → SQLite failure (rare)
+//! online + offline search and per-invoice detail fetch.
 
 use serde::{Deserialize, Serialize};
 use tauri::State;
@@ -23,8 +9,8 @@ use crate::{
         cache_freshness::CacheFreshnessRow,
         driver::{CachedDriver, DriverRow},
         invoice::{
-            CachePage, CachedInvoice, InvoiceListResult, InvoiceRow, InvoiceSearchResult,
-            SearchEnvelope, SearchSource,
+            CachePage, CachedInvoice, InvoiceDetail, InvoiceListResult, InvoiceRow,
+            InvoiceSearchResult, SearchEnvelope, SearchSource,
         },
         vehicle::{CachedVehicle, VehicleRow},
     },
@@ -41,12 +27,9 @@ const CACHE_INVOICES: &str = "service_invoices";
 
 #[derive(Debug, Deserialize)]
 struct VehiclesEnvelope {
-    #[serde(default)]
-    vehicles: Vec<CachedVehicle>,
-    #[serde(default)]
-    drivers: Vec<CachedDriver>,
-    #[serde(default)]
-    fetched_at: Option<String>,
+    #[serde(default)] vehicles: Vec<CachedVehicle>,
+    #[serde(default)] drivers: Vec<CachedDriver>,
+    #[serde(default)] fetched_at: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -76,9 +59,7 @@ pub async fn vehicles_refresh(state: State<'_, AppState>) -> AppResult<RefreshRe
     let raw = state.http.maint_get_raw("/cache/vehicles").await?;
 
     let env: VehiclesEnvelope = parse_json(&raw.body, "vehicles cache")?;
-    let fetched_at = env
-        .fetched_at
-        .unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
+    let fetched_at = env.fetched_at.unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
 
     tracing::info!(
         vehicles = env.vehicles.len(),
@@ -96,10 +77,7 @@ pub async fn vehicles_refresh(state: State<'_, AppState>) -> AppResult<RefreshRe
     .await
     .map_err(|e| AppError::Internal(format!("join error: {e}")))??;
 
-    Ok(RefreshResult {
-        upserted,
-        fetched_at,
-    })
+    Ok(RefreshResult { upserted, fetched_at })
 }
 
 /* ========================================================================= *
@@ -108,18 +86,15 @@ pub async fn vehicles_refresh(state: State<'_, AppState>) -> AppResult<RefreshRe
 
 #[derive(Debug, Deserialize)]
 pub struct InvoicesListArgs {
-    #[serde(default = "default_page")]
-    pub page: i32,
-    #[serde(default = "default_limit")]
-    pub limit: i32,
+    #[serde(default = "default_page")] pub page: i32,
+    #[serde(default = "default_limit")] pub limit: i32,
+    /// Optional vehicle filter — when present, only return that vehicle's
+    /// invoices. Drives the per-vehicle drill-down page.
+    #[serde(default)] pub car_id: Option<i64>,
 }
 
-fn default_page() -> i32 {
-    1
-}
-fn default_limit() -> i32 {
-    50
-}
+fn default_page() -> i32 { 1 }
+fn default_limit() -> i32 { 50 }
 
 #[tauri::command]
 pub async fn invoices_list(
@@ -129,14 +104,29 @@ pub async fn invoices_list(
     let db = state.db.clone();
     let page = args.page.max(1);
     let limit = args.limit.clamp(1, 500);
-    tokio::task::spawn_blocking(move || cache_sync::list_invoices(&db, page, limit))
+    let car_id = args.car_id;
+    tokio::task::spawn_blocking(move || cache_sync::list_invoices(&db, car_id, page, limit))
         .await
         .map_err(|e| AppError::Internal(format!("join error: {e}")))?
 }
 
-/// Walk the page-based proxy until either we've seen everything or we hit a
-/// page that's already fully in our cache. Mirrors §4.2's "incremental sync"
-/// strategy.
+#[derive(Debug, Deserialize)]
+pub struct InvoiceGetArgs {
+    pub id: i64,
+}
+
+#[tauri::command]
+pub async fn invoice_get(
+    state: State<'_, AppState>,
+    args: InvoiceGetArgs,
+) -> AppResult<Option<InvoiceDetail>> {
+    let db = state.db.clone();
+    let id = args.id;
+    tokio::task::spawn_blocking(move || cache_sync::get_invoice(&db, id))
+        .await
+        .map_err(|e| AppError::Internal(format!("join error: {e}")))?
+}
+
 #[tauri::command]
 pub async fn invoices_refresh(state: State<'_, AppState>) -> AppResult<RefreshResult> {
     let limit = state.config.cache.invoices_page_size.max(1) as i32;
@@ -158,7 +148,6 @@ pub async fn invoices_refresh(state: State<'_, AppState>) -> AppResult<RefreshRe
             break;
         }
 
-        // Capture last_page before we move parsed.data into the worker.
         let last_page = parsed
             .pagination
             .as_ref()
@@ -196,26 +185,19 @@ pub async fn invoices_refresh(state: State<'_, AppState>) -> AppResult<RefreshRe
         .await
         .map_err(|e| AppError::Internal(format!("join error: {e}")))??;
 
-    let fetched_at = chrono::Utc::now().to_rfc3339();
     Ok(RefreshResult {
         upserted: total_upserted,
-        fetched_at,
+        fetched_at: chrono::Utc::now().to_rfc3339(),
     })
 }
 
 #[derive(Debug, Deserialize)]
 pub struct InvoicesSearchArgs {
     pub query: String,
-    #[serde(default = "default_search_limit")]
-    pub limit: i32,
+    #[serde(default = "default_search_limit")] pub limit: i32,
 }
+fn default_search_limit() -> i32 { 50 }
 
-fn default_search_limit() -> i32 {
-    50
-}
-
-/// Online → server-side ranked search via maint-rust.
-/// Offline (or any HTTP failure) → SQLite FTS5 fallback. Per §4.3.
 #[tauri::command]
 pub async fn invoices_search(
     state: State<'_, AppState>,
@@ -240,13 +222,9 @@ pub async fn invoices_search(
 
     match state.http.maint_get_raw(&path).await {
         Ok(raw) => {
-            let env: SearchEnvelope<CachedInvoice> =
-                parse_json(&raw.body, "invoices search")?;
+            let env: SearchEnvelope<CachedInvoice> = parse_json(&raw.body, "invoices search")?;
             let total = env.total_matches.or(env.invoice_count).unwrap_or(0);
 
-            // Mirror the search results into the local cache so they become
-            // searchable offline next time too. Best-effort — failures here
-            // don't break the user's search.
             let db = state.db.clone();
             let invoices_for_cache = env.results.clone();
             tokio::task::spawn_blocking(move || {
@@ -275,22 +253,13 @@ pub async fn invoices_search(
                 })
                 .collect();
 
-            Ok(InvoiceSearchResult {
-                rows,
-                source: SearchSource::Online,
-                total,
-                query: trimmed,
-            })
+            Ok(InvoiceSearchResult { rows, source: SearchSource::Online, total, query: trimmed })
         }
         Err(AppError::Http(msg)) => {
             tracing::warn!(error = %msg, "online invoice search failed — falling back to FTS5");
             offline_search(&state, trimmed, limit).await
         }
-        Err(AppError::Unauthorized) => {
-            // Don't paper over auth errors with offline search — the UI
-            // needs to drop to the login screen.
-            Err(AppError::Unauthorized)
-        }
+        Err(AppError::Unauthorized) => Err(AppError::Unauthorized),
         Err(e) => Err(e),
     }
 }
@@ -351,17 +320,12 @@ fn parse_json<T: serde::de::DeserializeOwned>(body: &str, what: &str) -> AppResu
 }
 
 mod urlencoding {
-    /// Minimal RFC 3986 query-component encoder. We don't take a dependency
-    /// on the `urlencoding` crate just for this one call site.
     pub fn encode_simple(s: &str) -> String {
         let mut out = String::with_capacity(s.len());
         for b in s.as_bytes() {
             let c = *b;
             let unreserved = c.is_ascii_alphanumeric()
-                || c == b'-'
-                || c == b'.'
-                || c == b'_'
-                || c == b'~';
+                || c == b'-' || c == b'.' || c == b'_' || c == b'~';
             if unreserved {
                 out.push(c as char);
             } else {

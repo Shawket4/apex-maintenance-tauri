@@ -2,22 +2,26 @@
  * Vehicles list page (Phase 2).
  *
  * Architecture mapping:
- *   §4.1 — read-through cache: shows the local SQLite mirror immediately,
- *          calls /cache/vehicles in the background to refresh.
- *   §13.5 — bilingual columns; numeric columns render with tabular-nums.
- *   §13.5/§8.2 — license expiration cells colour-coded by urgency.
+ *   §4.1  — read-through cache: shows the local SQLite mirror immediately,
+ *           calls /cache/vehicles in the background to refresh.
+ *   §13.5 — bilingual columns; numeric columns render with tabular-nums;
+ *           expiration cells colour-coded by urgency.
  *
- * Virtualization uses @tanstack/react-virtual so the page stays smooth
- * even with the full fleet list rendered at once. Search is a fast
- * client-side filter (the dataset is small — ~50 vehicles).
+ * Columns: plate · type · tank capacity · transporter · driver · odometer ·
+ *          car license · calibration · tank license.
+ *
+ * Plates are centered horizontally regardless of script so the column reads
+ * cleanly with mixed Arabic / Latin numbers.
+ *
+ * Headers: full text, no `uppercase` or `tracking-*` (which played badly
+ * with Arabic glyphs and made shorter columns clip the label).
  */
 
 import { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { AlertTriangle, Search, Truck } from "lucide-react";
-
-import { Input } from "@/shared/ui/input";
+import { AlertTriangle, Truck } from "lucide-react";
+import { SearchInput } from "@/shared/ui/SearchInput";
 import { Card, CardContent } from "@/shared/ui/card";
 import {
   expirationStatus,
@@ -34,6 +38,11 @@ import { fmtKm, fmtNumber } from "@/shared/lib/numbers";
 import { fmtCairo } from "@/shared/lib/time";
 import { cn } from "@/shared/lib/cn";
 
+// Wider columns + headers fit in their cell at all locales.
+// Total fixed: 180+150+130+1fr+1fr+150+150+150+150 ≈ 1060 + flex.
+const GRID = "grid-cols-[180px_150px_130px_minmax(140px,1fr)_minmax(140px,1fr)_150px_150px_150px_150px]";
+const ROW_HEIGHT = 56;
+
 export function VehiclesListPage() {
   const { t, i18n } = useTranslation();
   const locale = i18n.language ?? "ar";
@@ -43,10 +52,10 @@ export function VehiclesListPage() {
   useVehiclesAutoRefresh(true);
 
   const [filter, setFilter] = useState("");
-  const filtered = useMemo(() => filterVehicles(vehiclesQ.data ?? [], filter), [
-    vehiclesQ.data,
-    filter,
-  ]);
+  const filtered = useMemo(
+    () => filterVehicles(vehiclesQ.data ?? [], filter),
+    [vehiclesQ.data, filter],
+  );
 
   return (
     <div className="space-y-4">
@@ -58,7 +67,7 @@ export function VehiclesListPage() {
           <div>
             <h1 className="text-xl font-semibold">{t("vehicles.title")}</h1>
             <p className="text-sm text-muted-foreground">
-              {t("vehicles.subtitle", { countStr: fmtNumber(filtered.length, locale) })}
+              {t("vehicles.subtitle", { formattedCount: fmtNumber(filtered.length, locale) })}
             </p>
           </div>
         </div>
@@ -73,16 +82,11 @@ export function VehiclesListPage() {
       <Card>
         <CardContent className="p-0">
           <div className="border-b border-border p-3">
-            <div className="relative">
-              <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-              <Input
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-                placeholder={t("vehicles.search_placeholder")}
-                className="ps-9"
-                dir="auto"
-              />
-            </div>
+            <SearchInput
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              placeholder={t("vehicles.search_placeholder")}
+            />
           </div>
 
           {vehiclesQ.isLoading ? (
@@ -106,12 +110,6 @@ export function VehiclesListPage() {
   );
 }
 
-/* --------------------------------------------------------------- *
- * Virtualized table
- * --------------------------------------------------------------- */
-
-const ROW_HEIGHT = 56;
-
 function VehiclesTable({ rows }: { rows: VehicleRow[] }) {
   const { t, i18n } = useTranslation();
   const locale = i18n.language ?? "ar";
@@ -126,24 +124,37 @@ function VehiclesTable({ rows }: { rows: VehicleRow[] }) {
 
   return (
     <div ref={parentRef} className="max-h-[68vh] overflow-auto">
-      <div
-        role="table"
-        className="min-w-[900px] text-sm"
-        style={{ width: "100%" }}
-      >
+      <div role="table" className="min-w-[1480px] text-sm" style={{ width: "100%" }}>
         {/* Sticky header */}
-        <div
-          role="rowgroup"
-          className="sticky top-0 z-10 bg-card border-b border-border"
-        >
-          <div role="row" className="grid grid-cols-[160px_1fr_1fr_1fr_140px_140px_120px] gap-2 px-4 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wide">
-            <div role="columnheader">{t("vehicles.col.plate")}</div>
+        <div role="rowgroup" className="sticky top-0 z-10 bg-card border-b border-border">
+          <div
+            role="row"
+            className={cn(
+              "grid gap-3 px-4 py-2.5 text-xs font-semibold text-muted-foreground",
+              GRID,
+            )}
+          >
+            <div role="columnheader" className="text-center">
+              {t("vehicles.col.plate")}
+            </div>
             <div role="columnheader">{t("vehicles.col.type")}</div>
+            <div role="columnheader" className="text-end tabular">
+              {t("vehicles.col.tank_capacity")}
+            </div>
             <div role="columnheader">{t("vehicles.col.transporter")}</div>
             <div role="columnheader">{t("vehicles.col.driver")}</div>
-            <div role="columnheader" className="text-end tabular">{t("vehicles.col.odometer")}</div>
-            <div role="columnheader" className="text-end">{t("vehicles.col.car_license")}</div>
-            <div role="columnheader" className="text-end">{t("vehicles.col.calibration")}</div>
+            <div role="columnheader" className="text-end tabular">
+              {t("vehicles.col.odometer")}
+            </div>
+            <div role="columnheader" className="text-end">
+              {t("vehicles.col.car_license")}
+            </div>
+            <div role="columnheader" className="text-end">
+              {t("vehicles.col.calibration")}
+            </div>
+            <div role="columnheader" className="text-end">
+              {t("vehicles.col.tank_license")}
+            </div>
           </div>
         </div>
 
@@ -160,27 +171,52 @@ function VehiclesTable({ rows }: { rows: VehicleRow[] }) {
               <div
                 key={r.id}
                 role="row"
-                className="absolute inset-x-0 grid grid-cols-[160px_1fr_1fr_1fr_140px_140px_120px] gap-2 items-center px-4 border-b border-border/50 hover:bg-accent/40 transition-colors"
+                className={cn(
+                  "absolute inset-x-0 grid items-center px-4 gap-3 border-b border-border/50 hover:bg-accent/40 transition-colors",
+                  GRID,
+                )}
                 style={{
                   height: `${vi.size}px`,
                   transform: `translateY(${vi.start}px)`,
                 }}
               >
-                <div className="font-medium tabular truncate" dir="auto" title={r.car_no_plate}>
+                {/* Plate — centered, monospace-ish for Arabic plates */}
+                <div
+                  role="cell"
+                  className="font-medium tabular text-center truncate"
+                  title={r.car_no_plate}
+                >
                   {r.car_no_plate}
                 </div>
-                <div className="truncate text-muted-foreground" title={r.car_type ?? ""}>
+
+                <div role="cell" className="truncate text-muted-foreground" title={r.car_type ?? ""}>
                   {r.car_type ?? "—"}
                 </div>
-                <div className="truncate text-muted-foreground" title={r.transporter ?? ""}>
+
+                <div role="cell" className="text-end tabular text-muted-foreground">
+                  {r.tank_capacity != null
+                    ? `${fmtNumber(r.tank_capacity, locale)} ${t("vehicles.unit.liters")}`
+                    : "—"}
+                </div>
+
+                <div role="cell" className="truncate text-muted-foreground" title={r.transporter ?? ""}>
                   {r.transporter ?? "—"}
                 </div>
-                <div className="truncate" title={r.driver_name ?? ""}>
+
+                <div role="cell" className="truncate" title={r.driver_name ?? ""}>
                   {r.driver_name ?? <span className="text-muted-foreground">—</span>}
                 </div>
-                <div className="text-end tabular">{fmtKm(r.last_fuel_odometer, locale)}</div>
+
+                <div role="cell" className="text-end tabular">
+                  {fmtKm(r.last_fuel_odometer, locale)}
+                </div>
+
                 <ExpirationCell isoDate={r.license_expiration_date} locale={locale} />
                 <ExpirationCell isoDate={r.calibration_expiration_date} locale={locale} />
+                <ExpirationCell
+                  isoDate={r.tank_license_expiration_date}
+                  locale={locale}
+                />
               </div>
             );
           })}
@@ -199,7 +235,7 @@ function ExpirationCell({
 }) {
   const status = expirationStatus(isoDate);
   return (
-    <div className="text-end">
+    <div role="cell" className="text-end">
       <span
         className={cn(
           "inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs tabular",
@@ -248,14 +284,9 @@ function EmptyState({
   );
 }
 
-/* --------------------------------------------------------------- *
- * Filter
- * --------------------------------------------------------------- */
-
 function filterVehicles(rows: VehicleRow[], q: string): VehicleRow[] {
   const needle = q.trim().toLowerCase();
   if (!needle) return rows;
-
   return rows.filter((v) => {
     const haystack = [v.car_no_plate, v.car_type, v.transporter, v.driver_name]
       .filter((s): s is string => typeof s === "string" && s.length > 0)

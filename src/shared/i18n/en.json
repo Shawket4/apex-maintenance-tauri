@@ -3,12 +3,26 @@
     "title": "Apex Maintenance",
     "subtitle": "Maintenance, chassis & tire management"
   },
+  "common": {
+    "details": "Details"
+  },
   "nav": {
+    "overview": "Overview",
+    "fleet": "Fleet",
+    "operations": "Operations",
     "dashboard": "Dashboard",
     "vehicles": "Vehicles",
+    "serviceInvoices": "Service invoices",
     "invoices": "Service invoices",
     "maintenance": "Maintenance",
     "chassis": "Chassis & tires"
+  },
+  "settings": {
+    "theme": "Appearance",
+    "themeLight": "Light",
+    "themeDark": "Dark",
+    "themeSystem": "System",
+    "language": "Language"
   },
   "status": {
     "online": "Online",
@@ -20,11 +34,13 @@
     "logout": "Sign out",
     "save": "Save",
     "cancel": "Cancel",
+    "back": "Back",
     "toggle_language": "Toggle language",
     "loading": "Loading…",
     "refresh": "Refresh",
     "previous": "Previous",
-    "next": "Next"
+    "next": "Next",
+    "print": "Print"
   },
   "freshness": {
     "never": "Never refreshed",
@@ -59,24 +75,29 @@
   },
   "vehicles": {
     "title": "Vehicles",
-    "subtitle": "{{countStr}} vehicles in the fleet",
+    "subtitle": "{{formattedCount}} vehicles in the fleet",
     "search_placeholder": "Search by plate, type, transporter or driver…",
     "empty_total": "No vehicles in cache yet — tap refresh.",
     "empty_filtered": "No results for that search.",
     "error": "Could not load vehicles.",
+    "unit": {
+      "liters": "L"
+    },
     "col": {
       "plate": "Plate",
       "type": "Type",
+      "tank_capacity": "Tank capacity",
       "transporter": "Transporter",
       "driver": "Driver",
       "odometer": "Odometer",
       "car_license": "Car license",
-      "calibration": "Calibration"
+      "calibration": "Calibration",
+      "tank_license": "Tank license"
     }
   },
   "invoices": {
     "title": "Service invoices",
-    "subtitle": "{{countStr}} invoices in cache",
+    "subtitle": "{{formattedCount}} invoices in cache",
     "subtitle_search": "{{matches}} matches for \"{{query}}\"",
     "search_placeholder": "Search invoice services and notes…",
     "empty_total": "No invoices in cache yet — tap refresh.",
@@ -97,6 +118,26 @@
       "region": "Region",
       "items": "Items",
       "meter": "Meter"
+    }
+  },
+  "serviceInvoices": {
+    "title": "Service invoices",
+    "pickVehicle": "Pick a vehicle to see its service invoices — {{formattedCount}} available",
+    "subtitleByVehicle": "{{formattedCount}} invoices for this vehicle",
+    "noDriver": "No driver",
+    "unknownVehicle": "Unknown vehicle",
+    "empty": "No invoices for this vehicle in cache yet — tap refresh.",
+    "detailError": "Could not load invoice detail.",
+    "noItems": "This invoice has no line items.",
+    "receiptTitle": "Service invoice",
+    "checklistTitle": "Inspection checklist",
+    "truckSubtitle": "Service Truck Inspection",
+    "billedTo": "Vehicle details",
+    "verificationNote": "Data shown is from the local cache as of {{date}}.",
+    "fields": {
+      "supervisor": "Supervisor",
+      "notes": "Notes",
+      "service": "Service"
     }
   },
   "errors": {

@@ -2,18 +2,15 @@
 //!
 //! Login flow per architecture §3.1:
 //! 1. POST <base>/api/go/api/login  with { email, password }
-//! 2. Response is JSON. The architecture doc says it includes
-//!    { id, email, name, permission, driver_id, jwt, success }, but real-world
-//!    servers drift. We treat the `success` flag as authoritative; the JWT
-//!    may be empty initially.
-//! 3. We persist `jwt` to the OS keychain.
-//! 4. We persist a small `UserInfo` JSON blob alongside it so
-//!    `auth_current_user` doesn't need to re-decode the JWT.
+//! 2. Server returns JSON. Treat the `success` flag as authoritative; the
+//!    JWT may be empty initially.
+//! 3. JWT and a small UserInfo blob are persisted as mode-0600 files in
+//!    Tauri's app-data dir (no OS keychain — unsigned dev builds get
+//!    prompted on every read).
 //!
 //! Error kinds the JS layer needs to distinguish:
 //!   - `auth_failed`  → server clearly said "wrong credentials"
-//!                      (success:false, or 4xx with no jwt)
-//!   - `http`         → connection / 5xx / non-JSON body / malformed payload
+//!   - `http`         → connection / 5xx / non-JSON / malformed payload
 //!   - `unauthorized` → 401 (used after login for stale tokens)
 
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
@@ -21,7 +18,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tauri::State;
 
-use crate::{keyring_store, AppError, AppResult, AppState};
+use crate::{session_store, AppError, AppResult, AppState};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct LoginRequest {
@@ -36,8 +33,6 @@ pub struct UserInfo {
     pub name: String,
     pub permission: i32,
     pub driver_id: i64,
-    /// Unix seconds — extracted from the JWT `exp` claim for client-side
-    /// expiry awareness.
     pub jwt_exp: i64,
 }
 
@@ -52,7 +47,6 @@ pub async fn auth_login(
         password,
     };
 
-    // 1. Transport. `http_client` handles 401, 5xx, network errors.
     let resp = state.http.falcon_login_raw("/api/login", &req).await?;
 
     tracing::debug!(
@@ -62,7 +56,6 @@ pub async fn auth_login(
         "falcon login response"
     );
 
-    // 2. Parse permissively: any valid JSON object.
     let json: Value = match serde_json::from_str(&resp.body) {
         Ok(v) => v,
         Err(e) => {
@@ -73,7 +66,6 @@ pub async fn auth_login(
         }
     };
 
-    // 3. Decision: handle string or boolean `success` flag, because the server might return an empty `jwt` initially.
     let success = json
         .get("success")
         .map(|v| {
@@ -105,14 +97,9 @@ pub async fn auth_login(
         return Err(AppError::AuthFailed(message));
     }
 
-    let jwt = json
-        .get("jwt")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
-
+    let jwt = json.get("jwt").and_then(|v| v.as_str()).unwrap_or("");
     let exp = decode_jwt_exp(jwt).unwrap_or(0);
 
-    // 4. Build UserInfo, being lenient about field types/presence.
     let user = UserInfo {
         id: as_i64(&json, "id").unwrap_or(0),
         email: as_string(&json, "email").unwrap_or_else(|| email.clone()),
@@ -122,9 +109,8 @@ pub async fn auth_login(
         jwt_exp: exp,
     };
 
-    // 5. Persist.
-    keyring_store::store_jwt(&state.config, jwt)?;
-    keyring_store::store_user_json(&state.config, &serde_json::to_string(&user)?)?;
+    session_store::store_jwt(&state.data_dir, jwt)?;
+    session_store::store_user_json(&state.data_dir, &serde_json::to_string(&user)?)?;
 
     tracing::info!(user_id = user.id, email = %user.email, jwt_exp = user.jwt_exp, "login successful");
     Ok(user)
@@ -132,9 +118,7 @@ pub async fn auth_login(
 
 #[tauri::command]
 pub async fn auth_logout(state: State<'_, AppState>) -> AppResult<()> {
-    // Best-effort server-side logout. We don't fail the local logout if this
-    // call fails — the keychain is the source of truth for "am I logged in?".
-    if let Ok(Some(jwt)) = keyring_store::read_jwt(&state.config) {
+    if let Ok(Some(jwt)) = session_store::read_jwt(&state.data_dir) {
         if !jwt.is_empty() {
             match state
                 .http
@@ -147,33 +131,28 @@ pub async fn auth_logout(state: State<'_, AppState>) -> AppResult<()> {
         }
     }
 
-    keyring_store::delete_jwt(&state.config)?;
-    keyring_store::delete_user_json(&state.config)?;
+    session_store::delete_jwt(&state.data_dir)?;
+    session_store::delete_user_json(&state.data_dir)?;
     tracing::info!("logged out");
     Ok(())
 }
 
 #[tauri::command]
 pub async fn auth_current_user(state: State<'_, AppState>) -> AppResult<Option<UserInfo>> {
-    let Some(json) = keyring_store::read_user_json(&state.config)? else {
+    let Some(json) = session_store::read_user_json(&state.data_dir)? else {
         return Ok(None);
     };
     match serde_json::from_str::<UserInfo>(&json) {
         Ok(user) => Ok(Some(user)),
         Err(e) => {
-            tracing::warn!(error = %e, "stale user blob in keychain — clearing");
-            let _ = keyring_store::delete_user_json(&state.config);
-            let _ = keyring_store::delete_jwt(&state.config);
+            tracing::warn!(error = %e, "stale user blob — clearing");
+            let _ = session_store::delete_user_json(&state.data_dir);
+            let _ = session_store::delete_jwt(&state.data_dir);
             Ok(None)
         }
     }
 }
 
-/* ---------- helpers ---------- */
-
-/// Pull an integer-ish field whether the server typed it as a JSON number or
-/// a JSON string ("123"). Falcon has been known to do both depending on the
-/// endpoint.
 fn as_i64(v: &Value, key: &str) -> Option<i64> {
     v.get(key).and_then(|x| {
         x.as_i64()
@@ -202,9 +181,6 @@ fn snippet(s: &str) -> &str {
     }
 }
 
-/// Decode the JWT *without* verifying the signature — we only need `exp`,
-/// and the server will reject invalid tokens on the next call regardless.
-/// Keeps us from having to ship the HS256 secret to the desktop client.
 fn decode_jwt_exp(jwt: &str) -> Option<i64> {
     let mut parts = jwt.split('.');
     let _header = parts.next()?;

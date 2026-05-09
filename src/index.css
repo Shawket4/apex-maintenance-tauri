@@ -1,4 +1,10 @@
-@import url("https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700&family=Tajawal:wght@400;500;700&display=swap");
+@font-face {
+  font-family: 'Cairo';
+  src: url('/fonts/Cairo-Regular.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
 
 @tailwind base;
 @tailwind components;
@@ -10,6 +16,8 @@
     --foreground: 222 47% 11%;
     --card: 0 0% 100%;
     --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
     --primary: 217 91% 47%;
     --primary-foreground: 210 40% 98%;
     --secondary: 210 40% 96%;
@@ -27,22 +35,24 @@
   }
 
   .dark {
-    --background: 222 47% 11%;
+    --background: 222 47% 7%;
     --foreground: 210 40% 98%;
-    --card: 222 47% 11%;
+    --card: 222 47% 10%;
     --card-foreground: 210 40% 98%;
+    --popover: 222 47% 10%;
+    --popover-foreground: 210 40% 98%;
     --primary: 217 91% 60%;
     --primary-foreground: 222 47% 11%;
     --secondary: 217 33% 17%;
     --secondary-foreground: 210 40% 98%;
-    --muted: 217 33% 17%;
+    --muted: 217 33% 14%;
     --muted-foreground: 215 20% 65%;
     --accent: 217 33% 17%;
     --accent-foreground: 210 40% 98%;
     --destructive: 0 63% 45%;
     --destructive-foreground: 210 40% 98%;
-    --border: 217 33% 17%;
-    --input: 217 33% 17%;
+    --border: 217 33% 18%;
+    --input: 217 33% 18%;
     --ring: 224 76% 48%;
   }
 }
@@ -58,12 +68,22 @@
     height: 100%;
   }
 
+  @media print {
+
+    html,
+    body,
+    #root {
+      height: auto !important;
+    }
+  }
+
   body {
     @apply bg-background text-foreground antialiased;
+    font-family: 'Cairo', sans-serif;
+    font-variation-settings: "slnt" 0;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
 
-  /* Numbers in inputs render in tabular Latin glyphs even when the doc is RTL */
   input[type="number"],
   input[type="email"],
   input[type="password"],

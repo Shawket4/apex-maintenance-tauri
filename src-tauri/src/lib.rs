@@ -1,30 +1,16 @@
 //! apex-maintenance Rust core.
-//!
-//! Phase 1:
-//!  - SQLite pool initialised on startup, every migration applied
-//!  - Tauri commands: ping, get_app_version, db_health
-//!  - Auth commands: auth_login, auth_logout, auth_current_user
-//!  - JWT persisted in the OS keychain via the `keyring` crate
-//!  - HTTP client wired with auto-Bearer-injection to maint-rust
-//!
-//! Phase 2:
-//!  - All tunables come from `AppConfig` (env-driven, no hardcoded values)
-//!  - Vehicle / driver / invoice cache mirroring with read-through pattern
-//!  - cache_freshness rows updated on every successful refresh
-//!  - Online: calls maint-rust's /cache/* proxies; offline: serves SQLite
-//!  - FTS5-backed offline invoice search
-//!  - Lenient JSON deserializers for Falcon's mixed type encoding
 
 pub mod commands;
 pub mod config;
 pub mod db;
 pub mod error;
 pub mod http_client;
-pub mod keyring_store;
 pub mod models;
 pub mod services;
+pub mod session_store;
 pub mod util;
 
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use tauri::Manager;
@@ -38,13 +24,15 @@ pub struct AppState {
     pub config: Arc<AppConfig>,
     pub db: Arc<db::DbPool>,
     pub http: Arc<http_client::HttpClient>,
+    /// Tauri's app-data directory. Used by `session_store` to read/write
+    /// `session.jwt` and `session.user.json` on disk.
+    pub data_dir: PathBuf,
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     init_tracing();
 
-    // Config first — every subsequent component reads from it.
     let config = Arc::new(AppConfig::load());
 
     tauri::Builder::default()
@@ -52,7 +40,6 @@ pub fn run() {
         .setup({
             let config = config.clone();
             move |app| {
-                // SQLite path: <app-data-dir>/<configured-filename>
                 let app_data_dir = app
                     .path()
                     .app_data_dir()
@@ -68,13 +55,14 @@ pub fn run() {
                 db.run_migrations()
                     .map_err(|e| format!("failed to run migrations: {e}"))?;
 
-                let http = http_client::HttpClient::new(config.clone())
+                let http = http_client::HttpClient::new(config.clone(), app_data_dir.clone())
                     .map_err(|e| format!("failed to build http client: {e}"))?;
 
                 let state = AppState {
                     config: config.clone(),
                     db: Arc::new(db),
                     http: Arc::new(http),
+                    data_dir: app_data_dir,
                 };
                 app.manage(state);
 
@@ -96,7 +84,9 @@ pub fn run() {
             commands::cache::invoices_list,
             commands::cache::invoices_refresh,
             commands::cache::invoices_search,
+            commands::cache::invoice_get,
             commands::cache::cache_freshness_get,
+            commands::window::print_pdf,
         ])
         .run(tauri::generate_context!())
         .expect("error while running apex-maintenance");

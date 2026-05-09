@@ -1,17 +1,3 @@
-/**
- * TanStack Router setup.
- *
- * Phase 2 routes:
- *   /login      → LoginPage
- *   /           → DashboardPage
- *   /vehicles   → VehiclesListPage
- *   /invoices   → InvoicesListPage
- *
- * Auth gating: a `beforeLoad` on the protected branch reads the cached user
- * via Tauri and redirects unauthenticated visitors to /login. The login page
- * does the inverse (already-logged-in users go to /).
- */
-
 import {
   createMemoryHistory,
   createRootRoute,
@@ -29,7 +15,9 @@ import { fetchCurrentUser } from "@/shared/api/auth";
 import { LoginPage } from "@/pages/login/LoginPage";
 import { DashboardPage } from "@/pages/dashboard/DashboardPage";
 import { VehiclesListPage } from "@/pages/vehicles/list/VehiclesListPage";
-import { InvoicesListPage } from "@/pages/invoices/list/InvoicesListPage";
+import { ServiceInvoicesIndexPage } from "@/pages/service-invoices/index/ServiceInvoicesIndexPage";
+import { ServiceInvoicesByVehiclePage } from "@/pages/service-invoices/by-vehicle/ServiceInvoicesByVehiclePage";
+import { ServiceInvoiceDetailPage } from "@/pages/service-invoices/detail/ServiceInvoiceDetailPage";
 
 const rootRoute = createRootRoute({
   component: () => <Outlet />,
@@ -80,10 +68,24 @@ const vehiclesRoute = createRoute({
   component: () => <VehiclesListPage />,
 });
 
-const invoicesRoute = createRoute({
+/* ---- service invoices: vehicles → invoices → detail ---- */
+
+const serviceInvoicesIndexRoute = createRoute({
   getParentRoute: () => protectedRoute,
-  path: "/invoices",
-  component: () => <InvoicesListPage />,
+  path: "/service-invoices",
+  component: () => <ServiceInvoicesIndexPage />,
+});
+
+const serviceInvoicesByVehicleRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: "/service-invoices/$vehicleId",
+  component: () => <ServiceInvoicesByVehiclePage />,
+});
+
+const serviceInvoiceDetailRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: "/service-invoices/$vehicleId/$invoiceId",
+  component: () => <ServiceInvoiceDetailPage />,
 });
 
 const notFoundRoute = createRoute({
@@ -94,7 +96,13 @@ const notFoundRoute = createRoute({
 
 const routeTree = rootRoute.addChildren([
   loginRoute,
-  protectedRoute.addChildren([dashboardRoute, vehiclesRoute, invoicesRoute]),
+  protectedRoute.addChildren([
+    dashboardRoute,
+    vehiclesRoute,
+    serviceInvoicesIndexRoute,
+    serviceInvoicesByVehicleRoute,
+    serviceInvoiceDetailRoute,
+  ]),
   notFoundRoute,
 ]);
 

@@ -1,21 +1,4 @@
 //! Service-invoice types crossing the Tauri boundary.
-//!
-//! Two wire shapes from `maint-rust`:
-//!
-//!  - `GET /api/maint/cache/service-invoices?page=N&limit=M`
-//!     → `{ data: [InvoiceWithItems], pagination: {..} }`
-//!     where each invoice item is nested under `inspection_items`.
-//!
-//!  - `GET /api/maint/cache/service-invoices/search?query=...`
-//!     → `{ results: [InvoiceWithItems], invoice_count, total_matches, ... }`
-//!     same per-row shape, with extra ranking fields per-item.
-//!
-//! Both shapes flatten on the client side into rows on
-//! `service_invoices_cache` + `service_invoice_items_cache`.
-//!
-//! Same encoding tolerance as `vehicle.rs`: gorm aliases for `ID`,
-//! `CreatedAt`, `UpdatedAt`, `DeletedAt`; lenient numeric deserializers
-//! everywhere a column might come through as a JSON string.
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -26,19 +9,14 @@ use crate::util::serde_de;
 pub struct CachedInvoiceItem {
     #[serde(alias = "ID")]
     pub id: i64,
-
     #[serde(default, deserialize_with = "serde_de::opt_i64")]
     pub service_invoice_id: Option<i64>,
-
     #[serde(default)] pub service: String,
     #[serde(default)] pub notes: Option<String>,
-
     #[serde(default, deserialize_with = "serde_de::opt_i32")]
     pub item_order: Option<i32>,
-
     #[serde(default = "default_payload")]
     pub raw_payload: Value,
-
     #[serde(default, alias = "CreatedAt")]
     pub source_created_at: Option<String>,
     #[serde(default, alias = "UpdatedAt")]
@@ -49,47 +27,30 @@ pub struct CachedInvoiceItem {
 pub struct CachedInvoice {
     #[serde(alias = "ID")]
     pub id: i64,
-
-    /// Top-level FK to vehicles; gorm tends to call this `CarID` while a
-    /// hand-written endpoint uses `car_id`.
     #[serde(default, alias = "CarID", alias = "car_id", deserialize_with = "serde_de::opt_i64")]
     pub car_id: Option<i64>,
-
     #[serde(default)] pub driver_name: Option<String>,
     #[serde(default)] pub date: Option<String>,
-
     #[serde(default, deserialize_with = "serde_de::opt_i32")]
     pub meter_reading: Option<i32>,
-
     #[serde(default)] pub plate_number: Option<String>,
     #[serde(default)] pub supervisor: Option<String>,
     #[serde(default)] pub operating_region: Option<String>,
-
     #[serde(default = "default_payload")]
     pub raw_payload: Value,
-
     #[serde(default, alias = "CreatedAt")]
     pub source_created_at: Option<String>,
     #[serde(default, alias = "UpdatedAt")]
     pub source_updated_at: Option<String>,
     #[serde(default, alias = "DeletedAt")]
     pub source_deleted_at: Option<String>,
-
-    /// Items can arrive nested under either `items` or `inspection_items`
-    /// (or `InspectionItems` from a gorm-side proxy) depending on which
-    /// endpoint produced the response. We accept all three.
     #[serde(default, alias = "inspection_items", alias = "InspectionItems", alias = "Items")]
     pub items: Vec<CachedInvoiceItem>,
-
-    /// `car` may be present as a nested object on search results — captured
-    /// here so we can still fall back to `car.plate_number` if the top-level
-    /// `plate_number` is missing.
     #[serde(default, alias = "Car")]
     pub car: Option<Value>,
 }
 
 impl CachedInvoice {
-    /// Best-effort plate accessor, tolerating either flat or nested shapes.
     pub fn effective_plate(&self) -> Option<String> {
         if let Some(p) = self.plate_number.as_ref().filter(|s| !s.is_empty()) {
             return Some(p.clone());
@@ -101,8 +62,6 @@ impl CachedInvoice {
             .map(|s| s.to_string())
     }
 
-    /// Effective `car_id` — top-level wins; otherwise the nested `car.id`
-    /// (or `car.ID`).
     pub fn effective_car_id(&self) -> Option<i64> {
         if let Some(id) = self.car_id {
             return Some(id);
@@ -117,16 +76,6 @@ impl CachedInvoice {
 fn default_payload() -> Value {
     Value::Object(serde_json::Map::new())
 }
-
-/* ------------------------------------------------------------------------- *
- * Pagination shapes the server sends back                                   *
- *                                                                           *
- * Note on the explicit `#[serde(bound(deserialize = ...))]`:                *
- * serde's bound-inference heuristic for generic structs adds a `T: Default` *
- * bound whenever a field has `#[serde(default)]` — even when the field type *
- * is `Vec<T>` and `Vec::<T>::default()` doesn't actually need `T: Default`. *
- * Overriding the bound here narrows it to what's really required.           *
- * ------------------------------------------------------------------------- */
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(bound(deserialize = "T: serde::Deserialize<'de>"))]
@@ -164,9 +113,7 @@ pub struct SearchEnvelope<T> {
     #[serde(default)] pub pagination: Option<CachePagination>,
 }
 
-/* ------------------------------------------------------------------------- *
- * Projections sent to the JS layer                                          *
- * ------------------------------------------------------------------------- */
+/* ---------- projections sent to the JS layer ---------- */
 
 #[derive(Debug, Clone, Serialize)]
 pub struct InvoiceRow {
@@ -179,7 +126,6 @@ pub struct InvoiceRow {
     pub operating_region: Option<String>,
     pub meter_reading: Option<i32>,
     pub item_count: i64,
-    /// First few service strings, joined for preview rendering.
     pub services_preview: Option<String>,
     pub fetched_at: String,
 }
@@ -205,4 +151,40 @@ pub struct InvoiceSearchResult {
 pub enum SearchSource {
     Online,
     Offline,
+}
+
+/// Per-item projection inside an invoice detail view.
+#[derive(Debug, Clone, Serialize)]
+pub struct InvoiceItemRow {
+    pub id: i64,
+    pub service: String,
+    pub notes: Option<String>,
+    pub item_order: Option<i32>,
+}
+
+/// Vehicle subset embedded in `InvoiceDetail`. Mirrors what the user's
+/// reference detail UI reads off `invoice.car`.
+#[derive(Debug, Clone, Serialize)]
+pub struct InvoiceCarInfo {
+    pub id: i64,
+    pub car_no_plate: String,
+    pub car_type: Option<String>,
+    pub transporter: Option<String>,
+    pub tank_capacity: Option<i32>,
+}
+
+/// Full invoice for the detail page — header fields + items + car.
+#[derive(Debug, Clone, Serialize)]
+pub struct InvoiceDetail {
+    pub id: i64,
+    pub car_id: Option<i64>,
+    pub date: Option<String>,
+    pub plate_number: Option<String>,
+    pub driver_name: Option<String>,
+    pub supervisor: Option<String>,
+    pub operating_region: Option<String>,
+    pub meter_reading: Option<i32>,
+    pub items: Vec<InvoiceItemRow>,
+    pub car: Option<InvoiceCarInfo>,
+    pub fetched_at: String,
 }

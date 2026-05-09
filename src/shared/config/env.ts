@@ -1,14 +1,6 @@
 /**
- * Frontend env configuration.
- *
- * Vite reads `.env` (and `.env.local`) at build time and exposes any var
- * prefixed with `VITE_` on `import.meta.env`. This module is the *only* place
- * we touch `import.meta.env` directly — every other module asks for the typed
- * `env` object so missing/misnamed vars surface as TypeScript errors instead
- * of `undefined`s scattered through the UI.
- *
- * Defaults match `.env.example`. They exist so a fresh clone runs even if
- * nobody has copied `.env.example` → `.env` yet.
+ * Frontend env configuration. The only place we read `import.meta.env`.
+ * Defaults match `.env.example` so a fresh clone runs without copying it.
  */
 
 const num = (raw: unknown, fallback: number) => {
@@ -24,23 +16,25 @@ const bool = (raw: unknown, fallback: boolean) => {
   return fallback;
 };
 
-const str = (raw: unknown, fallback: string) => {
-  return typeof raw === "string" && raw.trim().length > 0 ? raw : fallback;
-};
+const str = (raw: unknown, fallback: string) =>
+  typeof raw === "string" && raw.trim().length > 0 ? raw : fallback;
 
 const e = import.meta.env as Record<string, unknown>;
+
+const validTheme = (raw: unknown): "light" | "dark" | "system" => {
+  if (raw === "light" || raw === "dark" || raw === "system") return raw;
+  return "system";
+};
 
 export const env = {
   appName: str(e.VITE_APP_NAME, "Apex Maintenance"),
   defaultLanguage: str(e.VITE_DEFAULT_LANGUAGE, "ar"),
   fallbackLanguage: str(e.VITE_FALLBACK_LANGUAGE, "ar"),
   queryDevtools: bool(e.VITE_QUERY_DEVTOOLS, true),
+  defaultTheme: validTheme(e.VITE_DEFAULT_THEME),
 
-  /** Vehicle cache refresh interval, milliseconds. */
   vehiclesRefetchIntervalMs: num(e.VITE_VEHICLES_REFETCH_INTERVAL_MS, 60_000),
-  /** Invoice cache refresh interval, milliseconds. */
   invoicesRefetchIntervalMs: num(e.VITE_INVOICES_REFETCH_INTERVAL_MS, 300_000),
-  /** Search debounce, milliseconds. */
   searchDebounceMs: num(e.VITE_SEARCH_DEBOUNCE_MS, 400),
 } as const;
 
