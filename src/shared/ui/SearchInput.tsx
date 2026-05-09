@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Search } from "lucide-react";
+import { Search, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { Input, type InputProps } from "./input";
@@ -14,21 +14,34 @@ const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(
     const { t } = useTranslation();
 
     return (
-      <div className="relative w-full">
+      <div className="relative w-full group">
         <Search
-          className="absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none"
+          className="absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none transition-colors group-focus-within:text-primary"
           aria-hidden="true"
         />
         <Input
           ref={ref}
-          type="search"
+          type="text"
           value={value}
           onChange={onChange}
           placeholder={placeholder || t("actions.search")}
-          className={cn("ps-9 text-start", className)}
+          className={cn(
+            "ps-9 pe-9 text-start",
+            className
+          )}
           dir="auto"
           {...props}
         />
+        {value && (
+          <button
+            type="button"
+            onClick={() => onChange?.({ target: { value: "" } } as any)}
+            className="absolute end-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground hover:text-foreground transition-colors"
+            aria-label={t("actions.clear")}
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
       </div>
     );
   },

@@ -549,6 +549,7 @@ pub fn get_invoice(pool: &DbPool, id: i64) -> AppResult<Option<InvoiceDetail>> {
 pub fn search_invoices_offline(
     pool: &DbPool,
     query: &str,
+    car_id: Option<i64>,
     limit: i32,
 ) -> AppResult<InvoiceSearchResult> {
     let conn = pool.get()?;
@@ -563,43 +564,87 @@ pub fn search_invoices_offline(
         });
     }
 
-    let total: i64 = conn
-        .query_row(
-            "SELECT COUNT(DISTINCT it.service_invoice_id)
-             FROM service_invoice_items_fts f
-             JOIN service_invoice_items_cache it ON it.id = f.rowid
-             JOIN service_invoices_cache i ON i.id = it.service_invoice_id
-             WHERE service_invoice_items_fts MATCH ?1 AND i.source_deleted_at IS NULL",
-            params![&match_query],
-            |r| r.get(0),
-        )
-        .optional()?
-        .unwrap_or(0);
+    let (total, rows) = if let Some(cid) = car_id {
+        let total: i64 = conn
+            .query_row(
+                "SELECT COUNT(DISTINCT it.service_invoice_id)
+                 FROM service_invoice_items_fts f
+                 JOIN service_invoice_items_cache it ON it.id = f.rowid
+                 JOIN service_invoices_cache i ON i.id = it.service_invoice_id
+                 WHERE service_invoice_items_fts MATCH ?1 
+                   AND i.source_deleted_at IS NULL
+                   AND i.car_id = ?2",
+                params![&match_query, cid],
+                |r| r.get(0),
+            )
+            .optional()?
+            .unwrap_or(0);
 
-    let mut stmt = conn.prepare(
-        "SELECT i.id, i.car_id, i.date, i.plate_number, i.driver_name,
-                i.supervisor, i.operating_region, i.meter_reading,
-                (SELECT COUNT(*) FROM service_invoice_items_cache it2 WHERE it2.service_invoice_id = i.id) AS item_count,
-                (SELECT GROUP_CONCAT(s.service, ' • ') FROM (
-                     SELECT service FROM service_invoice_items_cache
-                     WHERE service_invoice_id = i.id
-                     ORDER BY COALESCE(item_order, id) LIMIT 3
-                 ) s) AS preview,
-                i.fetched_at
-         FROM (
-             SELECT DISTINCT it.service_invoice_id AS id
-             FROM service_invoice_items_fts f
-             JOIN service_invoice_items_cache it ON it.id = f.rowid
-             WHERE service_invoice_items_fts MATCH ?1
-         ) m
-         JOIN service_invoices_cache i ON i.id = m.id
-         WHERE i.source_deleted_at IS NULL
-         ORDER BY i.date DESC, i.id DESC
-         LIMIT ?2",
-    )?;
-    let rows = stmt
-        .query_map(params![&match_query, limit as i64], map_invoice_row)?
-        .collect::<Result<Vec<_>, _>>()?;
+        let mut stmt = conn.prepare(
+            "SELECT i.id, i.car_id, i.date, i.plate_number, i.driver_name,
+                    i.supervisor, i.operating_region, i.meter_reading,
+                    (SELECT COUNT(*) FROM service_invoice_items_cache it2 WHERE it2.service_invoice_id = i.id) AS item_count,
+                    (SELECT GROUP_CONCAT(s.service, ' • ') FROM (
+                         SELECT service FROM service_invoice_items_cache
+                         WHERE service_invoice_id = i.id
+                         ORDER BY COALESCE(item_order, id) LIMIT 3
+                     ) s) AS preview,
+                    i.fetched_at
+             FROM (
+                 SELECT DISTINCT it.service_invoice_id AS id
+                 FROM service_invoice_items_fts f
+                 JOIN service_invoice_items_cache it ON it.id = f.rowid
+                 WHERE service_invoice_items_fts MATCH ?1
+             ) m
+             JOIN service_invoices_cache i ON i.id = m.id
+             WHERE i.source_deleted_at IS NULL AND i.car_id = ?2
+             ORDER BY i.date DESC, i.id DESC
+             LIMIT ?3",
+        )?;
+        let rows = stmt
+            .query_map(params![&match_query, cid, limit as i64], map_invoice_row)?
+            .collect::<Result<Vec<_>, _>>()?;
+        (total, rows)
+    } else {
+        let total: i64 = conn
+            .query_row(
+                "SELECT COUNT(DISTINCT it.service_invoice_id)
+                 FROM service_invoice_items_fts f
+                 JOIN service_invoice_items_cache it ON it.id = f.rowid
+                 JOIN service_invoices_cache i ON i.id = it.service_invoice_id
+                 WHERE service_invoice_items_fts MATCH ?1 AND i.source_deleted_at IS NULL",
+                params![&match_query],
+                |r| r.get(0),
+            )
+            .optional()?
+            .unwrap_or(0);
+
+        let mut stmt = conn.prepare(
+            "SELECT i.id, i.car_id, i.date, i.plate_number, i.driver_name,
+                    i.supervisor, i.operating_region, i.meter_reading,
+                    (SELECT COUNT(*) FROM service_invoice_items_cache it2 WHERE it2.service_invoice_id = i.id) AS item_count,
+                    (SELECT GROUP_CONCAT(s.service, ' • ') FROM (
+                         SELECT service FROM service_invoice_items_cache
+                         WHERE service_invoice_id = i.id
+                         ORDER BY COALESCE(item_order, id) LIMIT 3
+                     ) s) AS preview,
+                    i.fetched_at
+             FROM (
+                 SELECT DISTINCT it.service_invoice_id AS id
+                 FROM service_invoice_items_fts f
+                 JOIN service_invoice_items_cache it ON it.id = f.rowid
+                 WHERE service_invoice_items_fts MATCH ?1
+             ) m
+             JOIN service_invoices_cache i ON i.id = m.id
+             WHERE i.source_deleted_at IS NULL
+             ORDER BY i.date DESC, i.id DESC
+             LIMIT ?2",
+        )?;
+        let rows = stmt
+            .query_map(params![&match_query, limit as i64], map_invoice_row)?
+            .collect::<Result<Vec<_>, _>>()?;
+        (total, rows)
+    };
 
     Ok(InvoiceSearchResult {
         rows,

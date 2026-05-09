@@ -1,9 +1,10 @@
 use crate::AppResult;
 use std::process::Command;
+use uuid::Uuid;
 
 #[tauri::command]
 pub fn print_pdf(bytes: Vec<u8>) -> AppResult<()> {
-    let filename = format!("print_{}.pdf", uuid::Uuid::new_v4());
+    let filename = format!("print_{}.pdf", Uuid::new_v4());
     let tmp_dir = std::env::temp_dir();
     let path = tmp_dir.join(&filename);
 
@@ -16,13 +17,16 @@ pub fn print_pdf(bytes: Vec<u8>) -> AppResult<()> {
     let result = match std::env::consts::OS {
         "macos"   => Command::new("osascript")
             .args([
-                "-e", &format!("tell application \"Preview\" to print POSIX file \"{}\" with print dialog", path_str)
+                "-e", &format!("tell application \"Preview\" to open POSIX file \"{}\"", path_str),
+                "-e", "tell application \"Preview\" to print document 1 with print dialog"
             ])
             .spawn(),
         "windows" => Command::new("powershell")
             .args([
+                "-NoProfile",
+                "-ExecutionPolicy", "Bypass",
                 "-Command",
-                &format!("Start-Process -FilePath '{}' -Verb Print", path_str)
+                &format!("Start-Process -FilePath \"{}\" -Verb Print", path_str)
             ])
             .spawn(),
         _ => Command::new("lpr").arg(&path_str).spawn(),

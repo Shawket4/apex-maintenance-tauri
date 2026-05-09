@@ -194,6 +194,7 @@ pub async fn invoices_refresh(state: State<'_, AppState>) -> AppResult<RefreshRe
 #[derive(Debug, Deserialize)]
 pub struct InvoicesSearchArgs {
     pub query: String,
+    #[serde(default)] pub car_id: Option<i64>,
     #[serde(default = "default_search_limit")] pub limit: i32,
 }
 fn default_search_limit() -> i32 { 50 }
@@ -214,11 +215,14 @@ pub async fn invoices_search(
     }
 
     let limit = args.limit.clamp(1, 200);
-    let path = format!(
+    let mut path = format!(
         "/cache/service-invoices/search?query={}&page=1&limit={}",
         urlencoding::encode_simple(&trimmed),
         limit
     );
+    if let Some(cid) = args.car_id {
+        path.push_str(&format!("&car_id={}", cid));
+    }
 
     match state.http.maint_get_raw(&path).await {
         Ok(raw) => {
@@ -257,7 +261,7 @@ pub async fn invoices_search(
         }
         Err(AppError::Http(msg)) => {
             tracing::warn!(error = %msg, "online invoice search failed — falling back to FTS5");
-            offline_search(&state, trimmed, limit).await
+            offline_search(&state, trimmed, args.car_id, limit).await
         }
         Err(AppError::Unauthorized) => Err(AppError::Unauthorized),
         Err(e) => Err(e),
@@ -267,10 +271,11 @@ pub async fn invoices_search(
 async fn offline_search(
     state: &State<'_, AppState>,
     query: String,
+    car_id: Option<i64>,
     limit: i32,
 ) -> AppResult<InvoiceSearchResult> {
     let db = state.db.clone();
-    tokio::task::spawn_blocking(move || cache_sync::search_invoices_offline(&db, &query, limit))
+    tokio::task::spawn_blocking(move || cache_sync::search_invoices_offline(&db, &query, car_id, limit))
         .await
         .map_err(|e| AppError::Internal(format!("join error: {e}")))?
 }

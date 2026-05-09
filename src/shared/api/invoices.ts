@@ -13,7 +13,8 @@ export const invoicesKeys = {
   all: ["invoices"] as const,
   list: (page: number, limit: number, carId: number | null) =>
     [...invoicesKeys.all, "list", { page, limit, carId }] as const,
-  search: (q: string) => [...invoicesKeys.all, "search", q] as const,
+  search: (q: string, carId: number | null) =>
+    [...invoicesKeys.all, "search", { q, carId }] as const,
   detail: (id: number) => [...invoicesKeys.all, "detail", id] as const,
 };
 
@@ -35,12 +36,16 @@ export function useInvoicesQuery(
   });
 }
 
-export function useInvoicesSearchQuery(query: string, enabled: boolean) {
+export function useInvoicesSearchQuery(
+  query: string,
+  carId: number | null,
+  enabled: boolean,
+) {
   return useQuery<InvoiceSearchResult>({
-    queryKey: invoicesKeys.search(query),
+    queryKey: invoicesKeys.search(query, carId),
     queryFn: () =>
       invoke<InvoiceSearchResult>("invoices_search", {
-        args: { query, limit: 100 },
+        args: { query, car_id: carId ?? undefined, limit: 100 },
       }),
     enabled,
     placeholderData: (prev) => prev,

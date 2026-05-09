@@ -14,12 +14,14 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { ArrowRight, ChevronLeft, Receipt } from "lucide-react";
 import { useRef } from "react";
 
+import { SearchInput } from "@/shared/ui/SearchInput";
 import { Button } from "@/shared/ui/button";
 import { Card, CardContent } from "@/shared/ui/card";
 import {
   useInvoicesAutoRefresh,
   useInvoicesQuery,
   useInvoicesRefresh,
+  useInvoicesSearchQuery,
 } from "@/shared/api/invoices";
 import { useVehiclesQuery } from "@/shared/api/vehicles";
 import { CacheFreshnessIndicator } from "@/widgets/CacheFreshnessIndicator/CacheFreshnessIndicator";
@@ -39,7 +41,13 @@ export function ServiceInvoicesByVehiclePage() {
   const vehicleId = Number(params.vehicleId ?? 0);
 
   const [page, setPage] = useState(1);
-  const listQ = useInvoicesQuery(page, PAGE_SIZE, vehicleId);
+  const [search, setSearch] = useState("");
+  const debouncedSearch = useMemo(() => search.trim(), [search]);
+  const isSearching = debouncedSearch.length > 0;
+
+  const listQ = useInvoicesQuery(page, PAGE_SIZE, vehicleId, !isSearching);
+  const searchQ = useInvoicesSearchQuery(debouncedSearch, vehicleId, isSearching);
+
   const refresh = useInvoicesRefresh();
   useInvoicesAutoRefresh(true);
 
@@ -49,8 +57,10 @@ export function ServiceInvoicesByVehiclePage() {
     [vehiclesQ.data, vehicleId],
   );
 
-  const rows = listQ.data?.rows ?? [];
-  const total = listQ.data?.total ?? 0;
+  const isLoading = isSearching ? searchQ.isLoading : listQ.isLoading;
+  const isError = isSearching ? searchQ.isError : listQ.isError;
+  const rows = isSearching ? (searchQ.data?.rows ?? []) : (listQ.data?.rows ?? []);
+  const total = isSearching ? (searchQ.data?.total ?? 0) : (listQ.data?.total ?? 0);
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
@@ -90,12 +100,20 @@ export function ServiceInvoicesByVehiclePage() {
       </header>
 
       <Card>
-        <CardContent className="p-0">
-          {listQ.isLoading ? (
+        <CardContent className="p-3">
+          <div className="mb-3">
+            <SearchInput
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={t("serviceInvoices.searchInvoices")}
+            />
+          </div>
+
+          {isLoading ? (
             <p className="p-12 text-center text-sm text-muted-foreground">
               {t("actions.loading")}
             </p>
-          ) : listQ.isError ? (
+          ) : isError ? (
             <p className="p-12 text-center text-sm text-destructive">
               {t("invoices.error")}
             </p>
@@ -107,7 +125,7 @@ export function ServiceInvoicesByVehiclePage() {
             <InvoicesTable rows={rows} vehicleId={vehicleId} />
           )}
 
-          {total > PAGE_SIZE && (
+          {total > PAGE_SIZE && !isSearching && (
             <div className="flex items-center justify-between border-t border-border px-4 py-2.5 text-sm">
               <span className="text-muted-foreground">
                 {t("invoices.pagination", {

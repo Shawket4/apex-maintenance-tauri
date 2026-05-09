@@ -117,7 +117,9 @@ jobs:
       - name: Build Android APK
         env:
           NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
-        run: npm run tauri android build -- --apk
+        run: |
+          npm run tauri android init
+          npm run tauri android build -- --apk
 
       # Since tauri-action automatically created the release, we just append the APK to it
       - name: Upload APK to Release

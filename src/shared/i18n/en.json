@@ -138,7 +138,8 @@
       "supervisor": "Supervisor",
       "notes": "Notes",
       "service": "Service"
-    }
+    },
+    "searchInvoices": "Search service or notes..."
   },
   "errors": {
     "session_expired": "Session expired. Local writes are queued until you sign in again."
