@@ -40,7 +40,8 @@
     "refresh": "تحديث",
     "previous": "السابق",
     "next": "التالي",
-    "print": "طباعة"
+    "print": "طباعة",
+    "clear": "مسح"
   },
   "freshness": {
     "never": "لسه ما تحدثش",

@@ -40,7 +40,8 @@
     "refresh": "Refresh",
     "previous": "Previous",
     "next": "Next",
-    "print": "Print"
+    "print": "Print",
+    "clear": "Clear"
   },
   "freshness": {
     "never": "Never refreshed",

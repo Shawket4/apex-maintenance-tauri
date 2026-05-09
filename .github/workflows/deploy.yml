@@ -118,7 +118,10 @@ jobs:
         env:
           NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
         run: |
+          rm -rf src-tauri/gen/android
           npm run tauri android init
+          echo "Checking generated structure:"
+          find src-tauri/gen/android -maxdepth 4
           npm run tauri android build -- --apk
 
       # Since tauri-action automatically created the release, we just append the APK to it
