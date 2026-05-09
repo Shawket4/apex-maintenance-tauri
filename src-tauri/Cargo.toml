@@ -17,6 +17,7 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = [] }
 tauri-plugin-os = "2"
 
+
 # Serde / JSON
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -56,6 +57,7 @@ parking_lot = "0.12"
 # Env-file loading at startup (.env in dev, OS env vars in prod)
 dotenvy = "0.15"
 keyring = "3.6.3"
+tauri-plugin-opener = "2.0.0-rc.0"
 
 [features]
 default = ["custom-protocol"]

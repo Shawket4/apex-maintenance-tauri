@@ -37,6 +37,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_os::init())
+        .plugin(tauri_plugin_opener::init())
         .setup({
             let config = config.clone();
             move |app| {

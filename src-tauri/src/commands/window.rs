@@ -1,42 +1,85 @@
-use tauri::{AppHandle, WebviewUrl, WebviewWindowBuilder};
-use base64::{engine::general_purpose::STANDARD, Engine as _};
+use crate::AppResult; // Adjust to your error handling
+use std::process::{Command, Stdio};
 use uuid::Uuid;
-use crate::AppResult; // Or however your error handling is set up
 
 #[tauri::command]
-pub fn print_pdf(app: AppHandle, bytes: Vec<u8>) -> AppResult<()> {
-    // 1. Convert PDF bytes to a Base64 Data URI
-    let base64_pdf = STANDARD.encode(&bytes);
-    let data_uri = format!("data:application/pdf;base64,{}", base64_pdf);
-
-    // 2. Generate a unique label for the hidden window
-    let window_label = format!("print-window-{}", Uuid::new_v4());
-
-    // 3. Create the Tauri v2 WebviewWindow pointing to the PDF
-    let print_window = WebviewWindowBuilder::new(
-        &app,
-        window_label,
-        WebviewUrl::External(data_uri.parse().unwrap()),
-    )
-    .title("Print Document")
-    .visible(false) // Keep it hidden
-    .build()
-    .map_err(|e| crate::AppError::Internal(format!("Failed to create print window: {}", e)))?;
-
-    // 4. Wait for the Webview's PDF engine to load, then trigger native print
-    std::thread::spawn(move || {
-        // Give the OS webview 1.5 seconds to parse the Base64 PDF
-        std::thread::sleep(std::time::Duration::from_millis(1500));
+pub fn print_pdf(bytes: Vec<u8>) -> AppResult<()> {
+    
+    // 1. Determine safe temporary directory based on OS
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    let temp_dir = app.path().cache_dir()
+        .map_err(|_| crate::AppError::Internal("Failed to get cache dir".into()))?;
         
-        // Use Tauri's native Rust print API
-        if let Err(e) = print_window.print() {
-            eprintln!("Failed to open print dialog: {}", e);
-        }
-        
-        // Wait for the user to interact with the print dialog, then clean up
-        std::thread::sleep(std::time::Duration::from_secs(120));
-        let _ = print_window.close();
-    });
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    let temp_dir = std::env::temp_dir();
+
+    // 2. Write the PDF to disk safely
+    let file_path = temp_dir.join(format!("print_{}.pdf", Uuid::new_v4()));
+    std::fs::write(&file_path, &bytes)
+        .map_err(|e| crate::AppError::Internal(format!("Failed to write PDF: {e}")))?;
+
+    let path_str = file_path.to_string_lossy().to_string();
+
+    // ==========================================
+    // WINDOWS: PowerShell Print Verb
+    // ==========================================
+    #[cfg(target_os = "windows")]
+    {
+        Command::new("powershell")
+            .args([
+                "-NoProfile",
+                "-NonInteractive",
+                "-WindowStyle", "Hidden",
+                "-Command",
+                &format!("Start-Process -FilePath '{}' -Verb Print", path_str)
+            ])
+            // CRITICAL: Detaching standard streams prevents Tauri from infinitely hanging
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .map_err(|e| crate::AppError::Internal(format!("Windows print failed: {e}")))?;
+    }
+
+    // ==========================================
+    // macOS: Preview App Scripting
+    // ==========================================
+    #[cfg(target_os = "macos")]
+    {
+        Command::new("osascript")
+            .args([
+                "-e", &format!("tell application \"Preview\" to open POSIX file \"{}\"", path_str),
+                "-e", "tell application \"Preview\" to print document 1 with print dialog"
+            ])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .map_err(|e| crate::AppError::Internal(format!("macOS print failed: {e}")))?;
+    }
+
+    // ==========================================
+    // LINUX: LPR Command
+    // ==========================================
+    #[cfg(target_os = "linux")]
+    {
+        Command::new("lpr")
+            .arg(&path_str)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .map_err(|e| crate::AppError::Internal(format!("Linux print failed: {e}")))?;
+    }
+
+    // ==========================================
+    // MOBILE (Android / iOS): Native System Opener
+    // ==========================================
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    {
+        tauri_plugin_opener::open_path(path_str, None::<&str>)
+            .map_err(|e| crate::AppError::Internal(format!("Mobile open failed: {e}")))?;
+    }
 
     Ok(())
 }
