@@ -4,7 +4,7 @@ use uuid::Uuid;
 
 #[tauri::command]
 // ⬇️ Right here! This is WHERE 'app' comes from. Tauri injects it automatically.
-pub fn print_pdf(_app: AppHandle, bytes: Vec<u8>) -> AppResult<()> {
+pub async fn print_pdf(_app: AppHandle, bytes: Vec<u8>) -> AppResult<()> {
     
     // 1. Get the OS-appropriate temp/cache directory
     #[cfg(any(target_os = "android", target_os = "ios"))]
@@ -53,20 +53,13 @@ pub fn print_pdf(_app: AppHandle, bytes: Vec<u8>) -> AppResult<()> {
 
     #[cfg(target_os = "windows")]
     {
-        tracing::info!(path = ?file_path, "Attempting native print via PowerShell");
-        // Use PowerShell to print the PDF using the default handler
-        let status = std::process::Command::new("powershell")
-            .arg("-Command")
-            .arg(format!("Start-Process -FilePath '{}' -Verb Print", file_path.display()))
-            .status()
-            .map_err(|e| crate::AppError::Internal(format!("Failed to run powershell: {e}")))?;
+        tracing::info!(path = ?file_path, "Opening PDF for printing via default viewer");
+        
+        let path_str = file_path.to_string_lossy().to_string();
+        tauri_plugin_opener::open_path(path_str, None::<&str>)
+            .map_err(|e| crate::AppError::Internal(format!("Failed to open PDF: {e}")))?;
             
-        if !status.success() {
-            tracing::error!(?status, "PowerShell print command failed");
-            return Err(crate::AppError::Internal("powershell print command failed".into()));
-        }
-        tracing::info!("PowerShell print command succeeded");
-        Ok(())
+        return Ok(());
     }
 
     #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
