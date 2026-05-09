@@ -58,11 +58,15 @@ export function ServiceInvoiceDetailPage() {
   const [printing, setPrinting] = useState(false);
 
   const printPdf = useCallback(async () => {
-    if (!detailQ.data) { console.warn("[print] no data"); return; }
     const inv = detailQ.data;
+    if (!inv || typeof inv !== "object") {
+      toast.error(t("serviceInvoices.noDataToPrint"));
+      return;
+    }
+    
     setPrinting(true);
     try {
-      console.log("[print] generating PDF bytes…");
+      console.log("[print] starting for invoice:", inv.id);
       const bytes = await renderInvoicePdfBytes({
         inv,
         isRtl: i18n.dir() === "rtl",

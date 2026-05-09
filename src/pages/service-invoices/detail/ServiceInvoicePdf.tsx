@@ -265,9 +265,9 @@ export function ServiceInvoicePdfDocument({
     if (val === null || val === undefined) return "—";
     const str = String(val).trim();
     if (!str) return "—";
-    // Strip control characters and invisible markers (ZWSP, ZWNJ, etc.) 
-    // which often cause "undefined is not an object (evaluating 'glyph.id')" in react-pdf
-    return str.replace(/[\u0000-\u001F\u007F-\u009F\u200B-\u200D\uFEFF]/g, "");
+    // Expanded regex to strip even more control characters and problematic invisible markers
+    // that cause "glyph.id of undefined" crashes in react-pdf's layout engine.
+    return str.replace(/[\u0000-\u001F\u007F-\u009F\u2000-\u200F\u2028-\u202F\u205F-\u206F\uFEFF]/g, "");
   };
 
   const MetaItem = ({ label, value }: { label: string; value: string }) => (
@@ -338,7 +338,7 @@ export function ServiceInvoicePdfDocument({
                 <Text style={styles.emptyState}>{cleanText(labels.noItems)}</Text>
              </View>
           ) : (
-            inv.items.map((item, index) => {
+            inv.items.filter(Boolean).map((item, index) => {
               const isLast = index === inv.items.length - 1;
               return (
                  <View 
