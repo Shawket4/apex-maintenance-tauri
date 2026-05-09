@@ -66,7 +66,9 @@ export function ServiceInvoiceDetailPage() {
     
     setPrinting(true);
     try {
-      console.log("[print] generating PDF bytes for ID:", inv?.id);
+      console.log("[print] starting PDF generation for ID:", inv.id);
+      console.log("[print] invoice items count:", inv.items?.length);
+      
       const bytes = await renderInvoicePdfBytes({
         inv,
         isRtl: i18n.dir() === "rtl",
@@ -113,7 +115,7 @@ export function ServiceInvoiceDetailPage() {
     } finally {
       setPrinting(false);
     }
-  }, [detailQ.data, locale, t]);
+  }, [detailQ.data, locale, t, i18n]);
 
   const back = () => {
     if (vehicleId) {

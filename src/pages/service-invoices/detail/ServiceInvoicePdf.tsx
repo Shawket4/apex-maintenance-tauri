@@ -268,9 +268,11 @@ export function ServiceInvoicePdfDocument({
     if (val === null || val === undefined) return "—";
     const str = String(val).trim();
     if (!str) return "—";
-    // Expanded regex to strip even more control characters and problematic invisible markers
+    // Aggressive regex to strip control characters and invisible markers
     // that cause "glyph.id of undefined" crashes in react-pdf's layout engine.
-    return str.replace(/[\u0000-\u001F\u007F-\u009F\u2000-\u200F\u2028-\u202F\u205F-\u206F\uFEFF]/g, "");
+    // Added: \u00AD (soft hyphen), \u202A-\u202E (directional formatting), 
+    // and expanded the 2000 range.
+    return str.replace(/[\u0000-\u001F\u007F-\u009F\u00AD\u2000-\u200F\u202A-\u202E\u2028-\u202F\u205F-\u206F\uFEFF]/g, "");
   };
 
   const MetaItem = ({ label, value }: { label: string; value: string }) => (
@@ -341,9 +343,11 @@ export function ServiceInvoicePdfDocument({
                 <Text style={styles.emptyState}>{cleanText(labels?.noItems)}</Text>
              </View>
           ) : (
-            (inv?.items ?? []).filter(Boolean).map((item, index) => {
-              if (!item || typeof item !== "object") return null;
-              const isLast = index === (inv?.items?.length ?? 0) - 1;
+            (() => {
+              const items = (inv?.items ?? []).filter(Boolean);
+              return items.map((item, index) => {
+                if (!item || typeof item !== "object") return null;
+                const isLast = index === items.length - 1;
               return (
                  <View 
                   key={item.id ?? index} 
@@ -361,8 +365,9 @@ export function ServiceInvoicePdfDocument({
                     </Text>
                   </View>
                 </View>
-              );
-            })
+                );
+              });
+            })()
           )}
         </View>
 
