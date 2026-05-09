@@ -66,19 +66,19 @@ export function ServiceInvoiceDetailPage() {
     
     setPrinting(true);
     try {
-      console.log("[print] starting for invoice:", inv.id);
+      console.log("[print] generating PDF bytes for ID:", inv?.id);
       const bytes = await renderInvoicePdfBytes({
         inv,
         isRtl: i18n.dir() === "rtl",
         formatted: {
-          id:         fmtNumber(inv.id, locale),
-          date:       inv.date ? fmtCairo(inv.date, "YYYY/MM/DD", locale) : "—",
-          meter:      fmtKm(inv.meter_reading, locale),
-          driver:     inv.driver_name ?? "—",
-          supervisor: inv.supervisor ?? "—",
-          region:     inv.operating_region ?? "—",
-          plate:      inv.plate_number ?? "—",
-          fetchedAt:  fmtCairo(inv.fetched_at, "YYYY/MM/DD HH:mm", locale),
+          id:         String(inv?.id ?? "0"),
+          date:       inv?.date ? fmtCairo(inv.date, "YYYY/MM/DD", locale) : "—",
+          meter:      fmtKm(inv?.meter_reading, locale),
+          driver:     inv?.driver_name ?? "—",
+          supervisor: inv?.supervisor ?? "—",
+          region:     inv?.operating_region ?? "—",
+          plate:      inv?.plate_number ?? "—",
+          fetchedAt:  inv?.fetched_at ? fmtCairo(inv.fetched_at, "YYYY/MM/DD HH:mm", locale) : "—",
         },
         labels: {
           receiptTitle:    t("serviceInvoices.receiptTitle"),

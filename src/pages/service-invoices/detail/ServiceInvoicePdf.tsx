@@ -11,15 +11,18 @@ import {
 import type { InvoiceDetail } from "@/entities/invoice/model";
 
 // ─── Font Registration ────────────────────────────────────────────────────────
-Font.register({
-  family: "Cairo",
-  fonts: [
-    { src: "/fonts/Cairo-Regular.ttf", fontWeight: 400 },
-    { src: "/fonts/Cairo-Regular.ttf", fontWeight: 700 },
-  ],
-});
-
-Font.registerHyphenationCallback((word) => [word]);
+// Prevent multiple registrations during re-renders or HMR
+if (!(globalThis as any).__FONTS_REGISTERED__) {
+  Font.register({
+    family: "Cairo",
+    fonts: [
+      { src: "/fonts/Cairo-Regular.ttf", fontWeight: 400 },
+      { src: "/fonts/Cairo-Regular.ttf", fontWeight: 700 },
+    ],
+  });
+  Font.registerHyphenationCallback((word) => [word]);
+  (globalThis as any).__FONTS_REGISTERED__ = true;
+}
 
 // ─── Design Tokens ────────────────────────────────────────────────────────────
 const COLORS = {
@@ -335,14 +338,15 @@ export function ServiceInvoicePdfDocument({
 
           {!inv?.items || inv.items.length === 0 ? (
              <View style={styles.tableRowLast}>
-                <Text style={styles.emptyState}>{cleanText(labels.noItems)}</Text>
+                <Text style={styles.emptyState}>{cleanText(labels?.noItems)}</Text>
              </View>
           ) : (
-            inv.items.filter(Boolean).map((item, index) => {
-              const isLast = index === inv.items.length - 1;
+            (inv?.items ?? []).filter(Boolean).map((item, index) => {
+              if (!item || typeof item !== "object") return null;
+              const isLast = index === (inv?.items?.length ?? 0) - 1;
               return (
                  <View 
-                  key={item.id} 
+                  key={item.id ?? index} 
                   style={isLast ? [styles.tableRow, styles.tableRowLast] : styles.tableRow} 
                   wrap={false}
                 >
