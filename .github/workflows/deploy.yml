@@ -23,6 +23,8 @@ jobs:
             target: "x86_64-unknown-linux-gnu"
           - platform: "windows-latest" # Windows (msi & exe)
             target: "x86_64-pc-windows-msvc"
+          - platform: "windows-latest" # Windows ARM (msi & exe)
+            target: "aarch64-pc-windows-msvc"
 
     steps:
       - name: Checkout repository

@@ -2,12 +2,14 @@ import { useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Providers } from "./providers";
 import { Router } from "./routes";
+import { Toaster } from "@/shared/ui/toaster";
 
 export function App() {
   return (
     <Providers>
       <DirectionSync />
       <Router />
+      <Toaster />
     </Providers>
   );
 }

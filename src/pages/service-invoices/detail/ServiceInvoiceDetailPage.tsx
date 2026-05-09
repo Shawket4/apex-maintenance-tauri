@@ -41,6 +41,7 @@ import { fmtKm, fmtNumber } from "@/shared/lib/numbers";
 import { cn } from "@/shared/lib/cn";
 import { invoke } from "@/shared/api/tauri";
 import { renderInvoicePdfBytes } from "./ServiceInvoicePdf";
+import { toast } from "@/shared/lib/toast-store";
 
 export function ServiceInvoiceDetailPage() {
   const { t, i18n } = useTranslation();
@@ -101,7 +102,10 @@ export function ServiceInvoiceDetailPage() {
       console.log("[print] done");
     } catch (err) {
       console.error("[print] FAILED:", err);
-      alert("Print failed: " + String(err));
+      const msg = typeof err === "object" && err !== null && "message" in err 
+        ? (err as any).message 
+        : String(err);
+      toast.error("Print failed: " + msg);
     } finally {
       setPrinting(false);
     }
