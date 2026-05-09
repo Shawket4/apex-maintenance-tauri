@@ -19,6 +19,8 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilte
 pub use config::AppConfig;
 pub use error::{AppError, AppResult};
 
+
+
 /// Application-wide state held by Tauri's runtime.
 pub struct AppState {
     pub config: Arc<AppConfig>,
@@ -38,6 +40,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .setup({
             let config = config.clone();
             move |app| {
@@ -67,6 +70,9 @@ pub fn run() {
                 };
                 app.manage(state);
 
+                // Phase 3: Background sync
+                start_sync_loops(app.handle().clone());
+
                 Ok(())
             }
         })
@@ -88,9 +94,63 @@ pub fn run() {
             commands::cache::invoice_get,
             commands::cache::cache_freshness_get,
             commands::window::print_pdf,
+            commands::export::export_to_excel,
+            // Phase 3
+            commands::sync::sync_get_status,
+            commands::sync::sync_push,
+            commands::sync::sync_pull,
+            commands::sync::sync_now,
+            commands::sync::sync_list_conflicts,
+            commands::sync::sync_resolve_conflict,
+            commands::sync::test_create_odometer_override,
+            commands::sync::test_reset_sync_state,
         ])
         .run(tauri::generate_context!())
         .expect("error while running apex-maintenance");
+}
+
+fn start_sync_loops(app_handle: tauri::AppHandle) {
+    use crate::services::sync::SyncService;
+    use tauri::Manager;
+
+    let state = app_handle.state::<AppState>();
+    let sync_service = Arc::new(SyncService::new(state.db.clone(), state.http.clone()));
+    let config = state.config.clone();
+
+    // Push loop
+    tauri::async_runtime::spawn({
+        let sync_service = sync_service.clone();
+        let interval = config.sync.push_interval;
+        async move {
+            tracing::info!(?interval, "starting background push loop");
+            loop {
+                tokio::time::sleep(interval).await;
+                // Only push if we have a valid JWT
+                if let Err(e) = sync_service.push_all().await {
+                    if !matches!(e, crate::AppError::Unauthorized) {
+                        tracing::error!(?e, "background push failed");
+                    }
+                }
+            }
+        }
+    });
+
+    // Pull loop
+    tauri::async_runtime::spawn({
+        let sync_service = sync_service.clone();
+        let interval = config.sync.pull_interval;
+        async move {
+            tracing::info!(?interval, "starting background pull loop");
+            loop {
+                tokio::time::sleep(interval).await;
+                if let Err(e) = sync_service.pull_all().await {
+                    if !matches!(e, crate::AppError::Unauthorized) {
+                        tracing::error!(?e, "background pull failed");
+                    }
+                }
+            }
+        }
+    });
 }
 
 fn init_tracing() {

@@ -29,6 +29,7 @@ import { fmtNumber, fmtKm } from "@/shared/lib/numbers";
 import { fmtCairo } from "@/shared/lib/time";
 import type { InvoiceRow } from "@/entities/invoice/model";
 import type { VehicleRow } from "@/entities/vehicle/model";
+import { ExportExcelButton } from "@/shared/ui/ExportExcelButton";
 
 const PAGE_SIZE = 100;
 const ROW_HEIGHT = 64;
@@ -92,11 +93,38 @@ export function ServiceInvoicesByVehiclePage() {
           </div>
         </div>
 
-        <CacheFreshnessIndicator
-          cacheName="service_invoices"
-          onRefresh={() => refresh.mutate()}
-          isRefreshing={refresh.isPending}
-        />
+        <div className="flex items-center gap-2">
+          <ExportExcelButton
+            disabled={rows.length === 0}
+            config={() => ({
+              filename: `invoices_${vehicle?.car_no_plate ?? "vehicle"}_${page}`,
+              sheets: [
+                {
+                  name: "Invoices",
+                  title: vehicle?.car_no_plate ?? t("serviceInvoices.unknownVehicle"),
+                  subtitle: t("serviceInvoices.subtitleByVehicle", { formattedCount: fmtNumber(total, locale) }),
+                  isRtl: i18n.dir() === "rtl",
+                  columns: [
+                    { key: "date", header: t("invoices.col.date"), type: "date", width: 15 },
+                    { key: "services_preview", header: t("invoices.col.services"), width: 40 },
+                    { key: "driver_name", header: t("invoices.col.driver"), width: 20 },
+                    { key: "operating_region", header: t("invoices.col.region"), width: 15 },
+                    { key: "item_count", header: t("invoices.col.items"), type: "integer", total: true },
+                    { key: "meter_reading", header: t("invoices.col.meter"), type: "number" },
+                  ],
+                  rows: rows,
+                  totals: true,
+                },
+              ],
+            })}
+          />
+
+          <CacheFreshnessIndicator
+            cacheName="service_invoices"
+            onRefresh={() => refresh.mutate()}
+            isRefreshing={refresh.isPending}
+          />
+        </div>
       </header>
 
       <Card>

@@ -110,6 +110,20 @@ impl HttpClient {
         consume_response(&url, resp).await
     }
 
+    pub async fn get<T: serde::de::DeserializeOwned>(&self, path: &str) -> AppResult<T> {
+        let raw = self.maint_get_raw(path).await?;
+        Ok(serde_json::from_str(&raw.body)?)
+    }
+
+    pub async fn post<B: Serialize, T: serde::de::DeserializeOwned>(
+        &self,
+        path: &str,
+        body: &B,
+    ) -> AppResult<T> {
+        let raw = self.maint_post_raw(path, body).await?;
+        Ok(serde_json::from_str(&raw.body)?)
+    }
+
     fn require_jwt(&self) -> AppResult<String> {
         session_store::read_jwt(&self.data_dir)?.ok_or(AppError::Unauthorized)
     }

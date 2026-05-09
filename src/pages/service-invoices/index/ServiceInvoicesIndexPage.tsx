@@ -11,6 +11,7 @@ import { Link } from "@tanstack/react-router";
 import { ChevronLeft, Truck, Wrench } from "lucide-react";
 
 import { SearchInput } from "@/shared/ui/SearchInput";
+import { ExportExcelButton } from "@/shared/ui/ExportExcelButton";
 import { Card, CardContent } from "@/shared/ui/card";
 import {
   useVehiclesAutoRefresh,
@@ -53,11 +54,36 @@ export function ServiceInvoicesIndexPage() {
           </div>
         </div>
 
-        <CacheFreshnessIndicator
-          cacheName="vehicles"
-          onRefresh={() => refresh.mutate()}
-          isRefreshing={refresh.isPending}
-        />
+        <div className="flex items-center gap-2">
+          <ExportExcelButton
+            disabled={filtered.length === 0}
+            config={() => ({
+              filename: "invoice_pick_list",
+              sheets: [
+                {
+                  name: "Vehicles",
+                  title: t("serviceInvoices.title"),
+                  subtitle: t("serviceInvoices.pickVehicle", { formattedCount: fmtNumber(filtered.length, locale) }),
+                  isRtl: i18n.dir() === "rtl",
+                  columns: [
+                    { key: "car_no_plate", header: t("vehicles.col.plate"), width: 15 },
+                    { key: "car_type", header: t("vehicles.col.type"), width: 15 },
+                    { key: "transporter", header: t("vehicles.col.transporter"), width: 20 },
+                    { key: "tank_capacity", header: t("vehicles.col.tank_capacity"), type: "integer" },
+                    { key: "driver_name", header: t("vehicles.col.driver"), width: 20 },
+                  ],
+                  rows: filtered,
+                },
+              ],
+            })}
+          />
+
+          <CacheFreshnessIndicator
+            cacheName="vehicles"
+            onRefresh={() => refresh.mutate()}
+            isRefreshing={refresh.isPending}
+          />
+        </div>
       </header>
 
       <Card>

@@ -1,66 +1,94 @@
-import { useEffect, useState } from "react";
-import { X, CheckCircle2, AlertCircle, Info, AlertTriangle } from "lucide-react";
-import { useToastStore, Toast as ToastType } from "@/shared/lib/toast-store";
-import { cn } from "@/shared/lib/cn";
+import * as React from "react";
+import { useEffect } from "react";
+import { useTheme } from "next-themes";
+import { Toaster as Sonner, toast as sonnerToast } from "sonner";
+import { useToastStore } from "@/shared/lib/toast-store";
 
-export function Toaster() {
+type ToasterProps = React.ComponentProps<typeof Sonner>;
+
+// Bridges the existing toast-store into Sonner
+function ToastStoreBridge() {
   const toasts = useToastStore((state) => state.toasts);
-
-  return (
-    <div className="fixed bottom-0 right-0 z-[100] flex flex-col p-4 gap-2 w-full max-w-md pointer-events-none sm:bottom-4 sm:right-4">
-      {toasts.map((toast) => (
-        <ToastItem key={toast.id} toast={toast} />
-      ))}
-    </div>
-  );
-}
-
-function ToastItem({ toast }: { toast: ToastType }) {
   const removeToast = useToastStore((state) => state.removeToast);
-  const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
-    // Animation entry
-    const raf = requestAnimationFrame(() => setIsVisible(true));
-    return () => cancelAnimationFrame(raf);
-  }, []);
+    toasts.forEach((t) => {
+      const method =
+        t.type === "success" ? sonnerToast.success :
+        t.type === "error"   ? sonnerToast.error   :
+        t.type === "warning" ? sonnerToast.warning  :
+        t.type === "info"    ? sonnerToast.info     :
+        sonnerToast;
 
-  const icons = {
-    success: <CheckCircle2 className="h-5 w-5 text-emerald-500" />,
-    error: <AlertCircle className="h-5 w-5 text-destructive" />,
-    info: <Info className="h-5 w-5 text-blue-500" />,
-    warning: <AlertTriangle className="h-5 w-5 text-amber-500" />,
-  };
+      method(t.message, {
+        id: t.id,
+        onDismiss: () => removeToast(t.id),
+        onAutoClose: () => removeToast(t.id),
+      });
+    });
+  }, [toasts, removeToast]);
 
-  const bgClasses = {
-    success: "border-emerald-500/20 bg-emerald-50/90 dark:bg-emerald-950/90",
-    error: "border-destructive/20 bg-destructive/5 dark:bg-destructive/10",
-    info: "border-blue-500/20 bg-blue-50/90 dark:bg-blue-950/90",
-    warning: "border-amber-500/20 bg-amber-50/90 dark:bg-amber-950/90",
-  };
+  return null;
+}
+
+export function Toaster(props: ToasterProps) {
+  const { theme = "system" } = useTheme();
 
   return (
-    <div
-      className={cn(
-        "pointer-events-auto flex w-full items-center gap-3 rounded-lg border p-4 shadow-lg backdrop-blur-sm transition-all duration-300 ease-out",
-        bgClasses[toast.type],
-        isVisible ? "translate-y-0 opacity-100 scale-100" : "translate-y-2 opacity-0 scale-95"
-      )}
-      role="alert"
-    >
-      <div className="flex-shrink-0">{icons[toast.type]}</div>
-      <div className="flex-1 text-sm font-medium leading-relaxed">
-        {toast.message}
-      </div>
-      <button
-        onClick={() => {
-          setIsVisible(false);
-          setTimeout(() => removeToast(toast.id), 300);
+    <>
+      <ToastStoreBridge />
+      <Sonner
+        theme={theme as ToasterProps["theme"]}
+        position="top-right"
+        richColors
+        closeButton
+        className="toaster group"
+        toastOptions={{
+          classNames: {
+            toast:
+              "group toast group-[.toaster]:bg-background group-[.toaster]:text-foreground group-[.toaster]:border-border group-[.toaster]:shadow-lg",
+            description: "group-[.toast]:text-muted-foreground",
+            actionButton:
+              "group-[.toast]:bg-primary group-[.toast]:text-primary-foreground",
+            cancelButton:
+              "group-[.toast]:bg-muted group-[.toast]:text-muted-foreground",
+          },
         }}
-        className="flex-shrink-0 rounded-md p-1 opacity-50 transition-opacity hover:opacity-100"
-      >
-        <X className="h-4 w-4" />
-      </button>
-    </div>
+        {...props}
+      />
+    </>
   );
 }
+
+interface ToastPayload {
+  title?: React.ReactNode;
+  description?: React.ReactNode;
+  variant?: "default" | "destructive" | "success";
+}
+
+export const toast = (
+  message: string | React.ReactNode | ToastPayload,
+  options?: any,
+) => {
+  if (typeof message === "object" && message !== null && "title" in message) {
+    const { title, description, variant, ...rest } = message as ToastPayload;
+
+    const method =
+      variant === "destructive" ? sonnerToast.error :
+      variant === "success"     ? sonnerToast.success :
+      sonnerToast;
+
+    return method(title, { description, ...rest, ...options });
+  }
+
+  return sonnerToast(message as any, options);
+};
+
+toast.success  = sonnerToast.success;
+toast.error    = sonnerToast.error;
+toast.info     = sonnerToast.info;
+toast.warning  = sonnerToast.warning;
+toast.loading  = sonnerToast.loading;
+toast.promise  = sonnerToast.promise;
+toast.dismiss  = sonnerToast.dismiss;
+toast.custom   = sonnerToast.custom;

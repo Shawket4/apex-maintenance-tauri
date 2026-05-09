@@ -26,12 +26,10 @@ import {
   Gauge,
   Info,
   MapPin,
-  Printer,
   ChevronLeft,
   User,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { useState, useCallback } from "react";
 
 import { Button } from "@/shared/ui/button";
 import { Card, CardContent } from "@/shared/ui/card";
@@ -42,29 +40,24 @@ import { cn } from "@/shared/lib/cn";
 import { invoke } from "@/shared/api/tauri";
 import { renderInvoicePdfBytes } from "./ServiceInvoicePdf";
 import { toast } from "@/shared/lib/toast-store";
+import { ExportExcelButton } from "@/shared/ui/ExportExcelButton";
+import { PrintButton } from "@/shared/ui/PrintButton";
 
 export function ServiceInvoiceDetailPage() {
   const { t, i18n } = useTranslation();
-  const locale = i18n.language ?? "ar";
   const navigate = useNavigate();
-  const params = useParams({ strict: false }) as {
-    vehicleId?: string;
-    invoiceId?: string;
-  };
-  const invoiceId = Number(params.invoiceId ?? 0);
-  const vehicleId = params.vehicleId;
+  const { vehicleId, invoiceId } = useParams({ from: "/protected/service-invoices/$vehicleId/$invoiceId" });
+  const locale = i18n.language === "ar" ? "ar-EG" : "en-US";
 
-  const detailQ = useInvoiceDetailQuery(invoiceId);
-  const [printing, setPrinting] = useState(false);
+  const detailQ = useInvoiceDetailQuery(Number(invoiceId ?? 0));
 
-  const printPdf = useCallback(async () => {
+  const printPdf = async () => {
     const inv = detailQ.data;
     if (!inv || typeof inv !== "object") {
       toast.error(t("serviceInvoices.noDataToPrint"));
       return;
     }
     
-    setPrinting(true);
     try {
       console.log("[print] starting PDF generation for ID:", inv.id);
       console.log("[print] invoice items count:", inv.items?.length);
@@ -100,11 +93,7 @@ export function ServiceInvoiceDetailPage() {
       });
       console.log("[print] PDF ready, bytes length:", bytes.length);
       
-      // Call the native Rust command to trigger the OS print dialog
-      await invoke("print_pdf", {
-        bytes,
-      });
-      
+      await invoke("print_pdf", { bytes });
       console.log("[print] done");
     } catch (err) {
       console.error("[print] FAILED:", err);
@@ -112,10 +101,8 @@ export function ServiceInvoiceDetailPage() {
         ? (err as any).message 
         : String(err);
       toast.error("Print failed: " + msg);
-    } finally {
-      setPrinting(false);
     }
-  }, [detailQ.data, locale, t, i18n]);
+  };
 
   const back = () => {
     if (vehicleId) {
@@ -211,12 +198,35 @@ export function ServiceInvoiceDetailPage() {
             </p>
           </div>
         </div>
-        <Button onClick={printPdf} disabled={printing}>
-          <Printer className="h-4 w-4" />
-          <span className="ms-2">
-            {printing ? "…" : t("actions.print")}
-          </span>
-        </Button>
+        <div className="flex items-center gap-2">
+          <ExportExcelButton
+            config={() => ({
+              filename: `invoice_${inv.id}_${inv.plate_number}`,
+              sheets: [
+                {
+                  name: "Invoice Detail",
+                  title: `${t("serviceInvoices.receiptTitle")} #${inv.id}`,
+                  subtitle: `${inv.plate_number} · ${inv.date ? fmtCairo(inv.date, "YYYY/MM/DD", locale) : ""}`,
+                  isRtl: i18n.dir() === "rtl",
+                  stats: [
+                    { label: t("invoices.col.date"), value: inv.date ? fmtCairo(inv.date, "YYYY/MM/DD", locale) : "—" },
+                    { label: t("invoices.col.meter"), value: inv.meter_reading, type: "number" },
+                    { label: t("invoices.col.driver"), value: inv.driver_name ?? "—" },
+                    { label: t("serviceInvoices.fields.supervisor"), value: inv.supervisor ?? "—" },
+                    { label: t("invoices.col.region"), value: inv.operating_region ?? "—" },
+                    { label: t("invoices.col.plate"), value: inv.plate_number ?? "—" },
+                  ],
+                  columns: [
+                    { key: "service", header: t("serviceInvoices.fields.service"), width: 35 },
+                    { key: "notes", header: t("serviceInvoices.fields.notes"), width: 45 },
+                  ],
+                  rows: inv.items,
+                },
+              ],
+            })}
+          />
+          <PrintButton onPrint={printPdf} />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 print:block">

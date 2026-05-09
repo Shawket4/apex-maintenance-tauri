@@ -41,6 +41,7 @@
     "previous": "السابق",
     "next": "التالي",
     "print": "طباعة",
+    "export": "تصدير",
     "clear": "مسح"
   },
   "freshness": {
@@ -144,5 +145,23 @@
   },
   "errors": {
     "session_expired": "انتهت صلاحية الجلسة. الكتابات في الانتظار حتى تسجيل الدخول مرة أخرى."
+  },
+  "sync": {
+    "conflicts_title": "تعارض في البيانات",
+    "no_conflicts": "لا يوجد تعارض في البيانات",
+    "local_version": "تعديلي (محلي)",
+    "server_version": "نسخة السيرفر",
+    "action_accept_server": "قبول السيرفر",
+    "action_keep_mine": "الاحتفاظ بتعديلي والمحاولة مرة أخرى",
+    "conflicts_label": "تعارضات",
+    "pending": "قيد الانتظار",
+    "synced": "تم المزامنة",
+    "changes": "تعديلات",
+    "up_to_date": "محدث",
+    "test_button": "تجربة تجاوز العداد",
+    "test_dialog_title": "إنشاء تجاوز تجريبي",
+    "test_dialog_desc": "ده هيعمل تعديل محلي في العداد وهيحطه في الـ outbox عشان يتزامن ونتأكد إن الـ Phase 3 شغال.",
+    "vehicle_id_label": "معرف السيارة",
+    "odometer_label": "العداد الجديد"
   }
 }

@@ -28,6 +28,9 @@ import {
 import { invoke } from "@/shared/api/tauri";
 import { useAuth } from "@/shared/api/auth";
 import { fmtNumber } from "@/shared/lib/numbers";
+import { ExportExcelButton } from "@/shared/ui/ExportExcelButton";
+import { TestSyncButton } from "./TestSyncButton";
+import { ResetSyncButton } from "./ResetSyncButton";
 
 interface AppVersion {
   name: string;
@@ -65,10 +68,42 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <header>
+      <header className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">
           {t("dashboard.welcome", { name: user?.name || user?.email || "" })}
         </h1>
+        <div className="flex items-center gap-2">
+          <ResetSyncButton />
+          <TestSyncButton />
+          <ExportExcelButton
+            config={() => ({
+            filename: "dashboard_diagnostics",
+            sheets: [
+              {
+                name: "System Health",
+                title: t("dashboard.version_title"),
+                isRtl: i18n.dir() === "rtl",
+                stats: [
+                  { label: t("dashboard.migrations_applied"), value: health.data?.migrations_applied ?? 0, type: "integer" },
+                  { label: t("dashboard.seeded_categories"), value: health.data?.seeded_categories ?? 0, type: "integer" },
+                  { label: t("dashboard.outbox_pending"), value: health.data?.outbox_pending ?? 0, type: "integer" },
+                ],
+                columns: [
+                  { key: "property", header: "Property", width: 25 },
+                  { key: "value", header: "Value", width: 25 },
+                ],
+                rows: [
+                  { property: "App Name", value: version.data?.name },
+                  { property: "App Version", value: version.data?.version },
+                  { property: "Tauri Version", value: version.data?.tauri_version },
+                  { property: "Database Status", value: health.data?.ok ? "Healthy" : "Error" },
+                  { property: "Ping Response", value: ping.data },
+                ],
+              },
+            ],
+          })}
+        />
+        </div>
       </header>
 
       <Card className="border-emerald-200 bg-emerald-50/40 dark:border-emerald-900 dark:bg-emerald-950/30">

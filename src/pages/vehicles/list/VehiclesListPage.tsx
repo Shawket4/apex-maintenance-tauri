@@ -22,6 +22,7 @@ import { useTranslation } from "react-i18next";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { AlertTriangle, Truck } from "lucide-react";
 import { SearchInput } from "@/shared/ui/SearchInput";
+import { ExportExcelButton } from "@/shared/ui/ExportExcelButton";
 import { Card, CardContent } from "@/shared/ui/card";
 import {
   expirationStatus,
@@ -38,8 +39,7 @@ import { fmtKm, fmtNumber } from "@/shared/lib/numbers";
 import { fmtCairo } from "@/shared/lib/time";
 import { cn } from "@/shared/lib/cn";
 
-// Wider columns + headers fit in their cell at all locales.
-// Total fixed: 180+150+130+1fr+1fr+150+150+150+150 ≈ 1060 + flex.
+
 const GRID = "grid-cols-[180px_150px_130px_minmax(140px,1fr)_minmax(140px,1fr)_150px_150px_150px_150px]";
 const ROW_HEIGHT = 56;
 
@@ -72,11 +72,40 @@ export function VehiclesListPage() {
           </div>
         </div>
 
-        <CacheFreshnessIndicator
-          cacheName="vehicles"
-          onRefresh={() => refresh.mutate()}
-          isRefreshing={refresh.isPending}
-        />
+        <div className="flex items-center gap-2">
+          <ExportExcelButton
+            disabled={filtered.length === 0}
+            config={() => ({
+              filename: "vehicles_list",
+              sheets: [
+                {
+                  name: "Vehicles",
+                  title: t("vehicles.title"),
+                  isRtl: i18n.dir() === "rtl",
+                  columns: [
+                    { key: "car_no_plate", header: t("vehicles.col.plate"), width: 15 },
+                    { key: "car_type", header: t("vehicles.col.type"), width: 15 },
+                    { key: "tank_capacity", header: t("vehicles.col.tank_capacity"), type: "integer", total: true },
+                    { key: "transporter", header: t("vehicles.col.transporter"), width: 20 },
+                    { key: "driver_name", header: t("vehicles.col.driver"), width: 20 },
+                    { key: "last_fuel_odometer", header: t("vehicles.col.odometer"), type: "number" },
+                    { key: "license_expiration_date", header: t("vehicles.col.car_license"), type: "date" },
+                    { key: "calibration_expiration_date", header: t("vehicles.col.calibration"), type: "date" },
+                    { key: "tank_license_expiration_date", header: t("vehicles.col.tank_license"), type: "date" },
+                  ],
+                  rows: filtered,
+                  totals: true,
+                },
+              ],
+            })}
+          />
+
+          <CacheFreshnessIndicator
+            cacheName="vehicles"
+            onRefresh={() => refresh.mutate()}
+            isRefreshing={refresh.isPending}
+          />
+        </div>
       </header>
 
       <Card>

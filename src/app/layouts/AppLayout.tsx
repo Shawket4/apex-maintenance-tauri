@@ -4,6 +4,7 @@ import { Wifi, WifiOff } from "lucide-react";
 
 import { useNetworkStatus } from "@/shared/hooks/useNetworkStatus";
 import { AppSidebar } from "@/widgets/AppSidebar/AppSidebar";
+import { SyncIndicator } from "@/widgets/SyncIndicator/SyncIndicator";
 
 export function AppLayout({ children }: { children: ReactNode }) {
   const { t, i18n } = useTranslation();
@@ -17,7 +18,9 @@ export function AppLayout({ children }: { children: ReactNode }) {
       <AppSidebar />
 
       <div className="flex flex-1 min-w-0 flex-col print:block">
-        <header className="h-12 border-b border-border flex items-center justify-end px-4 sticky top-0 bg-background/95 backdrop-blur z-10 print:hidden">
+        <header className="h-12 border-b border-border flex items-center justify-between px-4 sticky top-0 bg-background/95 backdrop-blur z-10 print:hidden">
+          <SyncIndicator />
+
           <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
             {online ? (
               <>
