@@ -18,6 +18,7 @@
  */
 
 import { useMemo, useRef, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { AlertTriangle, Truck } from "lucide-react";
@@ -140,6 +141,7 @@ export function VehiclesListPage() {
 }
 
 function VehiclesTable({ rows }: { rows: VehicleRow[] }) {
+  const navigate = useNavigate();
   const { t, i18n } = useTranslation();
   const locale = i18n.language ?? "ar";
   const parentRef = useRef<HTMLDivElement>(null);
@@ -200,8 +202,9 @@ function VehiclesTable({ rows }: { rows: VehicleRow[] }) {
               <div
                 key={r.id}
                 role="row"
+                onClick={() => navigate({ to: "/vehicles/$vehicleId", params: { vehicleId: String(r.id) } })}
                 className={cn(
-                  "absolute inset-x-0 grid items-center px-4 gap-3 border-b border-border/50 hover:bg-accent/40 transition-colors",
+                  "absolute inset-x-0 grid items-center px-4 gap-3 border-b border-border/50 hover:bg-accent/40 transition-colors cursor-pointer",
                   GRID,
                 )}
                 style={{

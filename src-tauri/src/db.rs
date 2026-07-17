@@ -37,6 +37,11 @@ const MIGRATIONS: &[Migration] = &[
         name: "0003_sync_conflicts",
         sql: include_str!("migrations/0003_sync_conflicts.sql"),
     },
+    Migration {
+        version: 4,
+        name: "0004_offline_engine",
+        sql: include_str!("migrations/0004_offline_engine.sql"),
+    },
 ];
 
 #[derive(Clone)]
@@ -147,7 +152,7 @@ impl DbPool {
             conn.query_row("SELECT COUNT(*) FROM _migrations", [], |r| r.get(0))?;
         let outbox_pending: i64 = conn
             .query_row(
-                "SELECT COUNT(*) FROM sync_outbox WHERE attempts < 5",
+                "SELECT COUNT(*) FROM outbox WHERE status IN ('pending','inflight')",
                 [],
                 |r| r.get(0),
             )

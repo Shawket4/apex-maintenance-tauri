@@ -39,6 +39,7 @@ pub struct UserInfo {
 #[tauri::command]
 pub async fn auth_login(
     state: State<'_, AppState>,
+    engine: State<'_, crate::commands::sync::EngineState>,
     email: String,
     password: String,
 ) -> AppResult<UserInfo> {
@@ -110,6 +111,17 @@ pub async fn auth_login(
     };
 
     session_store::store_jwt(&state.data_dir, jwt)?;
+
+    // A fresh JWT un-parks the sync engine: anything queued while the session
+    // was expired drains now instead of waiting for the next heartbeat.
+    engine.0.unpark_auth();
+    {
+        let eng = engine.0.clone();
+        tauri::async_runtime::spawn(async move {
+            let _ = eng.drain().await;
+            let _ = eng.pull().await;
+        });
+    }
     session_store::store_user_json(&state.data_dir, &serde_json::to_string(&user)?)?;
 
     tracing::info!(user_id = user.id, email = %user.email, jwt_exp = user.jwt_exp, "login successful");

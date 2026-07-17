@@ -13,6 +13,14 @@ pub enum AppError {
     #[error("http error: {0}")]
     Http(String),
 
+    /// Transport-level failure: the NETWORK, not the request. Kept as its own
+    /// variant because reqwest 0.12's Display is terse ("error sending
+    /// request") — string-sniffing the message misclassified a
+    /// connection-refused as transient, which is precisely the mistake that
+    /// burns retry budget on offline writes.
+    #[error("offline: {0}")]
+    Offline(String),
+
     #[error("authentication failed: {0}")]
     AuthFailed(String),
 
@@ -34,7 +42,19 @@ pub enum AppError {
 
 impl From<reqwest::Error> for AppError {
     fn from(value: reqwest::Error) -> Self {
-        AppError::Http(value.to_string())
+        // Chase the source chain so the message stays diagnostic even though
+        // reqwest's own Display hides it.
+        let mut detail = value.to_string();
+        let mut src: Option<&(dyn std::error::Error + 'static)> = std::error::Error::source(&value);
+        while let Some(s) = src {
+            detail = format!("{detail}: {s}");
+            src = std::error::Error::source(s);
+        }
+        if value.is_connect() || value.is_timeout() || value.is_request() {
+            AppError::Offline(detail)
+        } else {
+            AppError::Http(detail)
+        }
     }
 }
 
@@ -58,6 +78,7 @@ impl AppError {
             AppError::Db(_) => "db",
             AppError::Pool(_) => "pool",
             AppError::Http(_) => "http",
+            AppError::Offline(_) => "offline",
             AppError::AuthFailed(_) => "auth_failed",
             AppError::Unauthorized => "unauthorized",
             AppError::Keyring(_) => "keyring",

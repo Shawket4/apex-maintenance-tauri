@@ -10,7 +10,9 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import {
-  LayoutDashboard,
+  Activity,
+  CircleDot,
+  ClipboardList,
   LogOut,
   Truck,
   Wrench,
@@ -38,16 +40,20 @@ interface NavSection {
 const NAV_SECTIONS: NavSection[] = [
   {
     titleKey: "nav.overview",
-    items: [{ to: "/", icon: LayoutDashboard, labelKey: "nav.dashboard" }],
+    items: [{ to: "/", icon: ClipboardList, labelKey: "nav.due" }],
   },
   {
     titleKey: "nav.fleet",
-    items: [{ to: "/vehicles", icon: Truck, labelKey: "nav.vehicles" }],
+    items: [
+      { to: "/vehicles", icon: Truck, labelKey: "nav.vehicles" },
+      { to: "/tires", icon: CircleDot, labelKey: "nav.tires" },
+    ],
   },
   {
     titleKey: "nav.operations",
     items: [
       { to: "/service-invoices", icon: Wrench, labelKey: "nav.serviceInvoices" },
+      { to: "/diagnostics", icon: Activity, labelKey: "nav.diagnostics" },
     ],
   },
 ];

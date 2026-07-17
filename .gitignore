@@ -35,3 +35,8 @@ src-tauri/target
 .env
 .env.*
 !.env.example
+
+# generated build artifacts — vite.config.ts is the source
+vite.config.js
+vite.config.d.ts
+*.tsbuildinfo

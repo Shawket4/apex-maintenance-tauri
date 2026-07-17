@@ -4,7 +4,13 @@
     "subtitle": "Maintenance, chassis & tire management"
   },
   "common": {
-    "details": "Details"
+    "details": "Details",
+    "back": "Back",
+    "loading": "Loading…",
+    "notes": "Notes",
+    "all": "All",
+    "km": "km",
+    "egp": "EGP"
   },
   "nav": {
     "overview": "Overview",
@@ -15,7 +21,10 @@
     "serviceInvoices": "Service invoices",
     "invoices": "Service invoices",
     "maintenance": "Maintenance",
-    "chassis": "Chassis & tires"
+    "chassis": "Chassis & tires",
+    "due": "Due",
+    "tires": "Tires",
+    "diagnostics": "Diagnostics"
   },
   "settings": {
     "theme": "Appearance",
@@ -162,6 +171,157 @@
     "test_dialog_title": "Create Test Override",
     "test_dialog_desc": "This creates a local odometer mutation and enqueues it for sync to verify Phase 3.",
     "vehicle_id_label": "Vehicle ID",
-    "odometer_label": "New Odometer"
+    "odometer_label": "New Odometer",
+    "failed": "failed",
+    "queued": "queued",
+    "upToDate": "Up to date",
+    "syncNow": "Sync now"
+  },
+  "due": {
+    "title": "Maintenance due",
+    "subtitle": "Across the fleet, from the freshest odometer reading we hold",
+    "search": "Search plate or job…",
+    "empty": "Nothing due — or no templates are set up yet",
+    "neverObserved": "No odometer reading on file",
+    "inKm": "in {{km}} km",
+    "overdueByKm": "{{km}} km overdue",
+    "inDays": "in {{days}} days",
+    "overdueByDays": "{{days}} days overdue",
+    "status": {
+      "overdue": "Overdue",
+      "due_soon": "Due soon",
+      "ok": "OK",
+      "never_done": "Never done"
+    },
+    "source": {
+      "falcon_mileage": "Falcon",
+      "falcon_fuel": "last fuel-up",
+      "manual": "manual",
+      "service": "service record",
+      "none": "no reading"
+    }
+  },
+  "vehicle": {
+    "invoices": "Service invoices",
+    "updateReading": "Update reading",
+    "overrideHint": "Enter the odometer as read from the dashboard. It only wins while it is the highest reading we hold.",
+    "odometerKm": "Odometer (km)",
+    "odometerInvalid": "Enter a valid odometer reading",
+    "odometerSaved": "Reading saved — queued for sync",
+    "noTemplatesYet": "No maintenance templates for this vehicle yet — add them below",
+    "lastDone": "Last done"
+  },
+  "records": {
+    "title": "Maintenance history",
+    "add": "Record maintenance",
+    "template": "Scheduled job",
+    "noTemplate": "One-off (no schedule)",
+    "category": "Category",
+    "date": "Date",
+    "cost": "Cost",
+    "vendor": "Vendor",
+    "pickCategory": "Pick a category",
+    "saved": "Recorded — queued for sync",
+    "deleted": "Record removed",
+    "empty": "No maintenance recorded yet"
+  },
+  "templates": {
+    "title": "Maintenance schedule",
+    "add": "Add scheduled job",
+    "nameAr": "Name (Arabic)",
+    "nameEn": "Name (English)",
+    "byMileage": "By mileage",
+    "byTime": "By time",
+    "intervalKm": "Every (km)",
+    "intervalDays": "Every (days)",
+    "everyKm": "every {{km}} km",
+    "everyDays": "every {{days}} days",
+    "missingFields": "Category and both names are required",
+    "saved": "Schedule saved — queued for sync",
+    "deleted": "Schedule removed",
+    "empty": "No scheduled jobs for this vehicle"
+  },
+  "tires": {
+    "title": "Tires & chassis",
+    "noChassis": "This vehicle has no chassis layout yet. Set the axle configuration once — positions are generated automatically.",
+    "driveAxles": "Drive axles",
+    "trailerAxles": "Trailer axles",
+    "spares": "Spares",
+    "createChassis": "Create chassis",
+    "chassisCreated": "Chassis created — queued for sync",
+    "legend": {
+      "occupied": "Mounted",
+      "spare": "Spare slot",
+      "empty": "Empty"
+    },
+    "emptyPosition": "No tire mounted at this position",
+    "mount": "Mount tire",
+    "dismount": "Dismount",
+    "mountAt": "Mount at {{code}}",
+    "dismountFrom": "Dismount from {{code}}",
+    "pickTire": "Tire (in stock)",
+    "reason": "Reason",
+    "sendTo": "Send tire to",
+    "mounted": "Mounted — queued for sync",
+    "dismounted": "Dismounted — queued for sync",
+    "mountedSince": "Mounted",
+    "reasons": {
+      "new_install": "New install",
+      "rotation": "Rotation",
+      "replacement": "Replacement",
+      "puncture": "Puncture",
+      "wear": "Wear",
+      "damage": "Damage",
+      "retread_return": "Back from retread"
+    },
+    "statuses": {
+      "in_stock": "In stock",
+      "mounted": "Mounted",
+      "in_repair": "In repair",
+      "retreading": "Retreading",
+      "scrapped": "Scrapped"
+    }
+  },
+  "tiresPage": {
+    "title": "Tire inventory",
+    "subtitle": "Every tire the fleet owns, by lifecycle state",
+    "search": "Search DOT or brand…",
+    "add": "Add tire",
+    "dot": "DOT code",
+    "brand": "Brand",
+    "model": "Model",
+    "retread": "Retread",
+    "missingFields": "DOT code and brand are required",
+    "added": "Tire added — queued for sync",
+    "empty": "No tires match",
+    "noHistory": "Never mounted",
+    "stillMounted": "still mounted"
+  },
+  "diag": {
+    "title": "Sync diagnostics",
+    "subtitle": "What has synced, what is queued, and why anything is stuck",
+    "connection": "Connection",
+    "pending": "Queued",
+    "dead": "Failed",
+    "lastPull": "Last pull",
+    "authPaused": "Sync is paused — your session expired. Log in again to resume.",
+    "deadTitle": "Failed writes — need your decision",
+    "queueTitle": "Queue",
+    "queueEmpty": "Queue is empty — everything is on the server",
+    "retry": "Retry",
+    "discard": "Discard",
+    "requeued": "Requeued",
+    "discarded": "Discarded",
+    "attempts": "attempt {{n}}",
+    "entities": {
+      "maintenance_templates": "Schedule",
+      "maintenance_records": "Maintenance record",
+      "chassis_layouts": "Chassis",
+      "chassis_axles": "Axle",
+      "chassis_positions": "Position",
+      "tires": "Tire",
+      "tire_assignments": "Tire assignment",
+      "vehicle_odometer_overrides": "Odometer reading"
+    }
   }
 }

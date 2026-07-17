@@ -88,7 +88,7 @@ pub fn upsert_vehicles_and_drivers(
                 id, car_no_plate, car_type, transporter, tank_capacity,
                 json_compartments, license_expiration_date, calibration_expiration_date,
                 tank_license_expiration_date, is_in_trip, is_approved, location, lat, long,
-                location_time_stamp, engine_status, speed, last_fuel_odometer,
+                location_time_stamp, engine_status, speed, last_fuel_odometer, mileage,
                 last_oil_change_id, driver_id, operating_company, operating_area, geo_fence,
                 slack_status, last_updated_slack_status, etit_car_id,
                 car_license_url, car_license_back_url,
@@ -100,7 +100,7 @@ pub fn upsert_vehicles_and_drivers(
                 ?1, ?2, ?3, ?4, ?5,
                 ?6, ?7, ?8,
                 ?9, ?10, ?11, ?12, ?13, ?14,
-                ?15, ?16, ?17, ?18,
+                ?15, ?16, ?17, ?18, ?38,
                 ?19, ?20, ?21, ?22, ?23,
                 ?24, ?25, ?26,
                 ?27, ?28,
@@ -127,6 +127,7 @@ pub fn upsert_vehicles_and_drivers(
                 engine_status = excluded.engine_status,
                 speed = excluded.speed,
                 last_fuel_odometer = excluded.last_fuel_odometer,
+                mileage = excluded.mileage,
                 last_oil_change_id = excluded.last_oil_change_id,
                 driver_id = excluded.driver_id,
                 operating_company = excluded.operating_company,
@@ -187,6 +188,7 @@ pub fn upsert_vehicles_and_drivers(
                 v.source_updated_at,
                 v.source_deleted_at,
                 fetched,
+                v.mileage,
             ])?;
             inserted += 1;
         }

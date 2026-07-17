@@ -4,7 +4,13 @@
     "subtitle": "إدارة الصيانة، الشاسيه والإطارات"
   },
   "common": {
-    "details": "تفاصيل"
+    "details": "تفاصيل",
+    "back": "رجوع",
+    "loading": "بيحمّل…",
+    "notes": "ملاحظات",
+    "all": "الكل",
+    "km": "كم",
+    "egp": "جنيه"
   },
   "nav": {
     "overview": "نظرة عامة",
@@ -15,7 +21,10 @@
     "serviceInvoices": "فواتير الصيانة",
     "invoices": "فواتير الصيانة",
     "maintenance": "الصيانة",
-    "chassis": "الشاسيه والإطارات"
+    "chassis": "الشاسيه والإطارات",
+    "due": "المستحق",
+    "tires": "الكاوتش",
+    "diagnostics": "حالة المزامنة"
   },
   "settings": {
     "theme": "المظهر",
@@ -162,6 +171,157 @@
     "test_dialog_title": "إنشاء تجاوز تجريبي",
     "test_dialog_desc": "ده هيعمل تعديل محلي في العداد وهيحطه في الـ outbox عشان يتزامن ونتأكد إن الـ Phase 3 شغال.",
     "vehicle_id_label": "معرف السيارة",
-    "odometer_label": "العداد الجديد"
+    "odometer_label": "العداد الجديد",
+    "failed": "فشلت",
+    "queued": "في الطابور",
+    "upToDate": "متزامن",
+    "syncNow": "زامن دلوقتي"
+  },
+  "due": {
+    "title": "الصيانة المستحقة",
+    "subtitle": "على مستوى الأسطول، من أحدث قراءة عداد عندنا",
+    "search": "دوّر باللوحة أو الشغلانة…",
+    "empty": "مفيش حاجة مستحقة — أو لسه مفيش جداول متظبطة",
+    "neverObserved": "مفيش قراءة عداد مسجلة",
+    "inKm": "بعد {{km}} كم",
+    "overdueByKm": "متأخر {{km}} كم",
+    "inDays": "بعد {{days}} يوم",
+    "overdueByDays": "متأخر {{days}} يوم",
+    "status": {
+      "overdue": "متأخر",
+      "due_soon": "قرب معاده",
+      "ok": "تمام",
+      "never_done": "ما اتعملش قبل كده"
+    },
+    "source": {
+      "falcon_mileage": "فالكون",
+      "falcon_fuel": "آخر تفويلة",
+      "manual": "يدوي",
+      "service": "سجل صيانة",
+      "none": "مفيش قراءة"
+    }
+  },
+  "vehicle": {
+    "invoices": "فواتير الصيانة",
+    "updateReading": "تحديث القراءة",
+    "overrideHint": "اكتب قراءة العداد زي ما هي من التابلوه. بتتحسب بس لو هي أعلى قراءة عندنا.",
+    "odometerKm": "العداد (كم)",
+    "odometerInvalid": "اكتب قراءة عداد صحيحة",
+    "odometerSaved": "اتسجلت القراءة — في طابور المزامنة",
+    "noTemplatesYet": "العربية دي لسه مفيش لها جداول صيانة — ضيفها تحت",
+    "lastDone": "آخر مرة"
+  },
+  "records": {
+    "title": "سجل الصيانة",
+    "add": "تسجيل صيانة",
+    "template": "شغلانة مجدولة",
+    "noTemplate": "مرة واحدة (من غير جدول)",
+    "category": "التصنيف",
+    "date": "التاريخ",
+    "cost": "التكلفة",
+    "vendor": "المورد",
+    "pickCategory": "اختار تصنيف",
+    "saved": "اتسجلت — في طابور المزامنة",
+    "deleted": "السجل اتشال",
+    "empty": "مفيش صيانة متسجلة لسه"
+  },
+  "templates": {
+    "title": "جدول الصيانة",
+    "add": "إضافة شغلانة مجدولة",
+    "nameAr": "الاسم (عربي)",
+    "nameEn": "الاسم (إنجليزي)",
+    "byMileage": "بالكيلومترات",
+    "byTime": "بالمدة",
+    "intervalKm": "كل (كم)",
+    "intervalDays": "كل (يوم)",
+    "everyKm": "كل {{km}} كم",
+    "everyDays": "كل {{days}} يوم",
+    "missingFields": "التصنيف والاسمين مطلوبين",
+    "saved": "الجدول اتسجل — في طابور المزامنة",
+    "deleted": "الجدول اتشال",
+    "empty": "مفيش شغلانات مجدولة للعربية دي"
+  },
+  "tires": {
+    "title": "الكاوتش والشاسيه",
+    "noChassis": "العربية دي لسه ملهاش شاسيه متسجل. ظبط توزيعة المحاور مرة واحدة — والأماكن بتتولد لوحدها.",
+    "driveAxles": "محاور الجر",
+    "trailerAxles": "محاور المقطورة",
+    "spares": "الاستبن",
+    "createChassis": "إنشاء الشاسيه",
+    "chassisCreated": "الشاسيه اتعمل — في طابور المزامنة",
+    "legend": {
+      "occupied": "مركّب",
+      "spare": "استبن",
+      "empty": "فاضي"
+    },
+    "emptyPosition": "مفيش كاوتشة مركبة في المكان ده",
+    "mount": "تركيب كاوتشة",
+    "dismount": "فك",
+    "mountAt": "تركيب في {{code}}",
+    "dismountFrom": "فك من {{code}}",
+    "pickTire": "الكاوتشة (من المخزن)",
+    "reason": "السبب",
+    "sendTo": "الكاوتشة تروح على",
+    "mounted": "اتركبت — في طابور المزامنة",
+    "dismounted": "اتفكت — في طابور المزامنة",
+    "mountedSince": "متركبة من",
+    "reasons": {
+      "new_install": "تركيب جديد",
+      "rotation": "تدوير",
+      "replacement": "استبدال",
+      "puncture": "بنشر",
+      "wear": "تآكل",
+      "damage": "تلف",
+      "retread_return": "رجعت من التلبيس"
+    },
+    "statuses": {
+      "in_stock": "في المخزن",
+      "mounted": "مركّبة",
+      "in_repair": "في التصليح",
+      "retreading": "في التلبيس",
+      "scrapped": "خردة"
+    }
+  },
+  "tiresPage": {
+    "title": "مخزون الكاوتش",
+    "subtitle": "كل كاوتش الأسطول، حسب حالته",
+    "search": "دوّر بالـ DOT أو الماركة…",
+    "add": "إضافة كاوتشة",
+    "dot": "كود DOT",
+    "brand": "الماركة",
+    "model": "الموديل",
+    "retread": "ملبس",
+    "missingFields": "كود DOT والماركة مطلوبين",
+    "added": "الكاوتشة اتضافت — في طابور المزامنة",
+    "empty": "مفيش كاوتش مطابق",
+    "noHistory": "ما اتركبتش قبل كده",
+    "stillMounted": "لسه متركبة"
+  },
+  "diag": {
+    "title": "حالة المزامنة",
+    "subtitle": "إيه اللي اتزامن، إيه اللي مستني، وليه أي حاجة واقفة",
+    "connection": "الاتصال",
+    "pending": "في الطابور",
+    "dead": "فشلت",
+    "lastPull": "آخر سحب",
+    "authPaused": "المزامنة متوقفة — الجلسة انتهت. سجّل دخول تاني عشان تكمل.",
+    "deadTitle": "كتابات فشلت — محتاجة قرارك",
+    "queueTitle": "الطابور",
+    "queueEmpty": "الطابور فاضي — كل حاجة على السيرفر",
+    "retry": "إعادة المحاولة",
+    "discard": "حذف",
+    "requeued": "رجعت للطابور",
+    "discarded": "اتحذفت",
+    "attempts": "محاولة {{n}}",
+    "entities": {
+      "maintenance_templates": "جدول",
+      "maintenance_records": "سجل صيانة",
+      "chassis_layouts": "شاسيه",
+      "chassis_axles": "محور",
+      "chassis_positions": "مكان",
+      "tires": "كاوتشة",
+      "tire_assignments": "تركيب كاوتشة",
+      "vehicle_odometer_overrides": "قراءة عداد"
+    }
   }
 }

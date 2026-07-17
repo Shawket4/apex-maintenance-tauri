@@ -14,6 +14,7 @@ export type AppErrorKind =
   | "db"
   | "pool"
   | "http"
+  | "offline"
   | "auth_failed"
   | "unauthorized"
   | "keyring"

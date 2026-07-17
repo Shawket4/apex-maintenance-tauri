@@ -1,71 +1,89 @@
-import { invoke } from "@tauri-apps/api/core";
-import { create } from "zustand";
+/**
+ * Sync engine bindings. Mirrors src-tauri/src/services/engine.rs +
+ * commands/sync.rs — keep the two in lockstep by hand until specta lands.
+ *
+ * The status contract is honest by construction: `dead` counts rows the
+ * server rejected (visible + actionable in Diagnostics), never hidden from
+ * the pending count the way the old client did.
+ */
+
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { invoke } from "./tauri";
 
 export interface SyncStatus {
-  outbox_count: number;
-  conflict_count: number;
-  last_sync_at: string | null;
+  online: boolean;
+  auth_paused: boolean;
+  pending: number;
+  inflight: number;
+  dead: number;
+  last_push_at: string | null;
+  last_pull_at: string | null;
+  last_error: string | null;
 }
 
-export interface ConflictRecord {
-  id: number;
-  outbox_id: number;
+export interface OutboxItem {
+  seq: number;
+  id: string;
   entity_type: string;
   entity_id: string;
-  local_row: any;
-  server_row: any;
-  created_at: string;
+  op: "insert" | "update" | "delete";
+  payload: string;
+  base_sync_version: number;
+  status: "pending" | "inflight" | "acked" | "dead";
+  attempts: number;
+  last_error: string | null;
+  server_row: string | null;
+  enqueued_at: string;
 }
 
-interface SyncState {
-  status: SyncStatus | null;
-  isSyncing: boolean;
-  lastError: string | null;
-  
-  fetchStatus: () => Promise<void>;
-  syncNow: () => Promise<void>;
-  resolveConflict: (conflictId: number, action: "accept_server" | "keep_mine") => Promise<void>;
+export const syncKeys = {
+  status: ["sync", "status"] as const,
+  outbox: ["sync", "outbox"] as const,
+};
+
+export function useSyncStatus() {
+  return useQuery({
+    queryKey: syncKeys.status,
+    queryFn: () => invoke<SyncStatus>("sync_status"),
+    refetchInterval: 10_000,
+  });
 }
 
-export const useSyncStore = create<SyncState>((set, get) => ({
-  status: null,
-  isSyncing: false,
-  lastError: null,
+export function useOutboxList() {
+  return useQuery({
+    queryKey: syncKeys.outbox,
+    queryFn: () => invoke<OutboxItem[]>("outbox_list"),
+    refetchInterval: 10_000,
+  });
+}
 
-  fetchStatus: async () => {
-    try {
-      const status = await invoke<SyncStatus>("sync_get_status");
-      set({ status, lastError: null });
-    } catch (e) {
-      console.error("Failed to fetch sync status", e);
-      set({ lastError: String(e) });
-    }
-  },
+/** Push + pull, then refresh everything the sync could have changed. */
+export function useSyncNow() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => invoke<SyncStatus>("sync_now"),
+    onSettled: () => qc.invalidateQueries(),
+  });
+}
 
-  syncNow: async () => {
-    if (get().isSyncing) return;
-    set({ isSyncing: true, lastError: null });
-    try {
-      await invoke("sync_now");
-      const status = await invoke<SyncStatus>("sync_get_status");
-      set({ status, isSyncing: false });
-    } catch (e) {
-      console.error("Sync failed", e);
-      set({ isSyncing: false, lastError: String(e) });
-    }
-  },
+export function useOutboxRetry() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (seq: number) => invoke<void>("outbox_retry", { seq }),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: syncKeys.outbox });
+      qc.invalidateQueries({ queryKey: syncKeys.status });
+    },
+  });
+}
 
-  resolveConflict: async (conflictId, action) => {
-    try {
-      await invoke("sync_resolve_conflict", { conflictId, action });
-      await get().fetchStatus();
-    } catch (e) {
-      throw e;
-    }
-  },
-}));
-
-// Background auto-refresh status
-setInterval(() => {
-  useSyncStore.getState().fetchStatus();
-}, 10000); // 10s
+export function useOutboxDiscard() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (seq: number) => invoke<void>("outbox_discard", { seq }),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: syncKeys.outbox });
+      qc.invalidateQueries({ queryKey: syncKeys.status });
+    },
+  });
+}

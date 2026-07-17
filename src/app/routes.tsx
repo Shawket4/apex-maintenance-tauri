@@ -13,7 +13,10 @@ import { AppLayout } from "./layouts/AppLayout";
 import { AuthLayout } from "./layouts/AuthLayout";
 import { fetchCurrentUser } from "@/shared/api/auth";
 import { LoginPage } from "@/pages/login/LoginPage";
-import { DashboardPage } from "@/pages/dashboard/DashboardPage";
+import { DuePage } from "@/pages/due/DuePage";
+import { VehicleDetailPage } from "@/pages/vehicles/detail/VehicleDetailPage";
+import { TiresPage } from "@/pages/tires/TiresPage";
+import { DiagnosticsPage } from "@/pages/diagnostics/DiagnosticsPage";
 import { VehiclesListPage } from "@/pages/vehicles/list/VehiclesListPage";
 import { ServiceInvoicesIndexPage } from "@/pages/service-invoices/index/ServiceInvoicesIndexPage";
 import { ServiceInvoicesByVehiclePage } from "@/pages/service-invoices/by-vehicle/ServiceInvoicesByVehiclePage";
@@ -56,10 +59,28 @@ const protectedRoute = createRoute({
   ),
 });
 
-const dashboardRoute = createRoute({
+const dueRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: "/",
-  component: () => <DashboardPage />,
+  component: () => <DuePage />,
+});
+
+const vehicleDetailRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: "/vehicles/$vehicleId",
+  component: () => <VehicleDetailPage />,
+});
+
+const tiresRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: "/tires",
+  component: () => <TiresPage />,
+});
+
+const diagnosticsRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: "/diagnostics",
+  component: () => <DiagnosticsPage />,
 });
 
 const vehiclesRoute = createRoute({
@@ -97,7 +118,10 @@ const notFoundRoute = createRoute({
 const routeTree = rootRoute.addChildren([
   loginRoute,
   protectedRoute.addChildren([
-    dashboardRoute,
+    dueRoute,
+    vehicleDetailRoute,
+    tiresRoute,
+    diagnosticsRoute,
     vehiclesRoute,
     serviceInvoicesIndexRoute,
     serviceInvoicesByVehicleRoute,
