@@ -218,7 +218,13 @@
       "submit": "Record tires ({{count}})",
       "done": "Added to used stock"
     },
-    "notFound": "Tire not found"
+    "notFound": "Tire not found",
+    "editOdo": {
+      "title": "Correct odometer readings",
+      "mounted": "Odometer at mount",
+      "dismounted": "Odometer at dismount",
+      "hint": "Kilometers are derived from these readings — a correction repropagates instantly"
+    }
   },
   "diagram": {
     "title": "Tire diagram",

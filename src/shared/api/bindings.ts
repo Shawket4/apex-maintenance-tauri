@@ -365,6 +365,14 @@ async dismount(input: DismountInput) : Promise<Result<string, CmdError>> {
     else return { status: "error", error: e  as any };
 }
 },
+async assignmentSetOdometers(assignmentId: string, mountedOdometer: number | null, dismountedOdometer: number | null) : Promise<Result<null, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("assignment_set_odometers", { assignmentId, mountedOdometer, dismountedOdometer }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async onboardPosition(input: OnboardPositionInput) : Promise<Result<MountResult, CmdError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("onboard_position", { input }) };

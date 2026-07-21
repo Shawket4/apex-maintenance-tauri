@@ -86,6 +86,7 @@ fn specta_builder() -> tauri_specta::Builder {
         commands::domain::mount_from_stock,
         commands::domain::mount_used,
         commands::domain::dismount,
+        commands::domain::assignment_set_odometers,
         commands::domain::onboard_position,
         commands::domain::intake_legacy,
         commands::domain::tire_set_status,

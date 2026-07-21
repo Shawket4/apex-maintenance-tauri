@@ -1,8 +1,9 @@
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { ArrowRight, Wrench, Recycle, PackageCheck, Ban, Undo2 } from "lucide-react";
+import { useState } from "react";
+import { ArrowRight, Wrench, Recycle, PackageCheck, Ban, Undo2, Pencil } from "lucide-react";
 
-import { commands, unwrap } from "@/shared/api/client";
+import { commands, unwrap, type TireOpRow } from "@/shared/api/client";
 import { useDomainMutation, useTire } from "@/shared/api/queries";
 import { notifyError } from "@/shared/lib/notify";
 import { fmtNumber } from "@/shared/lib/numbers";
@@ -12,6 +13,14 @@ import { cn } from "@/shared/lib/cn";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/shared/ui/dialog";
+import { Input } from "@/shared/ui/input";
+import { Label } from "@/shared/ui/label";
 import { Skeleton } from "@/shared/ui/skeleton";
 
 export const Route = createFileRoute("/_app/tires/$tireId")({
@@ -45,6 +54,7 @@ function TireFilePage() {
   const { t, i18n } = useTranslation();
   const { tireId } = Route.useParams();
   const tire = useTire(tireId);
+  const [editing, setEditing] = useState<TireOpRow | null>(null);
 
   const transition = useDomainMutation(
     (p: { to: string; event: string }) =>
@@ -144,15 +154,23 @@ function TireFilePage() {
           ) : (
             <div className="space-y-2">
               {d.mounts.map((m) => (
-                <div key={m.assignment_id} className="rounded-lg bg-muted/50 p-3 text-sm">
+                <div key={m.assignment_id} className="group rounded-lg bg-muted/50 p-3 text-sm">
                   <div className="flex items-center justify-between">
                     <span className="font-medium" dir="ltr">
                       {m.position_code ?? "—"}
                     </span>
-                    <span className="text-xs text-muted-foreground tabular">
+                    <span className="flex items-center gap-2 text-xs text-muted-foreground tabular">
                       {fmtCairo(m.mounted_at, "YYYY/MM/DD", i18n.language)}
                       {m.dismounted_at &&
                         ` ← ${fmtCairo(m.dismounted_at, "YYYY/MM/DD", i18n.language)}`}
+                      <button
+                        title={t("tires.editOdo.title")}
+                        aria-label={t("tires.editOdo.title")}
+                        onClick={() => setEditing(m)}
+                        className="rounded p-1 text-muted-foreground opacity-0 transition hover:bg-accent hover:text-foreground group-hover:opacity-100"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
                     </span>
                   </div>
                   <div className="mt-1 text-xs text-muted-foreground tabular">
@@ -189,6 +207,75 @@ function TireFilePage() {
           </CardContent>
         </Card>
       )}
+
+      {editing && <EditOdoDialog op={editing} onClose={() => setEditing(null)} />}
     </div>
+  );
+}
+
+/** Correct the odometer snapshots on a historical mount. Lifetime km is
+ * derived from these, so the fix repropagates everywhere instantly. */
+function EditOdoDialog({ op, onClose }: { op: TireOpRow; onClose: () => void }) {
+  const { t } = useTranslation();
+  const [mounted, setMounted] = useState(
+    op.mounted_odometer != null ? String(op.mounted_odometer) : "",
+  );
+  const [dismounted, setDismounted] = useState(
+    op.dismounted_odometer != null ? String(op.dismounted_odometer) : "",
+  );
+  const closed = op.dismounted_at != null;
+
+  const save = useDomainMutation(
+    () =>
+      unwrap(
+        commands.assignmentSetOdometers(
+          op.assignment_id,
+          mounted ? Number(mounted) : null,
+          closed && dismounted ? Number(dismounted) : null,
+        ),
+      ),
+    { onSuccess: onClose, onError: notifyError },
+  );
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>{t("tires.editOdo.title")}</DialogTitle>
+        </DialogHeader>
+        <p className="text-xs text-muted-foreground">{t("tires.editOdo.hint")}</p>
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="eo-m">{t("tires.editOdo.mounted")}</Label>
+            <Input
+              id="eo-m"
+              inputMode="numeric"
+              className="tabular"
+              value={mounted}
+              onChange={(e) => setMounted(e.target.value.replace(/[^0-9]/g, ""))}
+            />
+          </div>
+          {closed && (
+            <div className="space-y-1.5">
+              <Label htmlFor="eo-d">{t("tires.editOdo.dismounted")}</Label>
+              <Input
+                id="eo-d"
+                inputMode="numeric"
+                className="tabular"
+                value={dismounted}
+                onChange={(e) => setDismounted(e.target.value.replace(/[^0-9]/g, ""))}
+              />
+            </div>
+          )}
+          <Button
+            className="w-full"
+            disabled={save.isPending || (!mounted && !dismounted)}
+            onClick={() => save.mutate()}
+          >
+            {t("common.save")}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -296,6 +296,27 @@ pub async fn dismount(
 
 #[tauri::command]
 #[specta::specta]
+pub async fn assignment_set_odometers(
+    state: State<'_, AppState>,
+    engine: State<'_, EngineState>,
+    assignment_id: String,
+    mounted_odometer: Option<i64>,
+    dismounted_odometer: Option<i64>,
+) -> CmdResult<()> {
+    let uid = current_user_id(&state)?;
+    domain::assignment_set_odometers(
+        &state.db,
+        &assignment_id,
+        mounted_odometer,
+        dismounted_odometer,
+        uid,
+    )?;
+    kick(&engine);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
 pub async fn onboard_position(
     state: State<'_, AppState>,
     engine: State<'_, EngineState>,

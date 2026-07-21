@@ -456,18 +456,15 @@ pub fn dismount(pool: &DbPool, inp: &DismountInput, user_id: i64) -> AppResult<S
     let tx = conn.transaction()?;
     let now = now_iso();
 
-    let row: Option<(String, Option<i64>, Option<String>)> = tx
+    let row: Option<String> = tx
         .query_row(
-            "SELECT ta.tire_id, ta.mounted_odometer,
-                    (SELECT CASE WHEN cp.is_spare=1 THEN 'spare' ELSE 'road' END
-                       FROM chassis_positions cp WHERE cp.id = ta.position_id)
-               FROM tire_assignments ta
+            "SELECT ta.tire_id FROM tire_assignments ta
               WHERE ta.id=?1 AND ta.dismounted_at IS NULL AND ta.deleted_at IS NULL",
             params![inp.assignment_id],
-            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            |r| r.get(0),
         )
         .optional()?;
-    let Some((tire_id, mounted_km, pos_kind)) = row else {
+    let Some(tire_id) = row else {
         return Err(AppError::Internal("active assignment not found".into()));
     };
 
@@ -479,18 +476,65 @@ pub fn dismount(pool: &DbPool, inp: &DismountInput, user_id: i64) -> AppResult<S
     )?;
     enqueue_row(&tx, "tire_assignments", &inp.assignment_id, "update", user_id)?;
 
-    // Local mirror of the server derivation (never enqueued).
+    // Local mirror of the server derivation (never enqueued). Status only —
+    // lifetime km is DERIVED from the assignment history, never accrued.
     let to_status = dismount_status(&inp.reason);
-    let delta = match (mounted_km, inp.odometer, pos_kind.as_deref()) {
-        (Some(m), Some(d), Some("road")) if d > m => d - m,
-        _ => 0,
-    };
     tx.execute(
-        "UPDATE tires SET status=?2, total_km=COALESCE(total_km,0)+?3, updated_at=?4 WHERE id=?1",
-        params![tire_id, to_status, delta, now],
+        "UPDATE tires SET status=?2, updated_at=?3 WHERE id=?1",
+        params![tire_id, to_status, now],
     )?;
     tx.commit()?;
     Ok(tire_id)
+}
+
+/// Correct the odometer snapshots on a historical mount/dismount. Lifetime km
+/// is derived from these, so an edit repropagates everywhere instantly.
+pub fn assignment_set_odometers(
+    pool: &DbPool,
+    assignment_id: &str,
+    mounted_odometer: Option<i64>,
+    dismounted_odometer: Option<i64>,
+    user_id: i64,
+) -> AppResult<()> {
+    let mut conn = pool.get()?;
+    let tx = conn.transaction()?;
+    let now = now_iso();
+
+    let closed: Option<Option<String>> = tx
+        .query_row(
+            "SELECT dismounted_at FROM tire_assignments WHERE id=?1 AND deleted_at IS NULL",
+            params![assignment_id],
+            |r| r.get(0),
+        )
+        .optional()?;
+    let Some(dismounted_at) = closed else {
+        return Err(AppError::Internal("assignment not found".into()));
+    };
+    if dismounted_odometer.is_some() && dismounted_at.is_none() {
+        return Err(AppError::Internal("assignment is still mounted — no dismount odometer".into()));
+    }
+
+    tx.execute(
+        "UPDATE tire_assignments SET
+            mounted_odometer    = COALESCE(?2, mounted_odometer),
+            dismounted_odometer = COALESCE(?3, dismounted_odometer),
+            updated_at = ?4, updated_by_user_id = ?5
+          WHERE id = ?1",
+        params![assignment_id, mounted_odometer, dismounted_odometer, now, user_id],
+    )?;
+    let (m, d): (Option<i64>, Option<i64>) = tx.query_row(
+        "SELECT mounted_odometer, dismounted_odometer FROM tire_assignments WHERE id=?1",
+        params![assignment_id],
+        |r| Ok((r.get(0)?, r.get(1)?)),
+    )?;
+    if let (Some(m), Some(d)) = (m, d) {
+        if d < m {
+            return Err(AppError::Internal("dismount odometer must be ≥ mount odometer".into()));
+        }
+    }
+    enqueue_row(&tx, "tire_assignments", assignment_id, "update", user_id)?;
+    tx.commit()?;
+    Ok(())
 }
 
 #[derive(Debug, Deserialize, specta::Type)]

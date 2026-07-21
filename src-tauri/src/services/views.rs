@@ -776,7 +776,16 @@ pub fn tires_list(pool: &DbPool, status: Option<&str>, q: Option<&str>) -> AppRe
         "WITH {ODO_CTE}
         SELECT t.id, t.dot_code, t.brand, t.model, t.size, t.status, t.origin,
                COALESCE(t.total_km,0)
+                 + COALESCE((SELECT SUM(x.dismounted_odometer - x.mounted_odometer)
+                       FROM tire_assignments x
+                       LEFT JOIN chassis_positions xp ON xp.id = x.position_id
+                      WHERE x.tire_id = t.id AND x.deleted_at IS NULL
+                        AND x.dismounted_at IS NOT NULL
+                        AND x.mounted_odometer IS NOT NULL AND x.dismounted_odometer IS NOT NULL
+                        AND x.dismounted_odometer > x.mounted_odometer
+                        AND COALESCE(xp.is_spare,0)=0), 0)
                  + CASE WHEN ta.id IS NOT NULL AND ta.mounted_odometer IS NOT NULL
+                             AND COALESCE(p.is_spare,0)=0
                              AND odo.current_odometer > ta.mounted_odometer
                         THEN odo.current_odometer - ta.mounted_odometer ELSE 0 END,
                COALESCE(t.retread_count,0),
@@ -947,7 +956,16 @@ pub fn chassis_get(pool: &DbPool, vehicle_id: i64) -> AppResult<Option<ChassisPa
     let mut stmt = conn.prepare(
         "SELECT p.id, p.axle_id, p.side, p.depth, p.is_spare, p.spare_index, p.position_code,
                 ta.id, ta.tire_id, t.dot_code, t.brand, t.status, ta.mounted_at,
-                ta.mounted_odometer, t.total_km
+                ta.mounted_odometer,
+                COALESCE(t.total_km,0)
+                  + COALESCE((SELECT SUM(x.dismounted_odometer - x.mounted_odometer)
+                        FROM tire_assignments x
+                        LEFT JOIN chassis_positions xp ON xp.id = x.position_id
+                       WHERE x.tire_id = t.id AND x.deleted_at IS NULL
+                         AND x.dismounted_at IS NOT NULL
+                         AND x.mounted_odometer IS NOT NULL AND x.dismounted_odometer IS NOT NULL
+                         AND x.dismounted_odometer > x.mounted_odometer
+                         AND COALESCE(xp.is_spare,0)=0), 0)
            FROM chassis_positions p
            LEFT JOIN tire_assignments ta ON ta.position_id = p.id
                 AND ta.dismounted_at IS NULL AND ta.deleted_at IS NULL
@@ -985,6 +1003,9 @@ pub fn chassis_get(pool: &DbPool, vehicle_id: i64) -> AppResult<Option<ChassisPa
     // Live km for mounted wheels (same rule as tires_list).
     if let Some(now_km) = current_km {
         for p in &mut positions {
+            if p.is_spare {
+                continue; // a tire riding as a spare doesn't roll
+            }
             if let (Some(total), Some(mounted)) = (p.total_km, p.mounted_odometer) {
                 if now_km > mounted {
                     p.total_km = Some(total + (now_km - mounted));
@@ -1376,6 +1397,61 @@ mod tests {
         let due = due_board(&p, Some(4)).unwrap();
         assert_eq!(due[0].status, "overdue");
         assert_eq!(due[0].odometer_source.as_deref(), Some("manual_override"));
+    }
+
+    #[test]
+    fn editing_history_odometers_repropagates_km() {
+        let p = pool();
+        seed_vehicle(&p, 9, "ف ع ص 4381", 400_000);
+        seed_stock(&p);
+        domain::chassis_create(
+            &p,
+            9,
+            &ChassisConfig { drive_axles: 1, trailer_axles: 0, spares: 0, single_trailer_axles: None },
+            9,
+        )
+        .unwrap();
+        let wo = domain::wo_open(&p, 9, Some(400_000), 9).unwrap();
+        let ch = chassis_get(&p, 9).unwrap().unwrap();
+        let pos = ch.positions.iter().find(|x| x.position_code == "H2LO").unwrap().id.clone();
+        let (tire_id, asg) = domain::mount_from_stock(
+            &p,
+            &MountFromStockInput {
+                position_id: pos,
+                vehicle_id: 9,
+                work_order_id: wo.clone(),
+                brand: "Pirelli".into(),
+                model: Some("FR01".into()),
+                size: Some("315/80R22.5".into()),
+                dot_code: None,
+                odometer: Some(400_000),
+            },
+            9,
+        )
+        .unwrap();
+        domain::dismount(
+            &p,
+            &DismountInput {
+                assignment_id: asg.clone(),
+                odometer: Some(430_000),
+                reason: "rotation".into(),
+                work_order_id: Some(wo),
+            },
+            9,
+        )
+        .unwrap();
+        assert_eq!(tire_file(&p, &tire_id).unwrap().unwrap().tire.total_km, 30_000);
+
+        // The dismount odometer was mistyped — correct it. km repropagates.
+        domain::assignment_set_odometers(&p, &asg, None, Some(410_000), 9).unwrap();
+        assert_eq!(
+            tire_file(&p, &tire_id).unwrap().unwrap().tire.total_km,
+            10_000,
+            "derived km follows the corrected history"
+        );
+
+        // Nonsense edits are rejected.
+        assert!(domain::assignment_set_odometers(&p, &asg, Some(420_000), None, 9).is_err());
     }
 
     #[test]
