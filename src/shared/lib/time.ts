@@ -22,6 +22,12 @@ export function fmtCairo(iso: string | null | undefined, format = "YYYY/MM/DD HH
   return dayjs.utc(iso).tz(CAIRO_TZ).locale(locale).format(format);
 }
 
+/** Relative time ("2 hours ago") in the active locale. */
+export function fmtAgo(iso: string | null | undefined, locale = "ar") {
+  if (!iso) return "—";
+  return dayjs.utc(iso).tz(CAIRO_TZ).locale(locale).fromNow();
+}
+
 /** Today's date in Cairo, YYYY-MM-DD (for `<input type="date">` defaults). */
 export function todayCairoYmd(): string {
   return dayjs().tz(CAIRO_TZ).format("YYYY-MM-DD");

@@ -1,327 +1,336 @@
 {
   "app": {
-    "title": "Apex Maintenance",
-    "subtitle": "Maintenance, chassis & tire management"
+    "name": "Apex",
+    "subtitle": "Maintenance"
   },
   "common": {
-    "details": "Details",
-    "back": "Back",
-    "loading": "Loading…",
-    "notes": "Notes",
-    "all": "All",
-    "km": "km",
-    "egp": "EGP"
-  },
-  "nav": {
-    "overview": "Overview",
-    "fleet": "Fleet",
-    "operations": "Operations",
-    "dashboard": "Dashboard",
-    "vehicles": "Vehicles",
-    "serviceInvoices": "Service invoices",
-    "invoices": "Service invoices",
-    "maintenance": "Maintenance",
-    "chassis": "Chassis & tires",
-    "due": "Due",
-    "tires": "Tires",
-    "diagnostics": "Diagnostics"
-  },
-  "settings": {
-    "theme": "Appearance",
-    "themeLight": "Light",
-    "themeDark": "Dark",
-    "themeSystem": "System",
-    "language": "Language"
-  },
-  "status": {
-    "online": "Online",
-    "offline": "Offline",
-    "syncing": "Syncing"
-  },
-  "actions": {
-    "login": "Sign in",
-    "logout": "Sign out",
+    "search": "Search",
     "save": "Save",
     "cancel": "Cancel",
-    "back": "Back",
-    "toggle_language": "Toggle language",
+    "close": "Close",
+    "add": "Add",
+    "delete": "Delete",
+    "confirm": "Confirm",
+    "retry": "Retry",
+    "discard": "Discard",
     "loading": "Loading…",
-    "refresh": "Refresh",
-    "previous": "Previous",
-    "next": "Next",
-    "print": "Print",
-    "export": "Export",
-    "clear": "Clear"
+    "empty": "No data",
+    "back": "Back",
+    "all": "All",
+    "km": "km",
+    "liters": "L",
+    "items": "items",
+    "notes": "Notes",
+    "optional": "optional",
+    "requiredField": "This field is required",
+    "offlineNote": "Work is saved locally and syncs when the connection returns",
+    "notFound": "Not found"
   },
-  "freshness": {
-    "never": "Never refreshed",
-    "last_refreshed": "Last refreshed {{ago}}"
+  "nav": {
+    "home": "Garage",
+    "trucks": "Trucks",
+    "due": "Due",
+    "tires": "Tires",
+    "ai": "AI Search",
+    "settings": "Settings",
+    "logout": "Log out"
   },
   "login": {
     "title": "Sign in",
-    "subtitle": "Enter your credentials to continue",
-    "email_label": "Email",
-    "email_placeholder": "ahmed@apex.eg",
-    "password_label": "Password",
-    "password_placeholder": "••••••••",
+    "subtitle": "Apex fleet maintenance",
+    "email": "Email",
+    "password": "Password",
     "submit": "Sign in",
     "submitting": "Signing in…",
-    "errors": {
-      "required": "All fields are required",
-      "invalid_credentials": "Email or password is incorrect",
-      "network": "Connection problem — please try again",
-      "generic": "Something went wrong — please try again"
-    }
+    "emailRequired": "Enter your email",
+    "passwordRequired": "Enter your password",
+    "wrongCredentials": "Wrong email or password",
+    "serverError": "Could not reach the server"
   },
-  "dashboard": {
-    "welcome": "Welcome, {{name}}",
-    "phase1_notice_title": "Phase 2 — ready",
-    "phase1_notice_body": "Login, local database, and cache for vehicles and invoices are wired up. The maintenance and chassis screens are coming in the next phase.",
-    "db_health_title": "Database health",
-    "ping_title": "Tauri ping",
-    "version_title": "App version",
-    "migrations_applied": "Migrations applied",
-    "outbox_pending": "Outbox pending",
-    "seeded_categories": "Maintenance categories"
+  "search": {
+    "placeholder": "Search by plate or DOT…",
+    "hint": "Press / to search",
+    "trucks": "Trucks",
+    "tires": "Tires",
+    "workOrders": "Work orders",
+    "noResults": "No results"
   },
-  "vehicles": {
-    "title": "Vehicles",
-    "subtitle": "{{formattedCount}} vehicles in the fleet",
-    "search_placeholder": "Search by plate, type, transporter or driver…",
-    "empty_total": "No vehicles in cache yet — tap refresh.",
-    "empty_filtered": "No results for that search.",
-    "error": "Could not load vehicles.",
-    "unit": {
-      "liters": "L"
+  "home": {
+    "title": "Garage",
+    "openWos": "Open work now",
+    "noOpenWos": "No open work orders — truck in the bay? Find it and open one",
+    "attention": "Due & overdue",
+    "noAttention": "Nothing overdue — all good",
+    "lowStock": "Stock running low",
+    "openedAt": "Opened",
+    "resume": "Resume work",
+    "overdue": "Overdue",
+    "dueSoon": "Due soon",
+    "neverDone": "Never done",
+    "viewAll": "View all"
+  },
+  "trucks": {
+    "title": "Trucks",
+    "searchPlaceholder": "Plate number…",
+    "driver": "Driver",
+    "unclassified": "Unclassified",
+    "noChassis": "Chassis not defined",
+    "openWoCount": "open work order",
+    "empty": "No trucks — refresh the Falcon data"
+  },
+  "truck": {
+    "tabs": {
+      "overview": "Overview",
+      "tires": "Tires",
+      "history": "History",
+      "due": "Due"
     },
-    "col": {
-      "plate": "Plate",
-      "type": "Type",
-      "tank_capacity": "Tank capacity",
-      "transporter": "Transporter",
-      "driver": "Driver",
-      "odometer": "Odometer",
-      "car_license": "Car license",
-      "calibration": "Calibration",
-      "tank_license": "Tank license"
-    }
-  },
-  "invoices": {
-    "title": "Service invoices",
-    "subtitle": "{{formattedCount}} invoices in cache",
-    "subtitle_search": "{{matches}} matches for \"{{query}}\"",
-    "search_placeholder": "Search invoice services and notes…",
-    "empty_total": "No invoices in cache yet — tap refresh.",
-    "empty_search": "No results for \"{{query}}\".",
-    "error": "Could not load invoices.",
-    "pagination": "Page {{page}} of {{total}}",
-    "source": {
-      "online": "Server search",
-      "online_hint": "Results from maint-rust",
-      "offline": "Local search",
-      "offline_hint": "Server unreachable — results from local FTS5 index"
+    "openWo": "Open work order",
+    "openWoTitle": "New work order",
+    "odometerPrompt": "Current odometer reading",
+    "odometerHint": "Last known reading: {{km}} km ({{source}})",
+    "resumeWo": "A work order is already open — resume it",
+    "odometer": "Odometer",
+    "odometerSource": {
+      "falcon_fuel": "fuel reading",
+      "manual_override": "manual reading",
+      "oil_change": "last oil change",
+      "work_order": "last work order",
+      "none": "no reading"
     },
-    "col": {
-      "date": "Date",
-      "plate": "Plate",
-      "services": "Services",
-      "driver": "Driver",
-      "region": "Region",
-      "items": "Items",
-      "meter": "Meter"
-    }
-  },
-  "serviceInvoices": {
-    "title": "Service invoices",
-    "pickVehicle": "Pick a vehicle to see its service invoices — {{formattedCount}} available",
-    "subtitleByVehicle": "{{formattedCount}} invoices for this vehicle",
-    "noDriver": "No driver",
-    "unknownVehicle": "Unknown vehicle",
-    "empty": "No invoices for this vehicle in cache yet — tap refresh.",
-    "detailError": "Could not load invoice detail.",
-    "noItems": "This invoice has no line items.",
-    "receiptTitle": "Service invoice",
-    "checklistTitle": "Inspection checklist",
-    "truckSubtitle": "Service Truck Inspection",
-    "billedTo": "Vehicle details",
-    "verificationNote": "Data shown is from the local cache as of {{date}}.",
-    "fields": {
-      "supervisor": "Supervisor",
-      "notes": "Notes",
-      "service": "Service"
+    "observedAt": "Recorded",
+    "overrideOdometer": "Correct odometer",
+    "overrideNotes": "Reason for correction",
+    "class": "Class",
+    "history": {
+      "workshop": "Workshop",
+      "falcon": "Falcon invoices",
+      "empty": "No service history",
+      "invoiceItems": "Invoice items"
     },
-    "searchInvoices": "Search service or notes..."
+    "defineChassis": "Define chassis",
+    "chassisMissing": "This truck's chassis isn't defined yet — define it to use the diagram"
   },
-  "errors": {
-    "session_expired": "Session expired. Local writes are queued until you sign in again."
-  },
-  "sync": {
-    "conflicts_title": "Data Conflicts",
-    "no_conflicts": "No pending conflicts",
-    "local_version": "My Change (Local)",
-    "server_version": "Server Version",
-    "action_accept_server": "Accept Server",
-    "action_keep_mine": "Keep Mine & Retry",
-    "conflicts_label": "Conflicts",
-    "pending": "Pending",
-    "synced": "Synced",
-    "changes": "changes",
-    "up_to_date": "Up to date",
-    "test_button": "Test Odometer Override",
-    "test_dialog_title": "Create Test Override",
-    "test_dialog_desc": "This creates a local odometer mutation and enqueues it for sync to verify Phase 3.",
-    "vehicle_id_label": "Vehicle ID",
-    "odometer_label": "New Odometer",
-    "failed": "failed",
-    "queued": "queued",
-    "upToDate": "Up to date",
-    "syncNow": "Sync now"
+  "wo": {
+    "title": "Work order",
+    "status": {
+      "open": "Open",
+      "closed": "Closed"
+    },
+    "openedAt": "Opened",
+    "closedAt": "Closed",
+    "odometerAtOpen": "Odometer at open",
+    "pending": "Still syncing",
+    "tasks": "Work performed",
+    "addTaskPlaceholder": "Type what was done and press Enter…",
+    "category": "Category",
+    "noCategory": "No category",
+    "deleteTask": "Delete task",
+    "oil": {
+      "title": "Oil change",
+      "type": "Oil type",
+      "liters": "Liters",
+      "record": "Record oil change",
+      "flagged": "Amount outside the usual range (34–36 L) — saved anyway",
+      "flaggedBadge": "Unusual amount"
+    },
+    "tires": {
+      "title": "Tire work",
+      "open": "Open tire diagram",
+      "mounted": "Mounted",
+      "dismounted": "Dismounted",
+      "empty": "No tire work on this order"
+    },
+    "due": {
+      "title": "Due for this truck",
+      "addAsTask": "Add as task",
+      "empty": "Nothing due"
+    },
+    "close": "Close work order",
+    "closeTitle": "Close work order",
+    "closeBody": "The order will be closed with all its items. Are you sure?",
+    "notFound": "Work order not found"
   },
   "due": {
-    "title": "Maintenance due",
-    "subtitle": "Across the fleet, from the freshest odometer reading we hold",
-    "search": "Search plate or job…",
-    "empty": "Nothing due — or no templates are set up yet",
-    "neverObserved": "No odometer reading on file",
-    "inKm": "in {{km}} km",
-    "overdueByKm": "{{km}} km overdue",
-    "inDays": "in {{days}} days",
-    "overdueByDays": "{{days}} days overdue",
+    "title": "Due",
     "status": {
       "overdue": "Overdue",
       "due_soon": "Due soon",
-      "ok": "OK",
-      "never_done": "Never done"
+      "never_done": "Never done",
+      "ok": "OK"
     },
-    "source": {
-      "falcon_mileage": "Falcon",
-      "falcon_fuel": "last fuel-up",
-      "manual": "manual",
-      "service": "service record",
-      "none": "no reading"
-    }
-  },
-  "vehicle": {
-    "invoices": "Service invoices",
-    "updateReading": "Update reading",
-    "overrideHint": "Enter the odometer as read from the dashboard. It only wins while it is the highest reading we hold.",
-    "odometerKm": "Odometer (km)",
-    "odometerInvalid": "Enter a valid odometer reading",
-    "odometerSaved": "Reading saved — queued for sync",
-    "noTemplatesYet": "No maintenance templates for this vehicle yet — add them below",
-    "lastDone": "Last done"
-  },
-  "records": {
-    "title": "Maintenance history",
-    "add": "Record maintenance",
-    "template": "Scheduled job",
-    "noTemplate": "One-off (no schedule)",
-    "category": "Category",
-    "date": "Date",
-    "cost": "Cost",
-    "vendor": "Vendor",
-    "pickCategory": "Pick a category",
-    "saved": "Recorded — queued for sync",
-    "deleted": "Record removed",
-    "empty": "No maintenance recorded yet"
-  },
-  "templates": {
-    "title": "Maintenance schedule",
-    "add": "Add scheduled job",
-    "nameAr": "Name (Arabic)",
-    "nameEn": "Name (English)",
-    "byMileage": "By mileage",
-    "byTime": "By time",
-    "intervalKm": "Every (km)",
-    "intervalDays": "Every (days)",
-    "everyKm": "every {{km}} km",
-    "everyDays": "every {{days}} days",
-    "missingFields": "Category and both names are required",
-    "saved": "Schedule saved — queued for sync",
-    "deleted": "Schedule removed",
-    "empty": "No scheduled jobs for this vehicle"
+    "nextDueKm": "Due at {{km}}",
+    "nextDueAt": "Due on {{date}}",
+    "lastDone": "Last done",
+    "currentOdometer": "Odometer",
+    "openWo": "Open work order",
+    "empty": "No active service plans — classify trucks and set plans in Settings"
   },
   "tires": {
-    "title": "Tires & chassis",
-    "noChassis": "This vehicle has no chassis layout yet. Set the axle configuration once — positions are generated automatically.",
-    "driveAxles": "Drive axles",
-    "trailerAxles": "Trailer axles",
-    "spares": "Spares",
-    "createChassis": "Create chassis",
-    "chassisCreated": "Chassis created — queued for sync",
-    "legend": {
-      "occupied": "Mounted",
-      "spare": "Spare slot",
-      "empty": "Empty"
+    "title": "Tires & Stock",
+    "stock": {
+      "title": "New stock",
+      "snapshot": "On hand",
+      "pending": "Pending debits",
+      "projected": "Available",
+      "usedPool": "Used tires available",
+      "empty": "No stock — refresh"
     },
-    "emptyPosition": "No tire mounted at this position",
-    "mount": "Mount tire",
-    "dismount": "Dismount",
-    "mountAt": "Mount at {{code}}",
-    "dismountFrom": "Dismount from {{code}}",
-    "pickTire": "Tire (in stock)",
-    "reason": "Reason",
-    "sendTo": "Send tire to",
-    "mounted": "Mounted — queued for sync",
-    "dismounted": "Dismounted — queued for sync",
-    "mountedSince": "Mounted",
-    "reasons": {
-      "new_install": "New install",
-      "rotation": "Rotation",
-      "replacement": "Replacement",
-      "puncture": "Puncture",
-      "wear": "Wear",
-      "damage": "Damage",
-      "retread_return": "Back from retread"
+    "assets": {
+      "title": "Individual tires",
+      "searchPlaceholder": "DOT or brand…",
+      "empty": "No tires recorded"
     },
-    "statuses": {
-      "in_stock": "In stock",
+    "status": {
       "mounted": "Mounted",
+      "in_stock_used": "Used in stock",
       "in_repair": "In repair",
       "retreading": "Retreading",
       "scrapped": "Scrapped"
-    }
-  },
-  "tiresPage": {
-    "title": "Tire inventory",
-    "subtitle": "Every tire the fleet owns, by lifecycle state",
-    "search": "Search DOT or brand…",
-    "add": "Add tire",
+    },
+    "origin": {
+      "shipment": "Shipment",
+      "legacy": "Legacy"
+    },
     "dot": "DOT code",
     "brand": "Brand",
     "model": "Model",
-    "retread": "Retread",
-    "missingFields": "DOT code and brand are required",
-    "added": "Tire added — queued for sync",
-    "empty": "No tires match",
-    "noHistory": "Never mounted",
-    "stillMounted": "still mounted"
+    "size": "Size",
+    "totalKm": "Kilometers",
+    "retreads": "Retreads",
+    "mountedOn": "Mounted on",
+    "position": "Position",
+    "history": "Mount history",
+    "events": "Status events",
+    "actions": {
+      "sendRepair": "Send to repair",
+      "backFromRepair": "Back from repair",
+      "sendRetread": "Send to retread",
+      "backFromRetread": "Back from retread",
+      "scrap": "Scrap",
+      "restock": "Return to stock"
+    },
+    "intake": {
+      "title": "Legacy tire intake",
+      "subtitle": "Used tires sitting in the yard — record them so they can be mounted",
+      "addRow": "Add tire",
+      "estimatedKm": "Estimated km",
+      "submit": "Record tires ({{count}})",
+      "done": "Added to used stock"
+    },
+    "notFound": "Tire not found"
   },
-  "diag": {
-    "title": "Sync diagnostics",
-    "subtitle": "What has synced, what is queued, and why anything is stuck",
-    "connection": "Connection",
-    "pending": "Queued",
-    "dead": "Failed",
-    "lastPull": "Last pull",
-    "authPaused": "Sync is paused — your session expired. Log in again to resume.",
-    "deadTitle": "Failed writes — need your decision",
-    "queueTitle": "Queue",
-    "queueEmpty": "Queue is empty — everything is on the server",
-    "retry": "Retry",
-    "discard": "Discard",
-    "requeued": "Requeued",
-    "discarded": "Discarded",
-    "attempts": "attempt {{n}}",
-    "entities": {
-      "maintenance_templates": "Schedule",
-      "maintenance_records": "Maintenance record",
-      "chassis_layouts": "Chassis",
-      "chassis_axles": "Axle",
-      "chassis_positions": "Position",
-      "tires": "Tire",
-      "tire_assignments": "Tire assignment",
-      "vehicle_odometer_overrides": "Odometer reading"
+  "diagram": {
+    "title": "Tire diagram",
+    "emptyPosition": "Empty position",
+    "queued": "Still syncing",
+    "spare": "Spare",
+    "mount": {
+      "title": "Mount a tire — {{code}}",
+      "fromNew": "New from stock",
+      "fromUsed": "Used from pool",
+      "stockLine": "Pick a stock line",
+      "noStock": "No new stock — you can continue and the balance will go negative",
+      "noUsed": "No used tires available",
+      "dotPrompt": "DOT code (on the sidewall)",
+      "odometer": "Odometer reading",
+      "submit": "Mount"
+    },
+    "dismount": {
+      "title": "Dismount — {{code}}",
+      "reason": "Reason",
+      "resultStatus": "It will go to",
+      "odometer": "Odometer reading",
+      "submit": "Dismount"
+    },
+    "reason": {
+      "worn": "Worn out",
+      "damaged": "Damaged",
+      "rotation": "Rotation",
+      "puncture": "Puncture",
+      "retread": "Retread",
+      "other": "Other"
+    },
+    "onboard": {
+      "title": "Onboard this truck's tires",
+      "subtitle": "First time — record the rubber already mounted, no stock deduction",
+      "config": "Chassis layout",
+      "driveAxles": "Drive axles",
+      "trailerAxles": "Trailer axles",
+      "spares": "Spares",
+      "create": "Create chassis",
+      "fill": "Record position {{code}}",
+      "sameForAll": "Same brand for all empty positions",
+      "skip": "Leave empty",
+      "done": "Done — {{count}} tires recorded"
+    },
+    "needWo": "An open work order is needed to mount or dismount",
+    "openWoNow": "Open one now"
+  },
+  "ai": {
+    "title": "AI search over service history",
+    "placeholder": "Ask in Arabic… e.g. when were the brake pads last changed on truck 8351?",
+    "submit": "Ask",
+    "thinking": "Searching…",
+    "keyNeeded": "AI search needs ANTHROPIC_API_KEY on the server",
+    "empty": "Ask anything about the service history — it understands synonyms",
+    "examples": {
+      "one": "When was the last oil change for truck 5139?",
+      "two": "Which truck changed the most tires this year?",
+      "three": "All brake work in the last two months"
     }
+  },
+  "settings": {
+    "title": "Settings",
+    "plans": {
+      "title": "Classes & service plans",
+      "tagTrucks": "Classify trucks",
+      "plansEditor": "Service plans (fleet-wide)",
+      "class": "Class",
+      "category": "Category",
+      "trigger": "Trigger",
+      "byKm": "By kilometers",
+      "byDays": "By days",
+      "intervalKm": "Every N km",
+      "intervalDays": "Every N days",
+      "save": "Save plan",
+      "onlineNote": "Editing plans requires a connection (supervisor permission)"
+    },
+    "sync": {
+      "title": "Sync & diagnostics",
+      "refresh": "Refresh reference data & stock",
+      "refreshed": "Refreshed",
+      "syncNow": "Sync now",
+      "pendingRows": "On the way to the server",
+      "deadRows": "Need attention",
+      "queueEmpty": "Nothing waiting — all synced",
+      "entity": "Entity",
+      "operation": "Operation",
+      "attempts": "Attempts",
+      "lastError": "Last error",
+      "serverRow": "Server row attached"
+    },
+    "appearance": {
+      "title": "Appearance & language",
+      "language": "Language",
+      "arabic": "العربية",
+      "english": "English",
+      "theme": "Theme",
+      "light": "Light",
+      "dark": "Dark",
+      "system": "System"
+    }
+  },
+  "sync": {
+    "online": "Online",
+    "offline": "Offline — work is saved locally",
+    "pending": "{{n}} on the way",
+    "dead": "{{count}} need attention",
+    "synced": "Synced"
+  },
+  "errors": {
+    "offline": "No connection — try again when back online",
+    "unauthorized": "Session expired — sign in again",
+    "generic": "Something went wrong: {{message}}"
   }
 }

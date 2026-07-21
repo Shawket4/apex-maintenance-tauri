@@ -5,7 +5,7 @@ import { env } from "@/shared/config/env";
 import ar from "./ar.json";
 import en from "./en.json";
 
-i18n.use(initReactI18next).init({
+void i18n.use(initReactI18next).init({
   resources: {
     ar: { translation: ar },
     en: { translation: en },

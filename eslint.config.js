@@ -55,13 +55,20 @@ export default tseslint.config(
       "i18next/no-literal-string": [
         "error",
         {
-          mode: "jsx-only",
+          // text nodes + listed attributes; JSX *expressions* (format strings,
+          // status-key arrays) are code, not copy.
+          mode: "jsx-text-only",
           "jsx-attributes": {
             include: ["placeholder", "title", "alt", "aria-label", "label", "emptyText"],
           },
         },
       ],
     },
+  },
+  {
+    // TanStack Router's redirect() is thrown by design.
+    files: ["src/routes/**"],
+    rules: { "@typescript-eslint/only-throw-error": "off" },
   },
   {
     // Config files at the repo root are not part of the app tsconfig.

@@ -23,7 +23,7 @@ import * as THREE from "three";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Html, Instances, Instance, OrbitControls, Outlines, RoundedBox, ContactShadows } from "@react-three/drei";
 
-import type { ChassisAxle, ChassisPosition } from "@/shared/api/tires";
+import type { AxleRow as ChassisAxle, PositionRow as ChassisPosition } from "@/shared/api/client";
 import {
   DRIVE_SPACING,
   DRIVE_Z0,
@@ -73,6 +73,8 @@ export const POSITION_COLORS = {
   occupied: "#10b981",
   spare: "#38bdf8",
   empty: "#94a3b8",
+  /** Mount is queued locally, not yet server-acked — visibly "in flight". */
+  pending: "#f59e0b",
 } as const;
 
 const RM =
@@ -173,9 +175,11 @@ function Wheel({ pos, xyz, dimmed, selected, labelled, onSelect }: WheelProps) {
   const [hovered, setHovered] = useState(false);
   const occupied = !!pos.tire_id;
   const color = occupied
-    ? pos.is_spare
-      ? POSITION_COLORS.spare
-      : POSITION_COLORS.occupied
+    ? pos.pending
+      ? POSITION_COLORS.pending
+      : pos.is_spare
+        ? POSITION_COLORS.spare
+        : POSITION_COLORS.occupied
     : POSITION_COLORS.empty;
   const emph = hovered || selected;
 
@@ -577,7 +581,7 @@ export function TruckDiagram({ axles, positions, selectedId, onSelect }: TruckDi
           ))}
 
         {positions.map((p) => {
-          if (detail && !focusPair!.ids.includes(p.id)) return null;
+          if (detail && !focusPair.ids.includes(p.id)) return null;
           return (
             <Wheel
               key={p.id}

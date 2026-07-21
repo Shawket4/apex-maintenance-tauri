@@ -9,27 +9,380 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as AppRouteImport } from './routes/_app'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as AppIndexRouteImport } from './routes/_app.index'
+import { Route as AppAiRouteImport } from './routes/_app.ai'
+import { Route as AppDueRouteImport } from './routes/_app.due'
+import { Route as AppSettingsRouteImport } from './routes/_app.settings'
+import { Route as AppTiresIndexRouteImport } from './routes/_app.tires.index'
+import { Route as AppTiresTireIdRouteImport } from './routes/_app.tires.$tireId'
+import { Route as AppTrucksIndexRouteImport } from './routes/_app.trucks.index'
+import { Route as AppTrucksTruckIdRouteImport } from './routes/_app.trucks.$truckId'
+import { Route as AppTrucksTruckIdIndexRouteImport } from './routes/_app.trucks.$truckId.index'
+import { Route as AppTrucksTruckIdDueRouteImport } from './routes/_app.trucks.$truckId.due'
+import { Route as AppTrucksTruckIdHistoryRouteImport } from './routes/_app.trucks.$truckId.history'
+import { Route as AppTrucksTruckIdTiresRouteImport } from './routes/_app.trucks.$truckId.tires'
+import { Route as AppWoWoIdIndexRouteImport } from './routes/_app.wo.$woId.index'
+import { Route as AppWoWoIdTiresRouteImport } from './routes/_app.wo.$woId.tires'
 
-export interface FileRoutesByFullPath {}
-export interface FileRoutesByTo {}
+const AppRoute = AppRouteImport.update({
+  id: '/_app',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AppIndexRoute = AppIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAiRoute = AppAiRouteImport.update({
+  id: '/ai',
+  path: '/ai',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppDueRoute = AppDueRouteImport.update({
+  id: '/due',
+  path: '/due',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSettingsRoute = AppSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppTiresIndexRoute = AppTiresIndexRouteImport.update({
+  id: '/tires/',
+  path: '/tires/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppTiresTireIdRoute = AppTiresTireIdRouteImport.update({
+  id: '/tires/$tireId',
+  path: '/tires/$tireId',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppTrucksIndexRoute = AppTrucksIndexRouteImport.update({
+  id: '/trucks/',
+  path: '/trucks/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppTrucksTruckIdRoute = AppTrucksTruckIdRouteImport.update({
+  id: '/trucks/$truckId',
+  path: '/trucks/$truckId',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppTrucksTruckIdIndexRoute = AppTrucksTruckIdIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppTrucksTruckIdRoute,
+} as any)
+const AppTrucksTruckIdDueRoute = AppTrucksTruckIdDueRouteImport.update({
+  id: '/due',
+  path: '/due',
+  getParentRoute: () => AppTrucksTruckIdRoute,
+} as any)
+const AppTrucksTruckIdHistoryRoute = AppTrucksTruckIdHistoryRouteImport.update({
+  id: '/history',
+  path: '/history',
+  getParentRoute: () => AppTrucksTruckIdRoute,
+} as any)
+const AppTrucksTruckIdTiresRoute = AppTrucksTruckIdTiresRouteImport.update({
+  id: '/tires',
+  path: '/tires',
+  getParentRoute: () => AppTrucksTruckIdRoute,
+} as any)
+const AppWoWoIdIndexRoute = AppWoWoIdIndexRouteImport.update({
+  id: '/wo/$woId/',
+  path: '/wo/$woId/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppWoWoIdTiresRoute = AppWoWoIdTiresRouteImport.update({
+  id: '/wo/$woId/tires',
+  path: '/wo/$woId/tires',
+  getParentRoute: () => AppRoute,
+} as any)
+
+export interface FileRoutesByFullPath {
+  '/': typeof AppIndexRoute
+  '/login': typeof LoginRoute
+  '/ai': typeof AppAiRoute
+  '/due': typeof AppDueRoute
+  '/settings': typeof AppSettingsRoute
+  '/tires/$tireId': typeof AppTiresTireIdRoute
+  '/trucks/$truckId': typeof AppTrucksTruckIdRouteWithChildren
+  '/tires/': typeof AppTiresIndexRoute
+  '/trucks/': typeof AppTrucksIndexRoute
+  '/trucks/$truckId/due': typeof AppTrucksTruckIdDueRoute
+  '/trucks/$truckId/history': typeof AppTrucksTruckIdHistoryRoute
+  '/trucks/$truckId/tires': typeof AppTrucksTruckIdTiresRoute
+  '/wo/$woId/tires': typeof AppWoWoIdTiresRoute
+  '/trucks/$truckId/': typeof AppTrucksTruckIdIndexRoute
+  '/wo/$woId/': typeof AppWoWoIdIndexRoute
+}
+export interface FileRoutesByTo {
+  '/login': typeof LoginRoute
+  '/ai': typeof AppAiRoute
+  '/due': typeof AppDueRoute
+  '/settings': typeof AppSettingsRoute
+  '/': typeof AppIndexRoute
+  '/tires/$tireId': typeof AppTiresTireIdRoute
+  '/tires': typeof AppTiresIndexRoute
+  '/trucks': typeof AppTrucksIndexRoute
+  '/trucks/$truckId/due': typeof AppTrucksTruckIdDueRoute
+  '/trucks/$truckId/history': typeof AppTrucksTruckIdHistoryRoute
+  '/trucks/$truckId/tires': typeof AppTrucksTruckIdTiresRoute
+  '/wo/$woId/tires': typeof AppWoWoIdTiresRoute
+  '/trucks/$truckId': typeof AppTrucksTruckIdIndexRoute
+  '/wo/$woId': typeof AppWoWoIdIndexRoute
+}
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
+  '/_app': typeof AppRouteWithChildren
+  '/login': typeof LoginRoute
+  '/_app/ai': typeof AppAiRoute
+  '/_app/due': typeof AppDueRoute
+  '/_app/settings': typeof AppSettingsRoute
+  '/_app/': typeof AppIndexRoute
+  '/_app/tires/$tireId': typeof AppTiresTireIdRoute
+  '/_app/trucks/$truckId': typeof AppTrucksTruckIdRouteWithChildren
+  '/_app/tires/': typeof AppTiresIndexRoute
+  '/_app/trucks/': typeof AppTrucksIndexRoute
+  '/_app/trucks/$truckId/due': typeof AppTrucksTruckIdDueRoute
+  '/_app/trucks/$truckId/history': typeof AppTrucksTruckIdHistoryRoute
+  '/_app/trucks/$truckId/tires': typeof AppTrucksTruckIdTiresRoute
+  '/_app/wo/$woId/tires': typeof AppWoWoIdTiresRoute
+  '/_app/trucks/$truckId/': typeof AppTrucksTruckIdIndexRoute
+  '/_app/wo/$woId/': typeof AppWoWoIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: never
+  fullPaths:
+    | '/'
+    | '/login'
+    | '/ai'
+    | '/due'
+    | '/settings'
+    | '/tires/$tireId'
+    | '/trucks/$truckId'
+    | '/tires/'
+    | '/trucks/'
+    | '/trucks/$truckId/due'
+    | '/trucks/$truckId/history'
+    | '/trucks/$truckId/tires'
+    | '/wo/$woId/tires'
+    | '/trucks/$truckId/'
+    | '/wo/$woId/'
   fileRoutesByTo: FileRoutesByTo
-  to: never
-  id: '__root__'
+  to:
+    | '/login'
+    | '/ai'
+    | '/due'
+    | '/settings'
+    | '/'
+    | '/tires/$tireId'
+    | '/tires'
+    | '/trucks'
+    | '/trucks/$truckId/due'
+    | '/trucks/$truckId/history'
+    | '/trucks/$truckId/tires'
+    | '/wo/$woId/tires'
+    | '/trucks/$truckId'
+    | '/wo/$woId'
+  id:
+    | '__root__'
+    | '/_app'
+    | '/login'
+    | '/_app/ai'
+    | '/_app/due'
+    | '/_app/settings'
+    | '/_app/'
+    | '/_app/tires/$tireId'
+    | '/_app/trucks/$truckId'
+    | '/_app/tires/'
+    | '/_app/trucks/'
+    | '/_app/trucks/$truckId/due'
+    | '/_app/trucks/$truckId/history'
+    | '/_app/trucks/$truckId/tires'
+    | '/_app/wo/$woId/tires'
+    | '/_app/trucks/$truckId/'
+    | '/_app/wo/$woId/'
   fileRoutesById: FileRoutesById
 }
-export interface RootRouteChildren {}
-
-declare module '@tanstack/react-router' {
-  interface FileRoutesByPath {}
+export interface RootRouteChildren {
+  AppRoute: typeof AppRouteWithChildren
+  LoginRoute: typeof LoginRoute
 }
 
-const rootRouteChildren: RootRouteChildren = {}
+declare module '@tanstack/react-router' {
+  interface FileRoutesByPath {
+    '/_app': {
+      id: '/_app'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AppRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_app/': {
+      id: '/_app/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof AppIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/ai': {
+      id: '/_app/ai'
+      path: '/ai'
+      fullPath: '/ai'
+      preLoaderRoute: typeof AppAiRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/due': {
+      id: '/_app/due'
+      path: '/due'
+      fullPath: '/due'
+      preLoaderRoute: typeof AppDueRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/settings': {
+      id: '/_app/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AppSettingsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/tires/': {
+      id: '/_app/tires/'
+      path: '/tires'
+      fullPath: '/tires/'
+      preLoaderRoute: typeof AppTiresIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/tires/$tireId': {
+      id: '/_app/tires/$tireId'
+      path: '/tires/$tireId'
+      fullPath: '/tires/$tireId'
+      preLoaderRoute: typeof AppTiresTireIdRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/trucks/': {
+      id: '/_app/trucks/'
+      path: '/trucks'
+      fullPath: '/trucks/'
+      preLoaderRoute: typeof AppTrucksIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/trucks/$truckId': {
+      id: '/_app/trucks/$truckId'
+      path: '/trucks/$truckId'
+      fullPath: '/trucks/$truckId'
+      preLoaderRoute: typeof AppTrucksTruckIdRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/trucks/$truckId/': {
+      id: '/_app/trucks/$truckId/'
+      path: '/'
+      fullPath: '/trucks/$truckId/'
+      preLoaderRoute: typeof AppTrucksTruckIdIndexRouteImport
+      parentRoute: typeof AppTrucksTruckIdRoute
+    }
+    '/_app/trucks/$truckId/due': {
+      id: '/_app/trucks/$truckId/due'
+      path: '/due'
+      fullPath: '/trucks/$truckId/due'
+      preLoaderRoute: typeof AppTrucksTruckIdDueRouteImport
+      parentRoute: typeof AppTrucksTruckIdRoute
+    }
+    '/_app/trucks/$truckId/history': {
+      id: '/_app/trucks/$truckId/history'
+      path: '/history'
+      fullPath: '/trucks/$truckId/history'
+      preLoaderRoute: typeof AppTrucksTruckIdHistoryRouteImport
+      parentRoute: typeof AppTrucksTruckIdRoute
+    }
+    '/_app/trucks/$truckId/tires': {
+      id: '/_app/trucks/$truckId/tires'
+      path: '/tires'
+      fullPath: '/trucks/$truckId/tires'
+      preLoaderRoute: typeof AppTrucksTruckIdTiresRouteImport
+      parentRoute: typeof AppTrucksTruckIdRoute
+    }
+    '/_app/wo/$woId/': {
+      id: '/_app/wo/$woId/'
+      path: '/wo/$woId'
+      fullPath: '/wo/$woId/'
+      preLoaderRoute: typeof AppWoWoIdIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/wo/$woId/tires': {
+      id: '/_app/wo/$woId/tires'
+      path: '/wo/$woId/tires'
+      fullPath: '/wo/$woId/tires'
+      preLoaderRoute: typeof AppWoWoIdTiresRouteImport
+      parentRoute: typeof AppRoute
+    }
+  }
+}
+
+interface AppTrucksTruckIdRouteChildren {
+  AppTrucksTruckIdDueRoute: typeof AppTrucksTruckIdDueRoute
+  AppTrucksTruckIdHistoryRoute: typeof AppTrucksTruckIdHistoryRoute
+  AppTrucksTruckIdTiresRoute: typeof AppTrucksTruckIdTiresRoute
+  AppTrucksTruckIdIndexRoute: typeof AppTrucksTruckIdIndexRoute
+}
+
+const AppTrucksTruckIdRouteChildren: AppTrucksTruckIdRouteChildren = {
+  AppTrucksTruckIdDueRoute: AppTrucksTruckIdDueRoute,
+  AppTrucksTruckIdHistoryRoute: AppTrucksTruckIdHistoryRoute,
+  AppTrucksTruckIdTiresRoute: AppTrucksTruckIdTiresRoute,
+  AppTrucksTruckIdIndexRoute: AppTrucksTruckIdIndexRoute,
+}
+
+const AppTrucksTruckIdRouteWithChildren =
+  AppTrucksTruckIdRoute._addFileChildren(AppTrucksTruckIdRouteChildren)
+
+interface AppRouteChildren {
+  AppAiRoute: typeof AppAiRoute
+  AppDueRoute: typeof AppDueRoute
+  AppSettingsRoute: typeof AppSettingsRoute
+  AppIndexRoute: typeof AppIndexRoute
+  AppTiresTireIdRoute: typeof AppTiresTireIdRoute
+  AppTrucksTruckIdRoute: typeof AppTrucksTruckIdRouteWithChildren
+  AppTiresIndexRoute: typeof AppTiresIndexRoute
+  AppTrucksIndexRoute: typeof AppTrucksIndexRoute
+  AppWoWoIdTiresRoute: typeof AppWoWoIdTiresRoute
+  AppWoWoIdIndexRoute: typeof AppWoWoIdIndexRoute
+}
+
+const AppRouteChildren: AppRouteChildren = {
+  AppAiRoute: AppAiRoute,
+  AppDueRoute: AppDueRoute,
+  AppSettingsRoute: AppSettingsRoute,
+  AppIndexRoute: AppIndexRoute,
+  AppTiresTireIdRoute: AppTiresTireIdRoute,
+  AppTrucksTruckIdRoute: AppTrucksTruckIdRouteWithChildren,
+  AppTiresIndexRoute: AppTiresIndexRoute,
+  AppTrucksIndexRoute: AppTrucksIndexRoute,
+  AppWoWoIdTiresRoute: AppWoWoIdTiresRoute,
+  AppWoWoIdIndexRoute: AppWoWoIdIndexRoute,
+}
+
+const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
+
+const rootRouteChildren: RootRouteChildren = {
+  AppRoute: AppRouteWithChildren,
+  LoginRoute: LoginRoute,
+}
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()

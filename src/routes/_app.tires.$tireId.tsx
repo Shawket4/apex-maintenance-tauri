@@ -1,0 +1,194 @@
+import { Link, createFileRoute } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
+import { ArrowRight, Wrench, Recycle, PackageCheck, Ban, Undo2 } from "lucide-react";
+
+import { commands, unwrap } from "@/shared/api/client";
+import { useDomainMutation, useTire } from "@/shared/api/queries";
+import { notifyError } from "@/shared/lib/notify";
+import { fmtNumber } from "@/shared/lib/numbers";
+import { fmtCairo } from "@/shared/lib/time";
+import { TIRE_BADGE } from "@/shared/lib/status";
+import { cn } from "@/shared/lib/cn";
+import { Badge } from "@/shared/ui/badge";
+import { Button } from "@/shared/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
+import { Skeleton } from "@/shared/ui/skeleton";
+
+export const Route = createFileRoute("/_app/tires/$tireId")({
+  component: TireFilePage,
+});
+
+/** Lifecycle transitions allowed from each non-mounted status. Mount/dismount
+ * happen only on the diagram (they carry position + WO context). */
+const TRANSITIONS: Record<
+  string,
+  { to: string; event: string; key: string; icon: typeof Wrench }[]
+> = {
+  in_stock_used: [
+    { to: "in_repair", event: "repair_out", key: "tires.actions.sendRepair", icon: Wrench },
+    { to: "retreading", event: "retread", key: "tires.actions.sendRetread", icon: Recycle },
+    { to: "scrapped", event: "scrap", key: "tires.actions.scrap", icon: Ban },
+  ],
+  in_repair: [
+    { to: "in_stock_used", event: "repair_in", key: "tires.actions.backFromRepair", icon: Undo2 },
+    { to: "scrapped", event: "scrap", key: "tires.actions.scrap", icon: Ban },
+  ],
+  retreading: [
+    { to: "in_stock_used", event: "restock", key: "tires.actions.backFromRetread", icon: PackageCheck },
+    { to: "scrapped", event: "scrap", key: "tires.actions.scrap", icon: Ban },
+  ],
+  scrapped: [],
+  mounted: [],
+};
+
+function TireFilePage() {
+  const { t, i18n } = useTranslation();
+  const { tireId } = Route.useParams();
+  const tire = useTire(tireId);
+
+  const transition = useDomainMutation(
+    (p: { to: string; event: string }) =>
+      unwrap(commands.tireSetStatus(tireId, p.to, p.event, null)),
+    { onError: notifyError },
+  );
+
+  if (tire.isLoading) {
+    return (
+      <div className="mx-auto max-w-4xl space-y-4 p-6">
+        <Skeleton className="h-32 rounded-2xl" />
+        <Skeleton className="h-48 rounded-2xl" />
+      </div>
+    );
+  }
+  const d = tire.data;
+  if (!d) {
+    return (
+      <div className="mx-auto max-w-4xl p-6">
+        <div className="rounded-2xl border border-dashed p-10 text-center text-sm text-muted-foreground">
+          {t("tires.notFound")}
+        </div>
+      </div>
+    );
+  }
+
+  const actions = TRANSITIONS[d.tire.status] ?? [];
+
+  return (
+    <div className="mx-auto max-w-4xl space-y-6 p-6">
+      <Link
+        to="/tires"
+        className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+      >
+        <ArrowRight className="h-4 w-4 ltr:rotate-180" /> {t("tires.title")}
+      </Link>
+
+      <div className="rounded-2xl border bg-gradient-to-br from-primary/5 to-transparent p-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-3">
+              <span className="text-xl font-bold" dir="ltr">
+                {d.tire.dot_code ?? `${d.tire.brand} ${d.tire.model ?? ""}`}
+              </span>
+              <span className={cn("rounded-full px-2.5 py-1 text-xs", TIRE_BADGE[d.tire.status])}>
+                {t(`tires.status.${d.tire.status}`)}
+              </span>
+              {d.tire.pending && <Badge variant="outline">{t("wo.pending")}</Badge>}
+            </div>
+            <div className="mt-2 flex flex-wrap gap-4 text-sm text-muted-foreground">
+              <span dir="ltr">
+                {d.tire.brand} {d.tire.model ?? ""} {d.tire.size ?? ""}
+              </span>
+              <span className="tabular">
+                {fmtNumber(d.tire.total_km, i18n.language)} {t("common.km")}
+              </span>
+              <span>{t(`tires.origin.${d.tire.origin}`)}</span>
+              {d.tire.retread_count > 0 && (
+                <span className="tabular">
+                  {t("tires.retreads")}: {fmtNumber(d.tire.retread_count, i18n.language)}
+                </span>
+              )}
+              {d.tire.mounted_plate && (
+                <span>
+                  {t("tires.mountedOn")} {d.tire.mounted_plate}{" "}
+                  <span dir="ltr">{d.tire.mounted_position_code}</span>
+                </span>
+              )}
+            </div>
+          </div>
+          {actions.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {actions.map((a) => (
+                <Button
+                  key={a.event}
+                  size="sm"
+                  variant={a.to === "scrapped" ? "destructive" : "secondary"}
+                  disabled={transition.isPending}
+                  onClick={() => transition.mutate({ to: a.to, event: a.event })}
+                >
+                  <a.icon className="h-4 w-4" />
+                  {t(a.key)}
+                </Button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm">{t("tires.history")}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {d.mounts.length === 0 ? (
+            <p className="text-sm text-muted-foreground">{t("common.empty")}</p>
+          ) : (
+            <div className="space-y-2">
+              {d.mounts.map((m) => (
+                <div key={m.assignment_id} className="rounded-lg bg-muted/50 p-3 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium" dir="ltr">
+                      {m.position_code ?? "—"}
+                    </span>
+                    <span className="text-xs text-muted-foreground tabular">
+                      {fmtCairo(m.mounted_at, "YYYY/MM/DD", i18n.language)}
+                      {m.dismounted_at &&
+                        ` ← ${fmtCairo(m.dismounted_at, "YYYY/MM/DD", i18n.language)}`}
+                    </span>
+                  </div>
+                  <div className="mt-1 text-xs text-muted-foreground tabular">
+                    {m.mounted_odometer != null && fmtNumber(m.mounted_odometer, i18n.language)}
+                    {m.dismounted_odometer != null &&
+                      ` ← ${fmtNumber(m.dismounted_odometer, i18n.language)}`}
+                    {m.dismount_reason && ` · ${t(`diagram.reason.${m.dismount_reason}`)}`}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {d.events.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm">{t("tires.events")}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {d.events.map((ev) => (
+              <div key={ev.id} className="flex items-center justify-between rounded-lg bg-muted/50 p-3 text-sm">
+                <span>
+                  {ev.from_status && t(`tires.status.${ev.from_status}`)}
+                  {" ← "}
+                  {ev.to_status && t(`tires.status.${ev.to_status}`)}
+                </span>
+                <span className="text-xs text-muted-foreground tabular">
+                  {fmtCairo(ev.occurred_at, "YYYY/MM/DD", i18n.language)}
+                </span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}

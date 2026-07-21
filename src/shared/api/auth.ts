@@ -2,29 +2,22 @@ import { create } from "zustand";
 import { useEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
 
-import { invoke } from "./tauri";
+import { commands, unwrap, type UserInfo } from "./client";
 
-export interface UserInfo {
-  id: number;
-  email: string;
-  name: string;
-  permission: number;
-  driver_id: number;
-  jwt_exp: number;
-}
+export type { UserInfo };
 
-/* ---------- raw Tauri command bindings ---------- */
+/* ---------- typed command wrappers ---------- */
 
 export async function fetchCurrentUser(): Promise<UserInfo | null> {
-  return invoke<UserInfo | null>("auth_current_user");
+  return unwrap(commands.authCurrentUser());
 }
 
 export async function performLogin(email: string, password: string): Promise<UserInfo> {
-  return invoke<UserInfo>("auth_login", { email, password });
+  return unwrap(commands.authLogin(email, password));
 }
 
 export async function performLogout(): Promise<void> {
-  return invoke<void>("auth_logout");
+  await unwrap(commands.authLogout());
 }
 
 /* ---------- Zustand store + composite hook ----------
@@ -52,7 +45,7 @@ export function useAuth() {
   useEffect(() => {
     if (user) return;
     let cancelled = false;
-    fetchCurrentUser().then((u) => {
+    void fetchCurrentUser().then((u) => {
       if (!cancelled) setUser(u);
     });
     return () => {
@@ -69,7 +62,7 @@ export function useAuth() {
   const logout = async () => {
     await performLogout();
     setUser(null);
-    navigate({ to: "/login" });
+    void navigate({ to: "/login" });
   };
 
   return { user, login, logout, setUser };

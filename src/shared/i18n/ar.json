@@ -1,327 +1,336 @@
 {
   "app": {
-    "title": "صيانة أبكس",
-    "subtitle": "إدارة الصيانة، الشاسيه والإطارات"
+    "name": "أبيكس",
+    "subtitle": "الصيانة"
   },
   "common": {
-    "details": "تفاصيل",
-    "back": "رجوع",
-    "loading": "بيحمّل…",
-    "notes": "ملاحظات",
-    "all": "الكل",
-    "km": "كم",
-    "egp": "جنيه"
-  },
-  "nav": {
-    "overview": "نظرة عامة",
-    "fleet": "الأسطول",
-    "operations": "العمليات",
-    "dashboard": "الرئيسية",
-    "vehicles": "العربيات",
-    "serviceInvoices": "فواتير الصيانة",
-    "invoices": "فواتير الصيانة",
-    "maintenance": "الصيانة",
-    "chassis": "الشاسيه والإطارات",
-    "due": "المستحق",
-    "tires": "الكاوتش",
-    "diagnostics": "حالة المزامنة"
-  },
-  "settings": {
-    "theme": "المظهر",
-    "themeLight": "فاتح",
-    "themeDark": "داكن",
-    "themeSystem": "حسب النظام",
-    "language": "اللغة"
-  },
-  "status": {
-    "online": "متصل",
-    "offline": "غير متصل",
-    "syncing": "بيزامن"
-  },
-  "actions": {
-    "login": "تسجيل الدخول",
-    "logout": "تسجيل خروج",
+    "search": "بحث",
     "save": "حفظ",
     "cancel": "إلغاء",
-    "back": "رجوع",
-    "toggle_language": "تغيير اللغة",
+    "close": "إغلاق",
+    "add": "إضافة",
+    "delete": "حذف",
+    "confirm": "تأكيد",
+    "retry": "إعادة المحاولة",
+    "discard": "تجاهل",
     "loading": "جاري التحميل…",
-    "refresh": "تحديث",
-    "previous": "السابق",
-    "next": "التالي",
-    "print": "طباعة",
-    "export": "تصدير",
-    "clear": "مسح"
+    "empty": "لا توجد بيانات",
+    "back": "رجوع",
+    "all": "الكل",
+    "km": "كم",
+    "liters": "لتر",
+    "items": "بند",
+    "notes": "ملاحظات",
+    "optional": "اختياري",
+    "requiredField": "الحقل ده مطلوب",
+    "offlineNote": "الشغل بيتسجل محليًا وهيتبعت أول ما النت يرجع",
+    "notFound": "مش موجود"
   },
-  "freshness": {
-    "never": "لسه ما تحدثش",
-    "last_refreshed": "آخر تحديث {{ago}}"
+  "nav": {
+    "home": "الورشة",
+    "trucks": "العربيات",
+    "due": "المستحق",
+    "tires": "الكاوتش",
+    "ai": "بحث ذكي",
+    "settings": "الإعدادات",
+    "logout": "خروج"
   },
   "login": {
     "title": "تسجيل الدخول",
-    "subtitle": "ادخل بياناتك عشان تكمّل",
-    "email_label": "البريد الإلكتروني",
-    "email_placeholder": "ahmed@apex.eg",
-    "password_label": "كلمة السر",
-    "password_placeholder": "••••••••",
+    "subtitle": "نظام صيانة أسطول أبيكس",
+    "email": "البريد الإلكتروني",
+    "password": "كلمة السر",
     "submit": "دخول",
     "submitting": "جاري الدخول…",
-    "errors": {
-      "required": "كل الخانات مطلوبة",
-      "invalid_credentials": "البريد أو كلمة السر غلط",
-      "network": "في مشكلة في الاتصال — جرب تاني",
-      "generic": "حصلت مشكلة — جرب تاني"
-    }
+    "emailRequired": "اكتب البريد الإلكتروني",
+    "passwordRequired": "اكتب كلمة السر",
+    "wrongCredentials": "البريد أو كلمة السر غلط",
+    "serverError": "في مشكلة في الاتصال بالسيرفر"
   },
-  "dashboard": {
-    "welcome": "أهلاً بيك يا {{name}}",
-    "phase1_notice_title": "Phase 2 — جاهز",
-    "phase1_notice_body": "تسجيل الدخول، قاعدة البيانات المحلية، الكاش لقايمة العربيات والفواتير — كله شغّال. شاشات الصيانة والشاسيه هتتبني في الـ phase اللي جاي.",
-    "db_health_title": "حالة قاعدة البيانات",
-    "ping_title": "Tauri ping",
-    "version_title": "إصدار البرنامج",
-    "migrations_applied": "ترحيلات منفّذة",
-    "outbox_pending": "عمليات في الانتظار",
-    "seeded_categories": "تصنيفات الصيانة"
+  "search": {
+    "placeholder": "دوّر برقم اللوحة أو الـ DOT…",
+    "hint": "اضغط / للبحث",
+    "trucks": "عربيات",
+    "tires": "كاوتش",
+    "workOrders": "أوامر شغل",
+    "noResults": "مفيش نتايج"
   },
-  "vehicles": {
+  "home": {
+    "title": "الورشة",
+    "openWos": "شغل مفتوح دلوقتي",
+    "noOpenWos": "مفيش أوامر شغل مفتوحة — العربية اللي في الورشة؟ دوّر عليها وافتح أمر شغل",
+    "attention": "مستحق ومتأخر",
+    "noAttention": "مفيش حاجة متأخرة — تمام",
+    "lowStock": "المخزون قرب يخلص",
+    "openedAt": "اتفتح",
+    "resume": "كمّل الشغل",
+    "overdue": "متأخر",
+    "dueSoon": "قرب ميعاده",
+    "neverDone": "ماتعملش قبل كده",
+    "viewAll": "شوف الكل"
+  },
+  "trucks": {
     "title": "العربيات",
-    "subtitle": "{{formattedCount}} عربية في الأسطول",
-    "search_placeholder": "ابحث برقم اللوحة، النوع، الناقل أو السائق…",
-    "empty_total": "مفيش عربيات في الكاش لسه — اضغط تحديث.",
-    "empty_filtered": "مفيش نتائج للبحث ده.",
-    "error": "تعذّر تحميل قائمة العربيات.",
-    "unit": {
-      "liters": "لتر"
+    "searchPlaceholder": "رقم اللوحة…",
+    "driver": "السواق",
+    "unclassified": "غير مصنفة",
+    "noChassis": "الشاسيه مش متعرّف",
+    "openWoCount": "أمر شغل مفتوح",
+    "empty": "مفيش عربيات — اعمل تحديث للبيانات من فالكون"
+  },
+  "truck": {
+    "tabs": {
+      "overview": "نظرة عامة",
+      "tires": "الكاوتش",
+      "history": "السجل",
+      "due": "المستحق"
     },
-    "col": {
-      "plate": "رقم اللوحة",
-      "type": "النوع",
-      "tank_capacity": "سعة التانك",
-      "transporter": "الناقل",
-      "driver": "السائق",
-      "odometer": "العداد",
-      "car_license": "رخصة السيارة",
-      "calibration": "رخصة المعايرة",
-      "tank_license": "رخصة التانك"
-    }
-  },
-  "invoices": {
-    "title": "فواتير الصيانة",
-    "subtitle": "{{formattedCount}} فاتورة في الكاش",
-    "subtitle_search": "{{matches}} نتيجة للبحث «{{query}}»",
-    "search_placeholder": "ابحث في خدمات وملاحظات الفواتير…",
-    "empty_total": "مفيش فواتير في الكاش لسه — اضغط تحديث.",
-    "empty_search": "مفيش نتائج لـ «{{query}}».",
-    "error": "تعذّر تحميل الفواتير.",
-    "pagination": "صفحة {{page}} من {{total}}",
-    "source": {
-      "online": "بحث السيرفر",
-      "online_hint": "النتائج جايّة من maint-rust",
-      "offline": "بحث محلي",
-      "offline_hint": "السيرفر مش متاح — النتائج من فهرس FTS5 المحلي"
+    "openWo": "افتح أمر شغل",
+    "openWoTitle": "أمر شغل جديد",
+    "odometerPrompt": "قراءة العداد دلوقتي",
+    "odometerHint": "آخر قراءة معروفة: {{km}} كم ({{source}})",
+    "resumeWo": "في أمر شغل مفتوح — كمّل عليه",
+    "odometer": "العداد",
+    "odometerSource": {
+      "falcon_fuel": "قراءة الوقود",
+      "manual_override": "قراءة يدوية",
+      "oil_change": "آخر تغيير زيت",
+      "work_order": "آخر أمر شغل",
+      "none": "مفيش قراءة"
     },
-    "col": {
-      "date": "التاريخ",
-      "plate": "اللوحة",
-      "services": "الخدمات",
-      "driver": "السائق",
-      "region": "المنطقة",
-      "items": "البنود",
-      "meter": "العداد"
-    }
-  },
-  "serviceInvoices": {
-    "title": "فواتير الصيانة",
-    "pickVehicle": "اختار عربية عشان تشوف فواتير صيانتها — {{formattedCount}} عربية متاحة",
-    "subtitleByVehicle": "{{formattedCount}} فاتورة للعربية دي",
-    "noDriver": "بدون سائق",
-    "unknownVehicle": "عربية غير معروفة",
-    "empty": "مفيش فواتير للعربية دي في الكاش لسه — اضغط تحديث.",
-    "detailError": "تعذّر تحميل تفاصيل الفاتورة.",
-    "noItems": "الفاتورة ما فيهاش بنود.",
-    "receiptTitle": "فاتورة صيانة",
-    "checklistTitle": "قائمة الفحص",
-    "truckSubtitle": "Service Truck Inspection",
-    "billedTo": "بيانات العربية",
-    "verificationNote": "البيانات دي من الكاش المحلي بتاريخ {{date}}.",
-    "fields": {
-      "supervisor": "المشرف",
-      "notes": "الملاحظات",
-      "service": "الخدمة"
+    "observedAt": "اتسجلت",
+    "overrideOdometer": "صحّح العداد",
+    "overrideNotes": "سبب التصحيح",
+    "class": "التصنيف",
+    "history": {
+      "workshop": "الورشة",
+      "falcon": "فواتير فالكون",
+      "empty": "مفيش سجل خدمة",
+      "invoiceItems": "بنود الفاتورة"
     },
-    "searchInvoices": "ابحث في الخدمة أو الملاحظات..."
+    "defineChassis": "عرّف الشاسيه",
+    "chassisMissing": "الشاسيه لسه متعرّفش للعربية دي — عرّفه علشان الرسم يشتغل"
   },
-  "errors": {
-    "session_expired": "انتهت صلاحية الجلسة. الكتابات في الانتظار حتى تسجيل الدخول مرة أخرى."
-  },
-  "sync": {
-    "conflicts_title": "تعارض في البيانات",
-    "no_conflicts": "لا يوجد تعارض في البيانات",
-    "local_version": "تعديلي (محلي)",
-    "server_version": "نسخة السيرفر",
-    "action_accept_server": "قبول السيرفر",
-    "action_keep_mine": "الاحتفاظ بتعديلي والمحاولة مرة أخرى",
-    "conflicts_label": "تعارضات",
-    "pending": "قيد الانتظار",
-    "synced": "تم المزامنة",
-    "changes": "تعديلات",
-    "up_to_date": "محدث",
-    "test_button": "تجربة تجاوز العداد",
-    "test_dialog_title": "إنشاء تجاوز تجريبي",
-    "test_dialog_desc": "ده هيعمل تعديل محلي في العداد وهيحطه في الـ outbox عشان يتزامن ونتأكد إن الـ Phase 3 شغال.",
-    "vehicle_id_label": "معرف السيارة",
-    "odometer_label": "العداد الجديد",
-    "failed": "فشلت",
-    "queued": "في الطابور",
-    "upToDate": "متزامن",
-    "syncNow": "زامن دلوقتي"
+  "wo": {
+    "title": "أمر شغل",
+    "status": {
+      "open": "مفتوح",
+      "closed": "مقفول"
+    },
+    "openedAt": "اتفتح",
+    "closedAt": "اتقفل",
+    "odometerAtOpen": "العداد عند الفتح",
+    "pending": "لسه بيتبعت",
+    "tasks": "الشغل اللي اتعمل",
+    "addTaskPlaceholder": "اكتب اللي اتعمل واضغط Enter…",
+    "category": "التصنيف",
+    "noCategory": "من غير تصنيف",
+    "deleteTask": "حذف البند",
+    "oil": {
+      "title": "تغيير زيت",
+      "type": "نوع الزيت",
+      "liters": "الكمية باللتر",
+      "record": "سجّل تغيير الزيت",
+      "flagged": "الكمية خارج النطاق المعتاد (34–36 لتر) — اتسجلت برضه",
+      "flaggedBadge": "كمية غير معتادة"
+    },
+    "tires": {
+      "title": "شغل الكاوتش",
+      "open": "افتح مخطط الكاوتش",
+      "mounted": "اتركّب",
+      "dismounted": "اتفك",
+      "empty": "مفيش شغل كاوتش في الأمر ده"
+    },
+    "due": {
+      "title": "مستحق للعربية دي",
+      "addAsTask": "ضيفه كبند",
+      "empty": "مفيش حاجة مستحقة"
+    },
+    "close": "اقفل أمر الشغل",
+    "closeTitle": "قفل أمر الشغل",
+    "closeBody": "هيتقفل الأمر بكل البنود اللي فيه. متأكد؟",
+    "notFound": "أمر الشغل مش موجود"
   },
   "due": {
-    "title": "الصيانة المستحقة",
-    "subtitle": "على مستوى الأسطول، من أحدث قراءة عداد عندنا",
-    "search": "دوّر باللوحة أو الشغلانة…",
-    "empty": "مفيش حاجة مستحقة — أو لسه مفيش جداول متظبطة",
-    "neverObserved": "مفيش قراءة عداد مسجلة",
-    "inKm": "بعد {{km}} كم",
-    "overdueByKm": "متأخر {{km}} كم",
-    "inDays": "بعد {{days}} يوم",
-    "overdueByDays": "متأخر {{days}} يوم",
+    "title": "المستحق",
     "status": {
       "overdue": "متأخر",
-      "due_soon": "قرب معاده",
-      "ok": "تمام",
-      "never_done": "ما اتعملش قبل كده"
+      "due_soon": "قرب ميعاده",
+      "never_done": "ماتعملش",
+      "ok": "تمام"
     },
-    "source": {
-      "falcon_mileage": "فالكون",
-      "falcon_fuel": "آخر تفويلة",
-      "manual": "يدوي",
-      "service": "سجل صيانة",
-      "none": "مفيش قراءة"
-    }
-  },
-  "vehicle": {
-    "invoices": "فواتير الصيانة",
-    "updateReading": "تحديث القراءة",
-    "overrideHint": "اكتب قراءة العداد زي ما هي من التابلوه. بتتحسب بس لو هي أعلى قراءة عندنا.",
-    "odometerKm": "العداد (كم)",
-    "odometerInvalid": "اكتب قراءة عداد صحيحة",
-    "odometerSaved": "اتسجلت القراءة — في طابور المزامنة",
-    "noTemplatesYet": "العربية دي لسه مفيش لها جداول صيانة — ضيفها تحت",
-    "lastDone": "آخر مرة"
-  },
-  "records": {
-    "title": "سجل الصيانة",
-    "add": "تسجيل صيانة",
-    "template": "شغلانة مجدولة",
-    "noTemplate": "مرة واحدة (من غير جدول)",
-    "category": "التصنيف",
-    "date": "التاريخ",
-    "cost": "التكلفة",
-    "vendor": "المورد",
-    "pickCategory": "اختار تصنيف",
-    "saved": "اتسجلت — في طابور المزامنة",
-    "deleted": "السجل اتشال",
-    "empty": "مفيش صيانة متسجلة لسه"
-  },
-  "templates": {
-    "title": "جدول الصيانة",
-    "add": "إضافة شغلانة مجدولة",
-    "nameAr": "الاسم (عربي)",
-    "nameEn": "الاسم (إنجليزي)",
-    "byMileage": "بالكيلومترات",
-    "byTime": "بالمدة",
-    "intervalKm": "كل (كم)",
-    "intervalDays": "كل (يوم)",
-    "everyKm": "كل {{km}} كم",
-    "everyDays": "كل {{days}} يوم",
-    "missingFields": "التصنيف والاسمين مطلوبين",
-    "saved": "الجدول اتسجل — في طابور المزامنة",
-    "deleted": "الجدول اتشال",
-    "empty": "مفيش شغلانات مجدولة للعربية دي"
+    "nextDueKm": "مستحق عند {{km}}",
+    "nextDueAt": "مستحق يوم {{date}}",
+    "lastDone": "آخر مرة",
+    "currentOdometer": "العداد",
+    "openWo": "افتح أمر شغل",
+    "empty": "مفيش خطط صيانة متفعلة — صنّف العربيات وظبط الخطط من الإعدادات"
   },
   "tires": {
-    "title": "الكاوتش والشاسيه",
-    "noChassis": "العربية دي لسه ملهاش شاسيه متسجل. ظبط توزيعة المحاور مرة واحدة — والأماكن بتتولد لوحدها.",
-    "driveAxles": "محاور الجر",
-    "trailerAxles": "محاور المقطورة",
-    "spares": "الاستبن",
-    "createChassis": "إنشاء الشاسيه",
-    "chassisCreated": "الشاسيه اتعمل — في طابور المزامنة",
-    "legend": {
-      "occupied": "مركّب",
-      "spare": "استبن",
-      "empty": "فاضي"
+    "title": "الكاوتش والمخزن",
+    "stock": {
+      "title": "مخزون جديد",
+      "snapshot": "الرصيد",
+      "pending": "قيد الخصم",
+      "projected": "المتاح",
+      "usedPool": "كاوتش مستعمل متاح",
+      "empty": "مفيش مخزون — اعمل تحديث"
     },
-    "emptyPosition": "مفيش كاوتشة مركبة في المكان ده",
-    "mount": "تركيب كاوتشة",
-    "dismount": "فك",
-    "mountAt": "تركيب في {{code}}",
-    "dismountFrom": "فك من {{code}}",
-    "pickTire": "الكاوتشة (من المخزن)",
-    "reason": "السبب",
-    "sendTo": "الكاوتشة تروح على",
-    "mounted": "اتركبت — في طابور المزامنة",
-    "dismounted": "اتفكت — في طابور المزامنة",
-    "mountedSince": "متركبة من",
-    "reasons": {
-      "new_install": "تركيب جديد",
-      "rotation": "تدوير",
-      "replacement": "استبدال",
-      "puncture": "بنشر",
-      "wear": "تآكل",
-      "damage": "تلف",
-      "retread_return": "رجعت من التلبيس"
+    "assets": {
+      "title": "الكاوتش الفردي",
+      "searchPlaceholder": "DOT أو الماركة…",
+      "empty": "مفيش كاوتش مسجل"
     },
-    "statuses": {
-      "in_stock": "في المخزن",
-      "mounted": "مركّبة",
-      "in_repair": "في التصليح",
+    "status": {
+      "mounted": "متركّب",
+      "in_stock_used": "مستعمل بالمخزن",
+      "in_repair": "في الصيانة",
       "retreading": "في التلبيس",
       "scrapped": "خردة"
-    }
-  },
-  "tiresPage": {
-    "title": "مخزون الكاوتش",
-    "subtitle": "كل كاوتش الأسطول، حسب حالته",
-    "search": "دوّر بالـ DOT أو الماركة…",
-    "add": "إضافة كاوتشة",
-    "dot": "كود DOT",
+    },
+    "origin": {
+      "shipment": "شحنة",
+      "legacy": "قديم"
+    },
+    "dot": "رقم DOT",
     "brand": "الماركة",
     "model": "الموديل",
-    "retread": "ملبس",
-    "missingFields": "كود DOT والماركة مطلوبين",
-    "added": "الكاوتشة اتضافت — في طابور المزامنة",
-    "empty": "مفيش كاوتش مطابق",
-    "noHistory": "ما اتركبتش قبل كده",
-    "stillMounted": "لسه متركبة"
+    "size": "المقاس",
+    "totalKm": "الكيلومترات",
+    "retreads": "مرات التلبيس",
+    "mountedOn": "متركّب على",
+    "position": "الموضع",
+    "history": "تاريخ التركيب",
+    "events": "أحداث الحالة",
+    "actions": {
+      "sendRepair": "ابعت للصيانة",
+      "backFromRepair": "رجع من الصيانة",
+      "sendRetread": "ابعت للتلبيس",
+      "backFromRetread": "رجع من التلبيس",
+      "scrap": "اعتبره خردة",
+      "restock": "رجّع للمخزن"
+    },
+    "intake": {
+      "title": "إدخال كاوتش قديم",
+      "subtitle": "الكاوتش المستعمل اللي في الورشة — سجّله علشان يبقى متاح للتركيب",
+      "addRow": "ضيف كاوتشة",
+      "estimatedKm": "كيلومترات تقريبية",
+      "submit": "سجّل الكاوتش ({{count}})",
+      "done": "اتسجلوا في المخزن المستعمل"
+    },
+    "notFound": "الكاوتشة مش موجودة"
   },
-  "diag": {
-    "title": "حالة المزامنة",
-    "subtitle": "إيه اللي اتزامن، إيه اللي مستني، وليه أي حاجة واقفة",
-    "connection": "الاتصال",
-    "pending": "في الطابور",
-    "dead": "فشلت",
-    "lastPull": "آخر سحب",
-    "authPaused": "المزامنة متوقفة — الجلسة انتهت. سجّل دخول تاني عشان تكمل.",
-    "deadTitle": "كتابات فشلت — محتاجة قرارك",
-    "queueTitle": "الطابور",
-    "queueEmpty": "الطابور فاضي — كل حاجة على السيرفر",
-    "retry": "إعادة المحاولة",
-    "discard": "حذف",
-    "requeued": "رجعت للطابور",
-    "discarded": "اتحذفت",
-    "attempts": "محاولة {{n}}",
-    "entities": {
-      "maintenance_templates": "جدول",
-      "maintenance_records": "سجل صيانة",
-      "chassis_layouts": "شاسيه",
-      "chassis_axles": "محور",
-      "chassis_positions": "مكان",
-      "tires": "كاوتشة",
-      "tire_assignments": "تركيب كاوتشة",
-      "vehicle_odometer_overrides": "قراءة عداد"
+  "diagram": {
+    "title": "مخطط الكاوتش",
+    "emptyPosition": "الموضع فاضي",
+    "queued": "لسه بيتبعت",
+    "spare": "استبن",
+    "mount": {
+      "title": "ركّب كاوتشة — {{code}}",
+      "fromNew": "جديد من المخزن",
+      "fromUsed": "مستعمل من المخزن",
+      "stockLine": "اختار من المخزون",
+      "noStock": "مفيش مخزون جديد — ممكن تكمل والرصيد هيبقى بالسالب",
+      "noUsed": "مفيش كاوتش مستعمل متاح",
+      "dotPrompt": "رقم الـ DOT (على الجنب)",
+      "odometer": "قراءة العداد",
+      "submit": "ركّب"
+    },
+    "dismount": {
+      "title": "فك الكاوتشة — {{code}}",
+      "reason": "سبب الفك",
+      "resultStatus": "هتروح على",
+      "odometer": "قراءة العداد",
+      "submit": "فك"
+    },
+    "reason": {
+      "worn": "خلصت",
+      "damaged": "تلفت",
+      "rotation": "تدوير",
+      "puncture": "بنشر",
+      "retread": "تلبيس",
+      "other": "سبب تاني"
+    },
+    "onboard": {
+      "title": "تسجيل كاوتش العربية",
+      "subtitle": "أول مرة — سجّل الكاوتش اللي متركّب فعلاً، من غير خصم من المخزن",
+      "config": "شكل الشاسيه",
+      "driveAxles": "محاور الجر",
+      "trailerAxles": "محاور المقطورة",
+      "spares": "الاستبن",
+      "create": "اعمل الشاسيه",
+      "fill": "سجّل الموضع {{code}}",
+      "sameForAll": "نفس الماركة لكل المواضع الفاضية",
+      "skip": "سيبه فاضي",
+      "done": "خلصنا — اتسجلت {{count}} كاوتشة"
+    },
+    "needWo": "لازم أمر شغل مفتوح علشان تركّب أو تفك",
+    "openWoNow": "افتح أمر شغل دلوقتي"
+  },
+  "ai": {
+    "title": "بحث ذكي في سجل الخدمة",
+    "placeholder": "اسأل بالعربي… مثلاً: امتى آخر مرة اتغير فيها تيل الفرامل للعربية 8351؟",
+    "submit": "اسأل",
+    "thinking": "بيدوّر…",
+    "keyNeeded": "البحث الذكي محتاج مفتاح ANTHROPIC_API_KEY على السيرفر",
+    "empty": "اسأل أي حاجة عن سجل الخدمة — بيفهم المرادفات (فرامل = تيل، دسك، هوبة…)",
+    "examples": {
+      "one": "امتى آخر تغيير زيت للعربية 5139؟",
+      "two": "أنهي عربية غيّرت كاوتش أكتر حاجة السنة دي؟",
+      "three": "كل شغل الفرامل الشهرين اللي فاتوا"
     }
+  },
+  "settings": {
+    "title": "الإعدادات",
+    "plans": {
+      "title": "التصنيفات وخطط الصيانة",
+      "tagTrucks": "تصنيف العربيات",
+      "plansEditor": "خطط الصيانة (على مستوى الأسطول)",
+      "class": "التصنيف",
+      "category": "نوع الصيانة",
+      "trigger": "النوع",
+      "byKm": "بالكيلومترات",
+      "byDays": "بالأيام",
+      "intervalKm": "كل كام كيلو",
+      "intervalDays": "كل كام يوم",
+      "save": "احفظ الخطة",
+      "onlineNote": "تعديل الخطط محتاج نت (صلاحية مشرف)"
+    },
+    "sync": {
+      "title": "المزامنة والتشخيص",
+      "refresh": "حدّث البيانات المرجعية والمخزون",
+      "refreshed": "اتحدثت",
+      "syncNow": "زامن دلوقتي",
+      "pendingRows": "في الطريق للسيرفر",
+      "deadRows": "محتاجة تدخل",
+      "queueEmpty": "مفيش حاجة مستنية — كله متزامن",
+      "entity": "النوع",
+      "operation": "العملية",
+      "attempts": "المحاولات",
+      "lastError": "آخر خطأ",
+      "serverRow": "نسخة السيرفر موجودة"
+    },
+    "appearance": {
+      "title": "المظهر واللغة",
+      "language": "اللغة",
+      "arabic": "العربية",
+      "english": "English",
+      "theme": "الوضع",
+      "light": "فاتح",
+      "dark": "غامق",
+      "system": "زي الجهاز"
+    }
+  },
+  "sync": {
+    "online": "متصل",
+    "offline": "مش متصل — الشغل بيتسجل محلي",
+    "pending": "{{n}} في الطريق",
+    "dead": "{{count}} محتاجة تدخل",
+    "synced": "متزامن"
+  },
+  "errors": {
+    "offline": "مفيش نت — جرب تاني لما النت يرجع",
+    "unauthorized": "الجلسة خلصت — سجّل دخول تاني",
+    "generic": "حصلت مشكلة: {{message}}"
   }
 }
