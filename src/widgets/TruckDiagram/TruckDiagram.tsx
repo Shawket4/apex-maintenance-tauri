@@ -528,10 +528,7 @@ export function TruckDiagram({ axles, positions, selectedId, onSelect }: TruckDi
 
   const selected = positions.find((p) => p.id === selectedId) ?? null;
   const focusPair = useMemo(() => {
-    // Only occupied wheels earn the overhead pair focus — selecting an empty
-    // position opens a mount/onboard form instead, and gliding the camera
-    // under it reads as a glitch.
-    if (!selected || !selected.tire_id) return null;
+    if (!selected) return null;
     const pair = pairOf(selected, positions);
     if (pair.length < 2) return null;
     const pts = pair.map((m) => positionXYZ(m, axleById, axleZ));

@@ -76,31 +76,33 @@ function WoTires() {
               {t("diagram.needWo")}
             </div>
           )}
-        </div>
-      )}
 
-      {action === "mount" && selected && (
-        <MountSheet
-          position={selected}
-          vehicleId={vid}
-          workOrderId={woId}
-          defaultOdometer={defaultOdometer}
-          onClose={() => {
-            setAction(null);
-            setSelected(null);
-          }}
-        />
-      )}
-      {action === "dismount" && selected?.assignment_id && (
-        <DismountSheet
-          position={selected}
-          workOrderId={woId}
-          defaultOdometer={defaultOdometer}
-          onClose={() => {
-            setAction(null);
-            setSelected(null);
-          }}
-        />
+          {action === "mount" && selected && (
+            <MountSheet
+              key={selected.id}
+              position={selected}
+              vehicleId={vid}
+              workOrderId={woId}
+              defaultOdometer={defaultOdometer}
+              onClose={() => {
+                setAction(null);
+                setSelected(null);
+              }}
+            />
+          )}
+          {action === "dismount" && selected?.assignment_id && (
+            <DismountSheet
+              key={selected.id}
+              position={selected}
+              workOrderId={woId}
+              defaultOdometer={defaultOdometer}
+              onClose={() => {
+                setAction(null);
+                setSelected(null);
+              }}
+            />
+          )}
+        </div>
       )}
     </div>
   );

@@ -226,7 +226,7 @@
     "queued": "Still syncing",
     "spare": "Spare",
     "mount": {
-      "title": "Mount a tire — {{code}}",
+      "title": "Mount a tire",
       "fromNew": "New from stock",
       "fromUsed": "Used from pool",
       "stockLine": "Pick a stock line",
@@ -237,7 +237,7 @@
       "submit": "Mount"
     },
     "dismount": {
-      "title": "Dismount — {{code}}",
+      "title": "Dismount",
       "reason": "Reason",
       "resultStatus": "It will go to",
       "odometer": "Odometer reading",

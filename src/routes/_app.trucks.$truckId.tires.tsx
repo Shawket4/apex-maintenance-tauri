@@ -9,6 +9,7 @@ import { TIRE_BADGE } from "@/shared/lib/status";
 import { cn } from "@/shared/lib/cn";
 import { TruckDiagram } from "@/widgets/TruckDiagram/TruckDiagram";
 import { ChassisWizard } from "@/widgets/diagram/ChassisWizard";
+import { DiagramPanel } from "@/widgets/diagram/DiagramPanel";
 import { OnboardCard } from "@/widgets/diagram/OnboardCard";
 import { Badge } from "@/shared/ui/badge";
 import { Skeleton } from "@/shared/ui/skeleton";
@@ -46,43 +47,47 @@ function TruckTires() {
           selectedId={selected?.id ?? null}
           onSelect={(p) => {
             setSelected(p);
-            if (p && !p.tire_id) setOnboarding(p);
+            setOnboarding(p && !p.tire_id ? p : null);
           }}
         />
 
         {selected?.tire_id && (
-          <div className="absolute bottom-4 end-4 w-64 rounded-xl border bg-card/95 p-4 text-sm shadow-lg backdrop-blur">
+          <DiagramPanel
+            code={selected.position_code}
+            title={selected.dot_code ?? selected.brand ?? ""}
+            subtitle={selected.is_spare ? t("diagram.spare") : undefined}
+            onClose={() => setSelected(null)}
+          >
             <div className="flex items-center justify-between">
-              <span className="text-lg font-bold tabular" dir="ltr">
-                {selected.position_code}
-              </span>
-              {selected.pending && (
-                <Badge variant="outline" className="text-[10px]">
-                  {t("diagram.queued")}
-                </Badge>
-              )}
-            </div>
-            <div className="mt-2 space-y-1 text-xs text-muted-foreground">
-              <div dir="ltr">{selected.dot_code ?? selected.brand ?? ""}</div>
-              <div className="tabular">
+              <span className="text-sm tabular">
                 {fmtNumber(selected.total_km ?? 0, i18n.language)} {t("common.km")}
-              </div>
-              {selected.tire_status && (
-                <span
-                  className={cn("inline-block rounded-full px-2 py-0.5", TIRE_BADGE[selected.tire_status])}
-                >
-                  {t(`tires.status.${selected.tire_status}`)}
-                </span>
-              )}
+              </span>
+              <span className="flex items-center gap-1.5">
+                {selected.pending && (
+                  <Badge variant="outline" className="text-[10px]">
+                    {t("diagram.queued")}
+                  </Badge>
+                )}
+                {selected.tire_status && (
+                  <span
+                    className={cn(
+                      "rounded-full px-2 py-0.5 text-xs",
+                      TIRE_BADGE[selected.tire_status],
+                    )}
+                  >
+                    {t(`tires.status.${selected.tire_status}`)}
+                  </span>
+                )}
+              </span>
             </div>
             <Link
               to="/tires/$tireId"
               params={{ tireId: selected.tire_id }}
-              className="mt-3 block text-xs font-medium text-primary hover:underline"
+              className="mt-3 block text-sm font-medium text-primary hover:underline"
             >
               {t("tires.history")}
             </Link>
-          </div>
+          </DiagramPanel>
         )}
 
         {onboarding && (
