@@ -42,21 +42,37 @@ fn pending_ids(conn: &Connection, entity: &str) -> AppResult<HashSet<String>> {
 
 // ═════════════════════════════ odometer truth ════════════════════════════════
 
-/// Mirrors maint-rust v_current_odometer: MAX over falcon fuel reading, manual
-/// override, oil-change odometer, work-order odometer.
+/// Mirrors maint-rust v_current_odometer (0014). A manual override is an
+/// explicit human correction, not one more reading competing by MAX:
+///  * oil/WO readings recorded BEFORE the correction are discarded;
+///  * the Falcon fuel reading is discarded while it is ≤ the value it showed
+///    when the correction was made (superseded_km);
+///  * everything observed after the correction competes by MAX as usual.
 const ODO_CTE: &str = "
 readings(vehicle_id, km, src, observed_at) AS (
-    SELECT id, last_fuel_odometer, 'falcon_fuel', fetched_at
-      FROM vehicles_cache WHERE last_fuel_odometer IS NOT NULL AND last_fuel_odometer > 0
+    SELECT v.id, v.last_fuel_odometer, 'falcon_fuel', v.fetched_at
+      FROM vehicles_cache v
+      LEFT JOIN vehicle_odometer_overrides ovf
+             ON ovf.vehicle_id = v.id AND ovf.odometer IS NOT NULL
+     WHERE v.last_fuel_odometer IS NOT NULL AND v.last_fuel_odometer > 0
+       AND (ovf.vehicle_id IS NULL OR v.last_fuel_odometer > COALESCE(ovf.superseded_km, -1))
+    UNION ALL
+    SELECT o.vehicle_id, o.odometer, 'oil_change', o.performed_at
+      FROM oil_changes o
+      LEFT JOIN vehicle_odometer_overrides ovo
+             ON ovo.vehicle_id = o.vehicle_id AND ovo.odometer IS NOT NULL
+     WHERE o.deleted_at IS NULL AND o.odometer IS NOT NULL
+       AND (ovo.vehicle_id IS NULL OR julianday(o.performed_at) >= julianday(ovo.set_at))
+    UNION ALL
+    SELECT w.vehicle_id, w.odometer_at_open, 'work_order', w.opened_at
+      FROM work_orders w
+      LEFT JOIN vehicle_odometer_overrides ovw
+             ON ovw.vehicle_id = w.vehicle_id AND ovw.odometer IS NOT NULL
+     WHERE w.deleted_at IS NULL AND w.odometer_at_open IS NOT NULL
+       AND (ovw.vehicle_id IS NULL OR julianday(w.opened_at) >= julianday(ovw.set_at))
     UNION ALL
     SELECT vehicle_id, odometer, 'manual_override', set_at
       FROM vehicle_odometer_overrides WHERE odometer IS NOT NULL
-    UNION ALL
-    SELECT vehicle_id, odometer, 'oil_change', performed_at
-      FROM oil_changes WHERE deleted_at IS NULL AND odometer IS NOT NULL
-    UNION ALL
-    SELECT vehicle_id, odometer_at_open, 'work_order', opened_at
-      FROM work_orders WHERE deleted_at IS NULL AND odometer_at_open IS NOT NULL
 ),
 odo AS (
     SELECT vehicle_id, km AS current_odometer, src AS odometer_source,
@@ -95,27 +111,7 @@ pub fn odometer_truth(pool: &DbPool, vehicle_id: i64) -> AppResult<Option<OdoTru
 /// Time comparisons go through julianday() because pulled rows carry Postgres
 /// timestamp formatting while local writes carry RFC3339-Z — lexical compare
 /// across the two lies.
-const DUE_SQL: &str = "
-WITH readings(vehicle_id, km, src, observed_at) AS (
-    SELECT id, last_fuel_odometer, 'falcon_fuel', fetched_at
-      FROM vehicles_cache WHERE last_fuel_odometer IS NOT NULL AND last_fuel_odometer > 0
-    UNION ALL
-    SELECT vehicle_id, odometer, 'manual_override', set_at
-      FROM vehicle_odometer_overrides WHERE odometer IS NOT NULL
-    UNION ALL
-    SELECT vehicle_id, odometer, 'oil_change', performed_at
-      FROM oil_changes WHERE deleted_at IS NULL AND odometer IS NOT NULL
-    UNION ALL
-    SELECT vehicle_id, odometer_at_open, 'work_order', opened_at
-      FROM work_orders WHERE deleted_at IS NULL AND odometer_at_open IS NOT NULL
-),
-odo AS (
-    SELECT vehicle_id, km AS current_odometer, src AS odometer_source,
-           observed_at AS odometer_observed_at
-      FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY vehicle_id ORDER BY km DESC) rn
-              FROM readings)
-     WHERE rn = 1
-),
+const DUE_TAIL: &str = "
 last_done AS (
     SELECT wo.vehicle_id, t.category_id,
            MAX(wo.opened_at)        AS last_at,
@@ -214,15 +210,16 @@ fn map_due(r: &rusqlite::Row<'_>) -> rusqlite::Result<DueRow> {
 pub fn due_board(pool: &DbPool, vehicle_id: Option<i64>) -> AppResult<Vec<DueRow>> {
     let conn = pool.get()?;
     let order = " ORDER BY CASE status WHEN 'overdue' THEN 0 WHEN 'never_done' THEN 1 WHEN 'due_soon' THEN 2 ELSE 3 END, plate";
+    let due_sql = format!("WITH {ODO_CTE}, {DUE_TAIL}");
     let mut rows = match vehicle_id {
         Some(vid) => {
-            let sql = format!("SELECT * FROM ({DUE_SQL}) WHERE vehicle_id = ?1 {order}");
+            let sql = format!("SELECT * FROM ({due_sql}) WHERE vehicle_id = ?1 {order}");
             let mut stmt = conn.prepare(&sql)?;
             let v = stmt.query_map(params![vid], map_due)?.collect::<Result<Vec<_>, _>>()?;
             v
         }
         None => {
-            let sql = format!("SELECT * FROM ({DUE_SQL}) {order}");
+            let sql = format!("SELECT * FROM ({due_sql}) {order}");
             let mut stmt = conn.prepare(&sql)?;
             let v = stmt.query_map([], map_due)?.collect::<Result<Vec<_>, _>>()?;
             v
@@ -772,16 +769,25 @@ pub struct TireRow {
 pub fn tires_list(pool: &DbPool, status: Option<&str>, q: Option<&str>) -> AppResult<Vec<TireRow>> {
     let conn = pool.get()?;
     let pending = pending_ids(&conn, "tires")?;
-    let mut sql = "
+    // Mounted tires show LIVE km: accrued total + the current run so far
+    // (current odometer − mounted odometer), so a corrected odometer moves
+    // the number immediately instead of waiting for the dismount accrual.
+    let mut sql = format!(
+        "WITH {ODO_CTE}
         SELECT t.id, t.dot_code, t.brand, t.model, t.size, t.status, t.origin,
-               COALESCE(t.total_km,0), COALESCE(t.retread_count,0),
+               COALESCE(t.total_km,0)
+                 + CASE WHEN ta.id IS NOT NULL AND ta.mounted_odometer IS NOT NULL
+                             AND odo.current_odometer > ta.mounted_odometer
+                        THEN odo.current_odometer - ta.mounted_odometer ELSE 0 END,
+               COALESCE(t.retread_count,0),
                ta.vehicle_id, v.car_no_plate, p.position_code, ta.mounted_at
           FROM tires t
           LEFT JOIN tire_assignments ta ON ta.tire_id = t.id AND ta.dismounted_at IS NULL AND ta.deleted_at IS NULL
           LEFT JOIN chassis_positions p ON p.id = ta.position_id
           LEFT JOIN vehicles_cache v ON v.id = ta.vehicle_id
+          LEFT JOIN odo ON odo.vehicle_id = ta.vehicle_id
          WHERE t.deleted_at IS NULL"
-        .to_string();
+    );
     if status.is_some() {
         sql.push_str(" AND t.status = ?1");
     }
@@ -917,6 +923,7 @@ pub fn chassis_get(pool: &DbPool, vehicle_id: i64) -> AppResult<Option<ChassisPa
         )
         .optional()?;
     let Some(layout_id) = layout_id else { return Ok(None) };
+    let current_km = odometer_truth(pool, vehicle_id)?.map(|o| o.km);
 
     let mut stmt = conn.prepare(
         "SELECT id, section, section_index, axle_type, is_steering, is_lifted
@@ -948,7 +955,7 @@ pub fn chassis_get(pool: &DbPool, vehicle_id: i64) -> AppResult<Option<ChassisPa
           WHERE p.layout_id=?1 AND p.deleted_at IS NULL
           ORDER BY p.position_code",
     )?;
-    let positions = stmt
+    let mut positions = stmt
         .query_map(params![layout_id], |r| {
             let assignment_id: Option<String> = r.get(7)?;
             Ok(PositionRow {
@@ -974,6 +981,17 @@ pub fn chassis_get(pool: &DbPool, vehicle_id: i64) -> AppResult<Option<ChassisPa
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;
+
+    // Live km for mounted wheels (same rule as tires_list).
+    if let Some(now_km) = current_km {
+        for p in &mut positions {
+            if let (Some(total), Some(mounted)) = (p.total_km, p.mounted_odometer) {
+                if now_km > mounted {
+                    p.total_km = Some(total + (now_km - mounted));
+                }
+            }
+        }
+    }
 
     Ok(Some(ChassisPayload { layout_id, axles, positions }))
 }
@@ -1358,6 +1376,67 @@ mod tests {
         let due = due_board(&p, Some(4)).unwrap();
         assert_eq!(due[0].status, "overdue");
         assert_eq!(due[0].odometer_source.as_deref(), Some("manual_override"));
+    }
+
+    #[test]
+    fn override_corrects_downward_and_later_readings_resume() {
+        let p = pool();
+        // Falcon reports an inflated 500k. The mechanic corrects DOWN to 300k.
+        seed_vehicle(&p, 7, "ف ج م 8567", 500_000);
+        domain::override_set(&p, 7, 300_000, Some("قراءة التابلوه"), 9).unwrap();
+        let o = odometer_truth(&p, 7).unwrap().unwrap();
+        assert_eq!(o.km, 300_000, "the correction wins over the inflated reading");
+        assert_eq!(o.source, "manual_override");
+
+        // A reading recorded AFTER the correction resumes normal MAX rules.
+        let _wo = domain::wo_open(&p, 7, Some(305_000), 9).unwrap();
+        let o = odometer_truth(&p, 7).unwrap().unwrap();
+        assert_eq!(o.km, 305_000);
+        assert_eq!(o.source, "work_order");
+    }
+
+    #[test]
+    fn mounted_tire_km_is_live_with_the_odometer() {
+        let p = pool();
+        seed_vehicle(&p, 8, "ف ل ص 4317", 300_000);
+        seed_stock(&p);
+        domain::chassis_create(
+            &p,
+            8,
+            &ChassisConfig { drive_axles: 1, trailer_axles: 0, spares: 0, single_trailer_axles: None },
+            9,
+        )
+        .unwrap();
+        let wo = domain::wo_open(&p, 8, Some(300_000), 9).unwrap();
+        let ch = chassis_get(&p, 8).unwrap().unwrap();
+        let pos = ch.positions.iter().find(|x| x.position_code == "H2LO").unwrap().id.clone();
+        let (tire_id, _) = domain::mount_from_stock(
+            &p,
+            &MountFromStockInput {
+                position_id: pos,
+                vehicle_id: 8,
+                work_order_id: wo,
+                brand: "Pirelli".into(),
+                model: Some("FR01".into()),
+                size: Some("315/80R22.5".into()),
+                dot_code: None,
+                odometer: Some(300_000),
+            },
+            9,
+        )
+        .unwrap();
+
+        // Freshly mounted: no run yet.
+        let t = tire_file(&p, &tire_id).unwrap().unwrap();
+        assert_eq!(t.tire.total_km, 0);
+
+        // Correcting the odometer moves the mounted tire's km immediately.
+        domain::override_set(&p, 8, 320_000, None, 9).unwrap();
+        let t = tire_file(&p, &tire_id).unwrap().unwrap();
+        assert_eq!(t.tire.total_km, 20_000, "mounted km is live, not dismount-only");
+        let ch = chassis_get(&p, 8).unwrap().unwrap();
+        let w = ch.positions.iter().find(|x| x.tire_id.as_deref() == Some(tire_id.as_str())).unwrap();
+        assert_eq!(w.total_km, Some(20_000), "diagram shows the same live km");
     }
 
     #[test]

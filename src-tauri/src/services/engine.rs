@@ -109,7 +109,7 @@ fn columns_for(entity: &str) -> &'static [&'static str] {
             "sync_version",
         ],
         "vehicle_odometer_overrides" => &[
-            "vehicle_id", "odometer", "set_at", "notes", "created_at", "updated_at",
+            "vehicle_id", "odometer", "set_at", "notes", "superseded_km", "created_at", "updated_at",
             "created_by_user_id", "updated_by_user_id", "sync_version",
         ],
         _ => &[],

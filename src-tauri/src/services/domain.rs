@@ -254,15 +254,26 @@ pub fn override_set(
             |r| r.get(0),
         )
         .optional()?;
+    // Record the Falcon reading being corrected: the arbitration discards it
+    // until the truck genuinely drives past it (mirrors server 0014).
+    let superseded: Option<i64> = tx
+        .query_row(
+            "SELECT last_fuel_odometer FROM vehicles_cache WHERE id = ?1",
+            params![vehicle_id],
+            |r| r.get(0),
+        )
+        .optional()?
+        .flatten();
     tx.execute(
         "INSERT INTO vehicle_odometer_overrides
-           (vehicle_id, odometer, set_at, notes, created_at, updated_at,
+           (vehicle_id, odometer, set_at, notes, superseded_km, created_at, updated_at,
             created_by_user_id, updated_by_user_id, sync_version)
-         VALUES (?1,?2,?3,?4,?3,?3,?5,?5,1)
+         VALUES (?1,?2,?3,?4,?5,?3,?3,?6,?6,1)
          ON CONFLICT(vehicle_id) DO UPDATE SET
            odometer=excluded.odometer, set_at=excluded.set_at, notes=excluded.notes,
+           superseded_km=excluded.superseded_km,
            updated_at=excluded.updated_at, updated_by_user_id=excluded.updated_by_user_id",
-        params![vehicle_id, odometer, now, notes, user_id],
+        params![vehicle_id, odometer, now, notes, superseded, user_id],
     )?;
     let op = if existed.is_some() { "update" } else { "insert" };
     enqueue_row(&tx, "vehicle_odometer_overrides", &vehicle_id.to_string(), op, user_id)?;

@@ -57,6 +57,11 @@ const MIGRATIONS: &[Migration] = &[
         name: "0007_dismount_wo",
         sql: include_str!("migrations/0007_dismount_wo.sql"),
     },
+    Migration {
+        version: 8,
+        name: "0008_override_semantics",
+        sql: include_str!("migrations/0008_override_semantics.sql"),
+    },
 ];
 
 #[derive(Clone)]
