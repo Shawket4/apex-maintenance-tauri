@@ -399,7 +399,13 @@ interface Glide {
   t0: number;
 }
 
-function CameraRig({ focus }: { focus: { centre: [number, number, number]; span: number } | null }) {
+function CameraRig({
+  focus,
+  onFirstFit,
+}: {
+  focus: { centre: [number, number, number]; span: number } | null;
+  onFirstFit: () => void;
+}) {
   const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera;
   const scene = useThree((s) => s.scene);
   const size = useThree((s) => s.size);
@@ -471,6 +477,7 @@ function CameraRig({ focus }: { focus: { centre: [number, number, number]; span:
         camera.position.copy(g.pos);
         controls.target.copy(g.tgt);
         controls.update();
+        if (first.current) onFirstFit();
         first.current = false;
       } else {
         goal.current = {
@@ -483,7 +490,7 @@ function CameraRig({ focus }: { focus: { centre: [number, number, number]; span:
       }
     });
     return () => cancelAnimationFrame(raf);
-  }, [controls, focus, size.width, size.height, camera, scene]);
+  }, [controls, focus, size.width, size.height, camera, scene, onFirstFit]);
 
   useFrame(() => {
     const g = goal.current;
@@ -508,6 +515,8 @@ export interface TruckDiagramProps {
 }
 
 export function TruckDiagram({ axles, positions, selectedId, onSelect }: TruckDiagramProps) {
+  const [ready, setReady] = useState(false);
+  const onFirstFit = useMemo(() => () => setReady(true), []);
   const axleZ = useMemo(() => makeAxleZ(axles), [axles]);
   const axleById = useMemo(() => new Map(axles.map((a) => [a.id, a])), [axles]);
   const driveZs = useMemo(
@@ -519,7 +528,10 @@ export function TruckDiagram({ axles, positions, selectedId, onSelect }: TruckDi
 
   const selected = positions.find((p) => p.id === selectedId) ?? null;
   const focusPair = useMemo(() => {
-    if (!selected) return null;
+    // Only occupied wheels earn the overhead pair focus — selecting an empty
+    // position opens a mount/onboard form instead, and gliding the camera
+    // under it reads as a glitch.
+    if (!selected || !selected.tire_id) return null;
     const pair = pairOf(selected, positions);
     if (pair.length < 2) return null;
     const pts = pair.map((m) => positionXYZ(m, axleById, axleZ));
@@ -550,6 +562,7 @@ export function TruckDiagram({ axles, positions, selectedId, onSelect }: TruckDi
       camera={{ fov: FOV, position: [18, 11, -12], near: 0.4, far: 400 }}
       onPointerMissed={() => onSelect(null)}
       className="rounded-lg"
+      style={{ opacity: ready ? 1 : 0, transition: "opacity 180ms ease-out" }}
     >
       <ambientLight intensity={0.8} />
       <directionalLight
@@ -605,7 +618,7 @@ export function TruckDiagram({ axles, positions, selectedId, onSelect }: TruckDi
         maxDistance={70}
         maxPolarAngle={Math.PI / 2 - 0.03}
       />
-      <CameraRig focus={focusPair} />
+      <CameraRig focus={focusPair} onFirstFit={onFirstFit} />
     </Canvas>
   );
 }

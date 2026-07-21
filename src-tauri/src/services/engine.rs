@@ -104,7 +104,7 @@ fn columns_for(entity: &str) -> &'static [&'static str] {
         "tire_assignments" => &[
             "id", "tire_id", "position_id", "vehicle_id", "work_order_id", "mounted_at",
             "mounted_odometer", "mount_reason", "dismounted_at", "dismounted_odometer",
-            "dismount_reason", "notes",
+            "dismount_reason", "dismount_work_order_id", "notes",
             "created_at", "updated_at", "deleted_at", "created_by_user_id", "updated_by_user_id",
             "sync_version",
         ],

@@ -94,6 +94,7 @@ function WoTires() {
       {action === "dismount" && selected?.assignment_id && (
         <DismountSheet
           position={selected}
+          workOrderId={woId}
           defaultOdometer={defaultOdometer}
           onClose={() => {
             setAction(null);

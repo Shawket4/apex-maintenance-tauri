@@ -29,10 +29,12 @@ const REASON_STATUS: Record<string, string> = {
 
 export function DismountSheet({
   position,
+  workOrderId,
   defaultOdometer,
   onClose,
 }: {
   position: PositionRow;
+  workOrderId: string;
   defaultOdometer: number | null;
   onClose: () => void;
 }) {
@@ -47,6 +49,7 @@ export function DismountSheet({
           assignment_id: position.assignment_id!,
           odometer: odometer ? Number(odometer) : null,
           reason,
+          work_order_id: workOrderId,
         }),
       ),
     { onSuccess: onClose, onError: notifyError },

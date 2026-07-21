@@ -434,7 +434,8 @@ pub fn wo_detail(pool: &DbPool, id: &str) -> AppResult<Option<WoDetail>> {
         })
         .collect();
 
-    let tire_ops = tire_ops_for(&conn, "ta.work_order_id = ?1", &[&id])?;
+    let tire_ops =
+        tire_ops_for(&conn, "(ta.work_order_id = ?1 OR ta.dismount_work_order_id = ?1)", &[&id])?;
     let due = due_board(pool, Some(wo.vehicle_id))?;
     let odometer = odometer_truth(pool, wo.vehicle_id)?;
 
@@ -1280,7 +1281,12 @@ mod tests {
         // Rotation dismount → back to the used pool with km accrued.
         domain::dismount(
             &p,
-            &DismountInput { assignment_id: asg, odometer: Some(320_000), reason: "rotation".into() },
+            &DismountInput {
+                assignment_id: asg,
+                odometer: Some(320_000),
+                reason: "rotation".into(),
+                work_order_id: Some(wo.clone()),
+            },
             9,
         )
         .unwrap();
@@ -1303,12 +1309,23 @@ mod tests {
             9,
         )
         .unwrap();
+        // The dismount happens under a DIFFERENT work order than the mount —
+        // it must show up in that WO's tire work (dismount_work_order_id).
+        let wo2 = domain::wo_open(&p, 3, Some(345_000), 9).unwrap();
         domain::dismount(
             &p,
-            &DismountInput { assignment_id: asg2, odometer: Some(345_000), reason: "worn".into() },
+            &DismountInput {
+                assignment_id: asg2,
+                odometer: Some(345_000),
+                reason: "worn".into(),
+                work_order_id: Some(wo2.clone()),
+            },
             9,
         )
         .unwrap();
+        let d2 = wo_detail(&p, &wo2).unwrap().unwrap();
+        assert_eq!(d2.tire_ops.len(), 1, "dismount is attributed to the WO it happened under");
+        assert!(d2.tire_ops[0].dismounted_at.is_some());
         let t = tire_file(&p, &tire_id).unwrap().unwrap();
         assert_eq!(t.tire.status, "scrapped", "worn → scrapped, same rule as the server");
         assert_eq!(t.tire.total_km, 45_000, "km accrues across mounts");

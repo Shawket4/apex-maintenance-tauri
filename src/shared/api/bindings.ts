@@ -492,7 +492,12 @@ export type DismountInput = { assignment_id: string; odometer: number | null;
 /**
  * worn | damaged | rotation | puncture | retread | other
  */
-reason: string }
+reason: string; 
+/**
+ * The WO this dismount happens under — NOT the assignment's own
+ * work_order_id, which belongs to the mount.
+ */
+work_order_id: string | null }
 export type DriverRow = { id: number; name: string; mobile_number: string | null; transporter: string | null; id_license_expiration_date: string | null; driver_license_expiration_date: string | null; is_approved: boolean; fetched_at: string }
 export type DueCounts = { overdue: number; never_done: number; due_soon: number }
 export type DueRow = { vehicle_id: number; plate: string; plan_id: string; category_id: string; category_name_ar: string; category_name_en: string; trigger_type: string; interval_km: number | null; interval_days: number | null; last_at: string | null; last_km: number | null; next_due_km: number | null; next_due_at: string | null; current_odometer: number | null; odometer_source: string | null; odometer_observed_at: string | null; status: string }

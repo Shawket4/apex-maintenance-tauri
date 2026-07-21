@@ -433,6 +433,9 @@ pub struct DismountInput {
     pub odometer: Option<i64>,
     /// worn | damaged | rotation | puncture | retread | other
     pub reason: String,
+    /// The WO this dismount happens under — NOT the assignment's own
+    /// work_order_id, which belongs to the mount.
+    pub work_order_id: Option<String>,
 }
 
 /// Dismount: close the assignment (queued). Status + km are the server's
@@ -459,9 +462,9 @@ pub fn dismount(pool: &DbPool, inp: &DismountInput, user_id: i64) -> AppResult<S
 
     tx.execute(
         "UPDATE tire_assignments SET dismounted_at=?2, dismounted_odometer=?3,
-            dismount_reason=?4, updated_at=?2, updated_by_user_id=?5
+            dismount_reason=?4, dismount_work_order_id=?5, updated_at=?2, updated_by_user_id=?6
           WHERE id=?1",
-        params![inp.assignment_id, now, inp.odometer, inp.reason, user_id],
+        params![inp.assignment_id, now, inp.odometer, inp.reason, inp.work_order_id, user_id],
     )?;
     enqueue_row(&tx, "tire_assignments", &inp.assignment_id, "update", user_id)?;
 

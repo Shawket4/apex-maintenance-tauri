@@ -187,6 +187,7 @@ async fn full_offline_day_replays_and_server_derivations_converge() {
             assignment_id: assignment_id.clone(),
             odometer: Some(145_100),
             reason: "worn".into(),
+            work_order_id: Some(wo.clone()),
         },
         uid,
     )

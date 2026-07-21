@@ -9,7 +9,7 @@ import { TIRE_BADGE } from "@/shared/lib/status";
 import { cn } from "@/shared/lib/cn";
 import { TruckDiagram } from "@/widgets/TruckDiagram/TruckDiagram";
 import { ChassisWizard } from "@/widgets/diagram/ChassisWizard";
-import { OnboardSheet } from "@/widgets/diagram/OnboardSheet";
+import { OnboardCard } from "@/widgets/diagram/OnboardCard";
 import { Badge } from "@/shared/ui/badge";
 import { Skeleton } from "@/shared/ui/skeleton";
 
@@ -85,27 +85,19 @@ function TruckTires() {
           </div>
         )}
 
-        {selected && !selected.tire_id && !onboarding && (
-          <div className="absolute bottom-4 end-4 rounded-xl border bg-card/95 px-4 py-3 text-sm shadow-lg backdrop-blur">
-            <div className="text-lg font-bold tabular" dir="ltr">
-              {selected.position_code}
-            </div>
-            <div className="text-xs text-muted-foreground">{t("diagram.emptyPosition")}</div>
-          </div>
+        {onboarding && (
+          <OnboardCard
+            key={onboarding.id}
+            position={onboarding}
+            vehicleId={vid}
+            emptyPositions={emptyPositions}
+            onClose={() => {
+              setOnboarding(null);
+              setSelected(null);
+            }}
+          />
         )}
       </div>
-
-      {onboarding && (
-        <OnboardSheet
-          position={onboarding}
-          vehicleId={vid}
-          emptyPositions={emptyPositions}
-          onClose={() => {
-            setOnboarding(null);
-            setSelected(null);
-          }}
-        />
-      )}
       {truck.data && !truck.data.has_chassis && null}
     </div>
   );
