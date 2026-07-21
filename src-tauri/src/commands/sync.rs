@@ -6,42 +6,47 @@ use std::sync::Arc;
 
 use tauri::State;
 
+use crate::error::CmdResult;
 use crate::services::engine::{PullSummary, SyncEngine, SyncStatus};
 use crate::services::outbox::{self, OutboxItem};
-use crate::{AppResult, AppState};
+use crate::AppState;
 
 pub struct EngineState(pub Arc<SyncEngine>);
 
 #[tauri::command]
-pub async fn sync_status(engine: State<'_, EngineState>) -> AppResult<SyncStatus> {
-    engine.0.status()
+#[specta::specta]
+pub async fn sync_status(engine: State<'_, EngineState>) -> CmdResult<SyncStatus> {
+    Ok(engine.0.status()?)
 }
 
 /// Push then pull, in that order — local intent lands before server rows are
 /// applied, so the pull's local-intent guard has the smallest possible window.
 #[tauri::command]
-pub async fn sync_now(engine: State<'_, EngineState>) -> AppResult<SyncStatus> {
+#[specta::specta]
+pub async fn sync_now(engine: State<'_, EngineState>) -> CmdResult<SyncStatus> {
     let eng = engine.0.clone();
     eng.drain().await?;
     let _: PullSummary = eng.pull().await?;
-    eng.status()
+    Ok(eng.status()?)
 }
 
 #[tauri::command]
-pub async fn outbox_list(state: State<'_, AppState>) -> AppResult<Vec<OutboxItem>> {
-    let conn = state.db.get()?;
-    Ok(outbox::list_active(&conn, 200)?)
+#[specta::specta]
+pub async fn outbox_list(state: State<'_, AppState>) -> CmdResult<Vec<OutboxItem>> {
+    let conn = state.db.get().map_err(crate::AppError::from)?;
+    Ok(outbox::list_active(&conn, 200).map_err(crate::AppError::from)?)
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn outbox_retry(
     state: State<'_, AppState>,
     engine: State<'_, EngineState>,
     seq: i64,
-) -> AppResult<()> {
+) -> CmdResult<()> {
     {
-        let conn = state.db.get()?;
-        outbox::requeue_dead(&conn, seq)?;
+        let conn = state.db.get().map_err(crate::AppError::from)?;
+        outbox::requeue_dead(&conn, seq).map_err(crate::AppError::from)?;
     }
     let eng = engine.0.clone();
     tauri::async_runtime::spawn(async move {
@@ -51,8 +56,9 @@ pub async fn outbox_retry(
 }
 
 #[tauri::command]
-pub async fn outbox_discard(state: State<'_, AppState>, seq: i64) -> AppResult<()> {
-    let conn = state.db.get()?;
-    outbox::discard_dead(&conn, seq)?;
+#[specta::specta]
+pub async fn outbox_discard(state: State<'_, AppState>, seq: i64) -> CmdResult<()> {
+    let conn = state.db.get().map_err(crate::AppError::from)?;
+    outbox::discard_dead(&conn, seq).map_err(crate::AppError::from)?;
     Ok(())
 }

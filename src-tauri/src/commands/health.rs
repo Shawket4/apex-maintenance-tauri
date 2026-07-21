@@ -5,9 +5,10 @@
 use serde::Serialize;
 use tauri::State;
 
-use crate::{db::DbHealth, AppResult, AppState};
+use crate::error::CmdResult;
+use crate::{db::DbHealth, AppState};
 
-#[derive(Serialize)]
+#[derive(Serialize, specta::Type)]
 pub struct AppVersion {
     pub name: String,
     pub version: String,
@@ -15,11 +16,13 @@ pub struct AppVersion {
 }
 
 #[tauri::command]
-pub async fn ping() -> &'static str {
-    "pong"
+#[specta::specta]
+pub async fn ping() -> String {
+    "pong".to_string()
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn get_app_version() -> AppVersion {
     AppVersion {
         name: env!("CARGO_PKG_NAME").to_string(),
@@ -29,8 +32,9 @@ pub async fn get_app_version() -> AppVersion {
 }
 
 #[tauri::command]
-pub async fn db_health(state: State<'_, AppState>) -> AppResult<DbHealth> {
+#[specta::specta]
+pub async fn db_health(state: State<'_, AppState>) -> CmdResult<DbHealth> {
     // r2d2 returns a synchronous connection — fine on Tauri's command runtime
     // because the task is short.
-    state.db.health()
+    Ok(state.db.health()?)
 }

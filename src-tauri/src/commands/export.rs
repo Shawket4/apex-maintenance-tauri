@@ -1,13 +1,14 @@
 use tauri::AppHandle;
 use tauri_plugin_dialog::DialogExt;
 
+use crate::error::CmdResult;
 use crate::services::excel::{ExcelExportConfig, ExcelExporter};
 
-use crate::AppResult;
 use crate::AppError;
 
 #[tauri::command]
-pub async fn export_to_excel(app: AppHandle, config: ExcelExportConfig) -> AppResult<()> {
+#[specta::specta]
+pub async fn export_to_excel(app: AppHandle, config: ExcelExportConfig) -> CmdResult<()> {
     
     // 1. Prompt the user for where to save the file
     let default_name = format!("{}-{}.xlsx", config.filename, chrono::Local::now().format("%Y-%m-%d"));

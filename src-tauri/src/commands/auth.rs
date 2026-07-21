@@ -18,7 +18,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tauri::State;
 
-use crate::{session_store, AppError, AppResult, AppState};
+use crate::error::CmdResult;
+use crate::{session_store, AppError, AppState};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct LoginRequest {
@@ -26,7 +27,7 @@ pub struct LoginRequest {
     pub password: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct UserInfo {
     pub id: i64,
     pub email: String,
@@ -37,12 +38,13 @@ pub struct UserInfo {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn auth_login(
     state: State<'_, AppState>,
     engine: State<'_, crate::commands::sync::EngineState>,
     email: String,
     password: String,
-) -> AppResult<UserInfo> {
+) -> CmdResult<UserInfo> {
     let req = LoginRequest {
         email: email.clone(),
         password,
@@ -64,7 +66,8 @@ pub async fn auth_login(
             tracing::error!(error = %e, body = %snippet(&resp.body), "login response not JSON");
             return Err(AppError::Http(format!(
                 "server returned a non-JSON response: {e}"
-            )));
+            ))
+            .into());
         }
     };
 
@@ -77,7 +80,7 @@ pub async fn auth_login(
             .unwrap_or("wrong email or password")
             .to_string();
         tracing::warn!(email = %email, body = %snippet(&resp.body), "login rejected");
-        return Err(AppError::AuthFailed(message));
+        return Err(AppError::AuthFailed(message).into());
     }
 
     let exp = as_i64(&json, "exp").unwrap_or_else(|| decode_jwt_exp(jwt).unwrap_or(0));
@@ -110,7 +113,8 @@ pub async fn auth_login(
 }
 
 #[tauri::command]
-pub async fn auth_logout(state: State<'_, AppState>) -> AppResult<()> {
+#[specta::specta]
+pub async fn auth_logout(state: State<'_, AppState>) -> CmdResult<()> {
     if let Ok(Some(jwt)) = session_store::read_jwt(&state.data_dir) {
         if !jwt.is_empty() {
             match state
@@ -131,7 +135,8 @@ pub async fn auth_logout(state: State<'_, AppState>) -> AppResult<()> {
 }
 
 #[tauri::command]
-pub async fn auth_current_user(state: State<'_, AppState>) -> AppResult<Option<UserInfo>> {
+#[specta::specta]
+pub async fn auth_current_user(state: State<'_, AppState>) -> CmdResult<Option<UserInfo>> {
     let Some(json) = session_store::read_user_json(&state.data_dir)? else {
         return Ok(None);
     };

@@ -8,7 +8,7 @@ use crate::AppResult;
 
 // --- 1. Types & Payloads ---
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ExcelColumn {
     pub key: String,
@@ -18,7 +18,7 @@ pub struct ExcelColumn {
     pub total: Option<bool>,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ExcelStat {
     pub label: String,
@@ -27,7 +27,7 @@ pub struct ExcelStat {
     pub r#type: Option<String>,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ExcelSheetConfig {
     pub name: String,
@@ -40,7 +40,7 @@ pub struct ExcelSheetConfig {
     pub totals: Option<bool>,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ExcelExportConfig {
     pub filename: String,

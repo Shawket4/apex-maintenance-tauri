@@ -4,6 +4,7 @@
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
+use crate::error::CmdResult;
 use crate::{
     models::{
         cache_freshness::CacheFreshnessRow,
@@ -15,7 +16,7 @@ use crate::{
         vehicle::{CachedVehicle, VehicleRow},
     },
     services::cache_sync,
-    AppError, AppResult, AppState,
+    AppError, AppState,
 };
 
 const CACHE_VEHICLES: &str = "vehicles";
@@ -32,30 +33,33 @@ struct VehiclesEnvelope {
     #[serde(default)] fetched_at: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, specta::Type)]
 pub struct RefreshResult {
     pub upserted: usize,
     pub fetched_at: String,
 }
 
 #[tauri::command]
-pub async fn vehicles_list(state: State<'_, AppState>) -> AppResult<Vec<VehicleRow>> {
+#[specta::specta]
+pub async fn vehicles_list(state: State<'_, AppState>) -> CmdResult<Vec<VehicleRow>> {
     let db = state.db.clone();
-    tokio::task::spawn_blocking(move || cache_sync::list_vehicles(&db))
+    Ok(tokio::task::spawn_blocking(move || cache_sync::list_vehicles(&db))
         .await
-        .map_err(|e| AppError::Internal(format!("join error: {e}")))?
+        .map_err(|e| AppError::Internal(format!("join error: {e}")))??)
 }
 
 #[tauri::command]
-pub async fn drivers_list(state: State<'_, AppState>) -> AppResult<Vec<DriverRow>> {
+#[specta::specta]
+pub async fn drivers_list(state: State<'_, AppState>) -> CmdResult<Vec<DriverRow>> {
     let db = state.db.clone();
-    tokio::task::spawn_blocking(move || cache_sync::list_drivers(&db))
+    Ok(tokio::task::spawn_blocking(move || cache_sync::list_drivers(&db))
         .await
-        .map_err(|e| AppError::Internal(format!("join error: {e}")))?
+        .map_err(|e| AppError::Internal(format!("join error: {e}")))??)
 }
 
 #[tauri::command]
-pub async fn vehicles_refresh(state: State<'_, AppState>) -> AppResult<RefreshResult> {
+#[specta::specta]
+pub async fn vehicles_refresh(state: State<'_, AppState>) -> CmdResult<RefreshResult> {
     let raw = state.http.maint_get_raw("/cache/vehicles").await?;
 
     let env: VehiclesEnvelope = parse_json(&raw.body, "vehicles cache")?;
@@ -69,7 +73,7 @@ pub async fn vehicles_refresh(state: State<'_, AppState>) -> AppResult<RefreshRe
 
     let db = state.db.clone();
     let ttl = state.config.cache.vehicles_ttl.as_secs();
-    let upserted = tokio::task::spawn_blocking(move || -> AppResult<usize> {
+    let upserted = tokio::task::spawn_blocking(move || -> CmdResult<usize> {
         let n = cache_sync::upsert_vehicles_and_drivers(&db, &env.vehicles, &env.drivers)?;
         cache_sync::mark_fresh(&db, CACHE_VEHICLES, ttl)?;
         Ok(n)
@@ -84,7 +88,7 @@ pub async fn vehicles_refresh(state: State<'_, AppState>) -> AppResult<RefreshRe
  *                               INVOICES                                    *
  * ========================================================================= */
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, specta::Type)]
 pub struct InvoicesListArgs {
     #[serde(default = "default_page")] pub page: i32,
     #[serde(default = "default_limit")] pub limit: i32,
@@ -97,38 +101,41 @@ fn default_page() -> i32 { 1 }
 fn default_limit() -> i32 { 50 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn invoices_list(
     state: State<'_, AppState>,
     args: InvoicesListArgs,
-) -> AppResult<InvoiceListResult> {
+) -> CmdResult<InvoiceListResult> {
     let db = state.db.clone();
     let page = args.page.max(1);
     let limit = args.limit.clamp(1, 500);
     let car_id = args.car_id;
-    tokio::task::spawn_blocking(move || cache_sync::list_invoices(&db, car_id, page, limit))
+    Ok(tokio::task::spawn_blocking(move || cache_sync::list_invoices(&db, car_id, page, limit))
         .await
-        .map_err(|e| AppError::Internal(format!("join error: {e}")))?
+        .map_err(|e| AppError::Internal(format!("join error: {e}")))??)
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, specta::Type)]
 pub struct InvoiceGetArgs {
     pub id: i64,
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn invoice_get(
     state: State<'_, AppState>,
     args: InvoiceGetArgs,
-) -> AppResult<Option<InvoiceDetail>> {
+) -> CmdResult<Option<InvoiceDetail>> {
     let db = state.db.clone();
     let id = args.id;
-    tokio::task::spawn_blocking(move || cache_sync::get_invoice(&db, id))
+    Ok(tokio::task::spawn_blocking(move || cache_sync::get_invoice(&db, id))
         .await
-        .map_err(|e| AppError::Internal(format!("join error: {e}")))?
+        .map_err(|e| AppError::Internal(format!("join error: {e}")))??)
 }
 
 #[tauri::command]
-pub async fn invoices_refresh(state: State<'_, AppState>) -> AppResult<RefreshResult> {
+#[specta::specta]
+pub async fn invoices_refresh(state: State<'_, AppState>) -> CmdResult<RefreshResult> {
     let limit = state.config.cache.invoices_page_size.max(1) as i32;
     let mut page = 1;
     let mut total_upserted = 0usize;
@@ -191,7 +198,7 @@ pub async fn invoices_refresh(state: State<'_, AppState>) -> AppResult<RefreshRe
     })
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, specta::Type)]
 pub struct InvoicesSearchArgs {
     pub query: String,
     #[serde(default)] pub car_id: Option<i64>,
@@ -200,10 +207,11 @@ pub struct InvoicesSearchArgs {
 fn default_search_limit() -> i32 { 50 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn invoices_search(
     state: State<'_, AppState>,
     args: InvoicesSearchArgs,
-) -> AppResult<InvoiceSearchResult> {
+) -> CmdResult<InvoiceSearchResult> {
     let trimmed = args.query.trim().to_string();
     if trimmed.is_empty() {
         return Ok(InvoiceSearchResult {
@@ -263,8 +271,8 @@ pub async fn invoices_search(
             tracing::warn!(error = %msg, "online invoice search failed — falling back to FTS5");
             offline_search(&state, trimmed, args.car_id, limit).await
         }
-        Err(AppError::Unauthorized) => Err(AppError::Unauthorized),
-        Err(e) => Err(e),
+        Err(AppError::Unauthorized) => Err(AppError::Unauthorized.into()),
+        Err(e) => Err(e.into()),
     }
 }
 
@@ -273,11 +281,11 @@ async fn offline_search(
     query: String,
     car_id: Option<i64>,
     limit: i32,
-) -> AppResult<InvoiceSearchResult> {
+) -> CmdResult<InvoiceSearchResult> {
     let db = state.db.clone();
-    tokio::task::spawn_blocking(move || cache_sync::search_invoices_offline(&db, &query, car_id, limit))
+    Ok(tokio::task::spawn_blocking(move || cache_sync::search_invoices_offline(&db, &query, car_id, limit))
         .await
-        .map_err(|e| AppError::Internal(format!("join error: {e}")))?
+        .map_err(|e| AppError::Internal(format!("join error: {e}")))??)
 }
 
 fn preview_for(inv: &CachedInvoice) -> Option<String> {
@@ -300,18 +308,19 @@ fn preview_for(inv: &CachedInvoice) -> Option<String> {
  * ========================================================================= */
 
 #[tauri::command]
-pub async fn cache_freshness_get(state: State<'_, AppState>) -> AppResult<Vec<CacheFreshnessRow>> {
+#[specta::specta]
+pub async fn cache_freshness_get(state: State<'_, AppState>) -> CmdResult<Vec<CacheFreshnessRow>> {
     let db = state.db.clone();
-    tokio::task::spawn_blocking(move || cache_sync::freshness_all(&db))
+    Ok(tokio::task::spawn_blocking(move || cache_sync::freshness_all(&db))
         .await
-        .map_err(|e| AppError::Internal(format!("join error: {e}")))?
+        .map_err(|e| AppError::Internal(format!("join error: {e}")))??)
 }
 
 /* ========================================================================= *
  *                                  UTILS                                    *
  * ========================================================================= */
 
-fn parse_json<T: serde::de::DeserializeOwned>(body: &str, what: &str) -> AppResult<T> {
+fn parse_json<T: serde::de::DeserializeOwned>(body: &str, what: &str) -> CmdResult<T> {
     serde_json::from_str::<T>(body).map_err(|e| {
         let snippet: String = body.chars().take(500).collect();
         tracing::error!(
@@ -320,7 +329,7 @@ fn parse_json<T: serde::de::DeserializeOwned>(body: &str, what: &str) -> AppResu
             body = %snippet,
             "could not decode response body"
         );
-        AppError::Http(format!("could not decode {what} response: {e}"))
+        AppError::Http(format!("could not decode {what} response: {e}")).into()
     })
 }
 

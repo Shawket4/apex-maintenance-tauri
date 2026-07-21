@@ -48,7 +48,7 @@ pub fn backoff_ms(attempts: i64, seq: i64) -> i64 {
     base.min(K_BACKOFF_CAP_MS) + jitter as i64
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 pub struct OutboxItem {
     pub seq: i64,
     pub id: String,

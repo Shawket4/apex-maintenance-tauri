@@ -101,3 +101,31 @@ impl serde::Serialize for AppError {
         .serialize(serializer)
     }
 }
+
+/// Specta-typed twin of AppError's wire shape. Commands return
+/// `CmdResult<T>` so tauri-specta can type the error channel; the JSON the
+/// frontend sees is byte-identical to AppError's own serialization.
+#[derive(Debug, Clone, Serialize, specta::Type)]
+pub struct CmdError {
+    pub kind: String,
+    pub message: String,
+}
+
+impl From<AppError> for CmdError {
+    fn from(e: AppError) -> Self {
+        CmdError { kind: e.kind().to_string(), message: e.to_string() }
+    }
+}
+
+macro_rules! cmd_err_via_app {
+    ($($t:ty),+) => {
+        $(impl From<$t> for CmdError {
+            fn from(e: $t) -> Self {
+                AppError::from(e).into()
+            }
+        })+
+    };
+}
+cmd_err_via_app!(rusqlite::Error, r2d2::Error, serde_json::Error, std::io::Error, reqwest::Error);
+
+pub type CmdResult<T> = Result<T, CmdError>;

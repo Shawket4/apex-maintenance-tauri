@@ -2,10 +2,12 @@
 //!
 //! Everything below the HTTP seam is unit-tested; this test exists because the
 //! seam is where facades hide — auth headers, envelope shapes, cursor echo,
-//! per-op result correlation, conflict payloads.
+//! per-op result correlation, conflict payloads, and now the server-side
+//! derivations (stock debits, status/km projections) converging back to the
+//! client through /sync/pull.
 //!
-//! Needs a running maint-rust + a JWT for it, provided via env (the harness
-//! script sets these up against a scratch Postgres):
+//! Needs a running maint-rust + a JWT for it, provided via env (see
+//! scripts/e2e_live.sh, which sets these up against a scratch Postgres):
 //!
 //!   APEX_E2E_BASE_URL   e.g. http://127.0.0.1:8091
 //!   APEX_E2E_JWT        HS256 token signed with the server's JWT_SECRET
@@ -18,9 +20,7 @@ use std::sync::Arc;
 use apex_maintenance_lib::config::AppConfig;
 use apex_maintenance_lib::db::DbPool;
 use apex_maintenance_lib::http_client::HttpClient;
-use apex_maintenance_lib::services::domain::{
-    self, ChassisConfig, RecordInput, TemplateInput, TireInput,
-};
+use apex_maintenance_lib::services::domain::{self, ChassisConfig, DismountInput, MountFromStockInput};
 use apex_maintenance_lib::services::engine::SyncEngine;
 use apex_maintenance_lib::services::outbox;
 use apex_maintenance_lib::session_store;
@@ -63,7 +63,7 @@ fn device(env: &Env) -> Client {
         let conn = pool.get().unwrap();
         conn.execute(
             "INSERT INTO vehicles_cache (id, car_no_plate, last_fuel_odometer, raw_payload, fetched_at)
-             VALUES (?1, 'E2E', 100000, '{}', ?2)",
+             VALUES (?1, 'E2E 8351', 100000, '{}', ?2)",
             rusqlite::params![env.vehicle_id, chrono::Utc::now().to_rfc3339()],
         )
         .unwrap();
@@ -80,115 +80,82 @@ fn seed_user_id() -> i64 {
 }
 
 #[tokio::test]
-async fn full_offline_day_replays_to_the_real_server() {
+async fn full_offline_day_replays_and_server_derivations_converge() {
     let Some(env) = e2e_env() else { return };
     let c = device(&env);
+    let uid = seed_user_id();
 
     // ── work happens "offline": nothing has been pushed yet ────────────────
-    let tpl = domain::template_create(
-        &c.pool,
-        &TemplateInput {
-            vehicle_id: env.vehicle_id,
-            category_id: "oil_change".into(),
-            name_ar: "زيت".into(),
-            name_en: "Oil e2e".into(),
-            notes_ar: None,
-            notes_en: None,
-            trigger_type: "mileage".into(),
-            interval_km: Some(10_000),
-            interval_days: None,
-            lead_warn_km: None,
-            lead_warn_days: None,
-        },
-        seed_user_id(),
-    )
-    .expect("template");
-
-    domain::record_create(
-        &c.pool,
-        &RecordInput {
-            template_id: Some(tpl.clone()),
-            vehicle_id: env.vehicle_id,
-            category_id: "oil_change".into(),
-            performed_at: "2026-07-10T10:00:00Z".into(),
-            odometer_at_service: Some(105_000),
-            cost: Some(1800.0),
-            vendor: Some("e2e vendor".into()),
-            performed_by: None,
-            notes: None,
-        },
-        seed_user_id(),
-    )
-    .expect("record");
+    let wo = domain::wo_open(&c.pool, env.vehicle_id, Some(105_000), uid).expect("wo_open");
+    domain::wo_add_task(&c.pool, &wo, Some("brakes"), "تغيير تيل فرامل أمامي", uid).expect("task");
+    let (oil_id, flagged) =
+        domain::oil_add(&c.pool, &wo, env.vehicle_id, "15W-40", 40.0, Some(105_100), uid)
+            .expect("oil");
+    assert!(flagged, "40 L is outside the 34–36 band locally too");
 
     domain::chassis_create(
         &c.pool,
         env.vehicle_id,
         &ChassisConfig { drive_axles: 2, trailer_axles: 4, spares: 2, single_trailer_axles: None },
-        seed_user_id(),
+        uid,
     )
     .expect("chassis");
 
-    let tire = domain::tire_create(
-        &c.pool,
-        &TireInput {
-            dot_code: format!("DOT E2E {}", uuid::Uuid::new_v4()),
-            brand: "Michelin".into(),
-            model: None,
-            purchase_date: None,
-            purchase_cost: Some(9000.0),
-            supplier: None,
-            is_retread: None,
-            stock_location: None,
-            notes: None,
-        },
-        seed_user_id(),
-    )
-    .expect("tire");
-
     let h2lo: String = {
         let conn = c.pool.get().unwrap();
-        conn.query_row(
-            "SELECT id FROM chassis_positions WHERE position_code = 'H2LO'",
-            [],
-            |r| r.get(0),
-        )
+        conn.query_row("SELECT id FROM chassis_positions WHERE position_code = 'H2LO'", [], |r| {
+            r.get(0)
+        })
         .unwrap()
     };
-    domain::tire_mount(&c.pool, &tire, &h2lo, env.vehicle_id, Some(105_000), "new_install", seed_user_id())
-        .expect("mount");
+    let dot = format!("DOT E2E {}", &uuid::Uuid::new_v4().to_string()[..8]);
+    let (tire_id, assignment_id) = domain::mount_from_stock(
+        &c.pool,
+        &MountFromStockInput {
+            position_id: h2lo,
+            vehicle_id: env.vehicle_id,
+            work_order_id: wo.clone(),
+            brand: "Pirelli".into(),
+            model: Some("FR01".into()),
+            size: Some("315/80R22.5".into()),
+            dot_code: Some(dot),
+            odometer: Some(105_100),
+        },
+        uid,
+    )
+    .expect("mount");
 
     let before = {
         let conn = c.pool.get().unwrap();
         outbox::counts(&conn).unwrap()
     };
-    assert!(before.pending >= 32, "a full day queued locally, got {}", before.pending);
+    assert!(before.pending >= 40, "a full day queued locally, got {}", before.pending);
 
     // ── the network comes back: drain the whole backlog ────────────────────
     c.engine.drain().await.expect("drain");
     let status = c.engine.status().expect("status");
     assert!(status.online, "server reachable ⇒ online");
     assert_eq!(status.pending, 0, "backlog fully drained, {:?}", status.last_error);
-    assert_eq!(
-        status.dead, 0,
-        "no dead letters on a clean replay: {:?}",
-        {
-            let conn = c.pool.get().unwrap();
-            outbox::list_active(&conn, 10)
-                .unwrap()
-                .into_iter()
-                .map(|i| (i.entity_type, i.last_error))
-                .collect::<Vec<_>>()
-        }
-    );
+    assert_eq!(status.dead, 0, "no dead letters on a clean replay: {:?}", {
+        let conn = c.pool.get().unwrap();
+        outbox::list_active(&conn, 10)
+            .unwrap()
+            .into_iter()
+            .map(|i| (i.entity_type, i.last_error))
+            .collect::<Vec<_>>()
+    });
 
     // Acks adopted the server's sync_version locally.
     {
         let conn = c.pool.get().unwrap();
         let sv: i64 = conn
-            .query_row("SELECT sync_version FROM maintenance_templates WHERE id = ?1", [&tpl], |r| r.get(0))
+            .query_row("SELECT sync_version FROM work_orders WHERE id = ?1", [&wo], |r| r.get(0))
             .unwrap();
         assert!(sv >= 1, "server-assigned version adopted, got {sv}");
+        let oil_flag: i64 = conn
+            .query_row("SELECT flagged FROM oil_changes WHERE id = ?1", [&oil_id], |r| r.get(0))
+            .unwrap();
+        assert_eq!(oil_flag, 1, "flag survives locally");
     }
 
     // ── a second device pulls the same world ────────────────────────────────
@@ -197,53 +164,70 @@ async fn full_offline_day_replays_to_the_real_server() {
     assert!(summary.errors.is_empty(), "pull errors: {:?}", summary.errors);
     {
         let conn = c2.pool.get().unwrap();
-        let tpl_there: i64 = conn
-            .query_row("SELECT COUNT(*) FROM maintenance_templates WHERE id = ?1", [&tpl], |r| r.get(0))
+        let wo_there: i64 = conn
+            .query_row("SELECT COUNT(*) FROM work_orders WHERE id = ?1", [&wo], |r| r.get(0))
             .unwrap();
-        assert_eq!(tpl_there, 1, "device 2 received the template");
-        let positions: i64 = conn
-            .query_row("SELECT COUNT(*) FROM chassis_positions", [], |r| r.get(0))
-            .unwrap();
+        assert_eq!(wo_there, 1, "device 2 received the work order");
+        let positions: i64 =
+            conn.query_row("SELECT COUNT(*) FROM chassis_positions", [], |r| r.get(0)).unwrap();
         assert_eq!(positions, 28, "device 2 received the whole chassis");
-        let mounted: i64 = conn
+        let (status2, origin2): (String, String) = conn
+            .query_row("SELECT status, origin FROM tires WHERE id = ?1", [&tire_id], |r| {
+                Ok((r.get(0)?, r.get(1)?))
+            })
+            .unwrap();
+        assert_eq!(status2, "mounted", "server derived mounted status flowed to device 2");
+        assert_eq!(origin2, "shipment");
+    }
+
+    // ── dismount converges: server derives status + km, pull adopts them ────
+    domain::dismount(
+        &c.pool,
+        &DismountInput {
+            assignment_id: assignment_id.clone(),
+            odometer: Some(145_100),
+            reason: "worn".into(),
+        },
+        uid,
+    )
+    .expect("dismount");
+    // Local mirror of the derivation, applied immediately:
+    {
+        let conn = c.pool.get().unwrap();
+        let (st, km): (String, i64) = conn
+            .query_row("SELECT status, total_km FROM tires WHERE id = ?1", [&tire_id], |r| {
+                Ok((r.get(0)?, r.get(1)?))
+            })
+            .unwrap();
+        assert_eq!(st, "scrapped");
+        assert_eq!(km, 40_000);
+    }
+    c.engine.drain().await.expect("drain dismount");
+    let _ = c.engine.pull().await.expect("pull back");
+    {
+        // After pulling the server's tires row, the local values must MATCH the
+        // server's derivation — this is the drift alarm between the client and
+        // server implementations of the same rule.
+        let conn = c.pool.get().unwrap();
+        let (st, km, sv): (String, i64, i64) = conn
             .query_row(
-                "SELECT COUNT(*) FROM tire_assignments WHERE dismounted_at IS NULL AND deleted_at IS NULL",
-                [],
-                |r| r.get(0),
+                "SELECT status, total_km, sync_version FROM tires WHERE id = ?1",
+                [&tire_id],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
             )
             .unwrap();
-        assert_eq!(mounted, 1, "device 2 sees the mount");
+        assert_eq!(st, "scrapped", "server agreed: worn → scrapped");
+        assert_eq!(km, 40_000, "server agreed on the km accrual");
+        assert!(sv >= 2, "server bumped the tire row when deriving");
     }
 
     // ── stale write → per-op conflict → dead letter carrying the server row ─
     {
         let conn = c.pool.get().unwrap();
         // Fabricate staleness: pretend we never learned the server's version.
-        conn.execute(
-            "UPDATE maintenance_templates SET sync_version = 0, name_en = 'stale write' WHERE id = ?1",
-            [&tpl],
-        )
-        .unwrap();
+        conn.execute("UPDATE work_orders SET sync_version = 0 WHERE id = ?1", [&wo]).unwrap();
     }
-    domain::template_update(
-        &c.pool,
-        &tpl,
-        &TemplateInput {
-            vehicle_id: env.vehicle_id,
-            category_id: "oil_change".into(),
-            name_ar: "زيت".into(),
-            name_en: "stale write".into(),
-            notes_ar: None,
-            notes_en: None,
-            trigger_type: "mileage".into(),
-            interval_km: Some(12_000),
-            interval_days: None,
-            lead_warn_km: None,
-            lead_warn_days: None,
-        },
-        seed_user_id(),
-    )
-    .expect("stale update enqueues");
+    domain::wo_close(&c.pool, &wo, uid).expect("stale close enqueues");
     c.engine.drain().await.expect("drain 2");
     let status = c.engine.status().expect("status 2");
     assert_eq!(status.dead, 1, "stale write dead-letters instead of vanishing");
@@ -253,10 +237,10 @@ async fn full_offline_day_replays_to_the_real_server() {
         let d = dead.iter().find(|i| i.status == "dead").expect("dead row present");
         assert!(d.server_row.is_some(), "conflict carries the server row for the user");
         // Server-authoritative convergence: local row snapped back to the server's.
-        let name: String = conn
-            .query_row("SELECT name_en FROM maintenance_templates WHERE id = ?1", [&tpl], |r| r.get(0))
+        let st: String = conn
+            .query_row("SELECT status FROM work_orders WHERE id = ?1", [&wo], |r| r.get(0))
             .unwrap();
-        assert_eq!(name, "Oil e2e", "local state converged to the server row");
+        assert_eq!(st, "open", "local state converged to the server row");
     }
 }
 
@@ -270,7 +254,8 @@ async fn dead_port_classifies_offline_and_burns_no_budget() {
     };
     let c = device(&dead_env);
 
-    domain::override_set(&c.pool, dead_env.vehicle_id, 123_456, None, seed_user_id()).expect("override");
+    domain::override_set(&c.pool, dead_env.vehicle_id, 123_456, None, seed_user_id())
+        .expect("override");
     c.engine.drain().await.expect("drain must not error outward");
 
     let status = c.engine.status().expect("status");

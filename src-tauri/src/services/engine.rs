@@ -208,7 +208,7 @@ pub fn classify_push_error(e: &AppError) -> Failure {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 pub struct SyncStatus {
     pub online: bool,
     pub auth_paused: bool,
@@ -595,26 +595,29 @@ mod tests {
         conn.execute_batch(include_str!("../migrations/0002_seeds.sql")).unwrap();
         conn.execute_batch(include_str!("../migrations/0003_sync_conflicts.sql")).unwrap();
         conn.execute_batch(include_str!("../migrations/0004_offline_engine.sql")).unwrap();
+        conn.execute_batch(include_str!("../migrations/0005_new_domain.sql")).unwrap();
+        conn.execute_batch(include_str!("../migrations/0006_reference_stock.sql")).unwrap();
         conn
     }
 
     #[test]
-    fn apply_server_row_preserves_json_attachments() {
+    fn apply_server_row_preserves_reals_and_booleans() {
         let c = mem();
         let row = serde_json::json!({
-            "id": "r1", "vehicle_id": 901, "category_id": "oil_change",
+            "id": "oc1", "vehicle_id": 901, "oil_type": "15W-40",
+            "liters": 40.5, "odometer": 480000, "flagged": true,
             "performed_at": "2026-07-01T10:00:00Z",
-            "odometer_at_service": 480000,
-            "attachments": [{"name": "receipt.jpg"}, {"name": "invoice.pdf"}],
             "created_at": "2026-07-01T10:00:00Z", "updated_at": "2026-07-01T10:00:00Z",
             "created_by_user_id": 1, "updated_by_user_id": 1, "sync_version": 3
         });
-        apply_server_row(&c, "maintenance_records", &row).unwrap();
-        let stored: String = c
-            .query_row("SELECT attachments FROM maintenance_records WHERE id='r1'", [], |r| r.get(0))
+        apply_server_row(&c, "oil_changes", &row).unwrap();
+        let (liters, flagged): (f64, i64) = c
+            .query_row("SELECT liters, flagged FROM oil_changes WHERE id='oc1'", [], |r| {
+                Ok((r.get(0)?, r.get(1)?))
+            })
             .unwrap();
-        let parsed: Value = serde_json::from_str(&stored).unwrap();
-        assert_eq!(parsed.as_array().unwrap().len(), 2, "attachments survive the round-trip");
+        assert!((liters - 40.5).abs() < f64::EPSILON, "NUMERIC survives the round-trip");
+        assert_eq!(flagged, 1, "JSON true lands as SQLite 1");
     }
 
     #[test]
@@ -622,8 +625,8 @@ mod tests {
         let c = mem();
         let mk = |sv: i64, deleted: Option<&str>| {
             serde_json::json!({
-                "id": "t1", "dot_code": "DOT X", "brand": "B", "status": "in_stock",
-                "is_retread": false, "retread_count": 0,
+                "id": "t1", "dot_code": "DOT X", "brand": "B", "status": "in_stock_used",
+                "origin": "legacy", "total_km": 0, "retread_count": 0,
                 "created_at": "2026-01-01T00:00:00Z", "updated_at": "2026-01-01T00:00:00Z",
                 "deleted_at": deleted, "created_by_user_id": 1, "updated_by_user_id": 1,
                 "sync_version": sv

@@ -1,15 +1,23 @@
-//! Owned-domain operations against the LOCAL database.
+//! Owned-domain WRITES against the LOCAL database.
 //!
 //! Every write is one SQLite transaction that (a) applies the change to the
-//! local table and (b) enqueues the same row in the outbox. Reads come
-//! straight from the local tables — the local database IS the working truth;
-//! the outbox is the record of what the server hasn't confirmed yet.
+//! local table and (b) enqueues the same row in the outbox. Reads live in
+//! services/views.rs — the local database IS the working truth; the outbox is
+//! the record of what the server hasn't confirmed yet.
 //!
 //! Nothing here talks to the network. The engine drains the outbox; the
 //! commands layer kicks it after each write.
+//!
+//! Server-derived projections (the rule, mirrored from maint-rust
+//! services/side_effects.rs): `tires.status` and `tires.total_km` are derived
+//! from assignment events, and stock debits are derived from oil-change /
+//! shipment-tire inserts. The client applies the SAME derivations locally for
+//! immediate UX but NEVER enqueues them — pushing a competing `tires` update
+//! would race the server's own sync_version bump and dead-letter a legitimate
+//! write. The next /sync/pull confirms the server's copy of the derivation.
 
 use rusqlite::{params, Connection, OptionalExtension};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::{json, Value};
 use uuid::Uuid;
 
@@ -17,8 +25,24 @@ use crate::db::DbPool;
 use crate::services::outbox;
 use crate::{AppError, AppResult};
 
-fn now_iso() -> String {
+pub fn now_iso() -> String {
     chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
+}
+
+/// The one place the 34–36 L rule lives client-side; the server recomputes it
+/// authoritatively on apply (side_effects::oil_flagged).
+pub fn oil_flagged(liters: f64) -> bool {
+    !(34.0..=36.0).contains(&liters)
+}
+
+/// Dismount reason → tire status. MUST match maint-rust side_effects::dismount_status.
+pub fn dismount_status(reason: &str) -> &'static str {
+    match reason {
+        "worn" | "damaged" => "scrapped",
+        "retread" => "retreading",
+        "puncture" => "in_repair",
+        _ => "in_stock_used",
+    }
 }
 
 /// Read a full row back as JSON (the outbox payload is always the row snapshot).
@@ -35,13 +59,7 @@ fn row_snapshot(conn: &Connection, table: &str, pk: &str, id: &str) -> AppResult
                     rusqlite::types::ValueRef::Integer(n) => json!(n),
                     rusqlite::types::ValueRef::Real(f) => json!(f),
                     rusqlite::types::ValueRef::Text(t) => {
-                        let s = String::from_utf8_lossy(t).to_string();
-                        // attachments is stored as JSON text; ship it as JSON.
-                        if *c == "attachments" {
-                            serde_json::from_str(&s).unwrap_or(Value::String(s))
-                        } else {
-                            Value::String(s)
-                        }
+                        Value::String(String::from_utf8_lossy(t).to_string())
                     }
                     rusqlite::types::ValueRef::Blob(_) => Value::Null,
                 };
@@ -57,10 +75,10 @@ fn row_snapshot(conn: &Connection, table: &str, pk: &str, id: &str) -> AppResult
 /// JSON booleans for boolean-typed columns.
 fn fix_bools(entity: &str, mut row: Value) -> Value {
     let bool_cols: &[&str] = match entity {
-        "maintenance_templates" => &["is_active"],
+        "work_order_tasks" => &["is_done"],
+        "oil_changes" => &["flagged"],
         "chassis_axles" => &["is_steering", "is_lifted"],
         "chassis_positions" => &["is_spare"],
-        "tires" => &["is_retread"],
         _ => &[],
     };
     if let Value::Object(map) = &mut row {
@@ -76,14 +94,12 @@ fn fix_bools(entity: &str, mut row: Value) -> Value {
 
 /// The shared write path: local write already executed on `tx`; snapshot the
 /// row and enqueue it.
-fn enqueue_row(
-    tx: &Connection,
-    entity: &str,
-    id: &str,
-    op: &str,
-    user_id: i64,
-) -> AppResult<()> {
-    let pk = if entity == "vehicle_odometer_overrides" { "vehicle_id" } else { "id" };
+fn enqueue_row(tx: &Connection, entity: &str, id: &str, op: &str, user_id: i64) -> AppResult<()> {
+    let pk = if entity == "vehicle_odometer_overrides" || entity == "vehicle_class_assignments" {
+        "vehicle_id"
+    } else {
+        "id"
+    };
     let snapshot = fix_bools(entity, row_snapshot(tx, entity, pk, id)?);
     let base_sv = snapshot.get("sync_version").and_then(|v| v.as_i64()).unwrap_or(1);
     // For inserts the server accepts any version; for updates the base is the
@@ -92,177 +108,139 @@ fn enqueue_row(
     Ok(())
 }
 
-// ═════════════════════════════ templates ═════════════════════════════════════
+// ═════════════════════════════ work orders ═══════════════════════════════════
 
-#[derive(Debug, Deserialize)]
-pub struct TemplateInput {
-    pub vehicle_id: i64,
-    pub category_id: String,
-    pub name_ar: String,
-    pub name_en: String,
-    pub notes_ar: Option<String>,
-    pub notes_en: Option<String>,
-    pub trigger_type: String, // 'mileage' | 'time'
-    pub interval_km: Option<i64>,
-    pub interval_days: Option<i64>,
-    pub lead_warn_km: Option<i64>,
-    pub lead_warn_days: Option<i64>,
-}
-
-pub fn template_create(pool: &DbPool, inp: &TemplateInput, user_id: i64) -> AppResult<String> {
-    match (inp.trigger_type.as_str(), inp.interval_km, inp.interval_days) {
-        ("mileage", Some(km), _) if km > 0 => {}
-        ("time", _, Some(d)) if d > 0 => {}
-        _ => {
-            return Err(AppError::Internal(
-                "trigger_type mileage needs interval_km > 0; time needs interval_days > 0".into(),
-            ))
-        }
-    }
+pub fn wo_open(
+    pool: &DbPool,
+    vehicle_id: i64,
+    odometer_at_open: Option<i64>,
+    user_id: i64,
+) -> AppResult<String> {
     let id = Uuid::new_v4().to_string();
     let mut conn = pool.get()?;
     let tx = conn.transaction()?;
     let now = now_iso();
     tx.execute(
-        "INSERT INTO maintenance_templates
-           (id, vehicle_id, category_id, name_ar, name_en, notes_ar, notes_en, trigger_type,
-            interval_km, interval_days, lead_warn_km, lead_warn_days, is_active,
+        "INSERT INTO work_orders
+           (id, vehicle_id, status, title, odometer_at_open, opened_at,
             created_at, updated_at, created_by_user_id, updated_by_user_id, sync_version)
-         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,1,?13,?13,?14,?14,1)",
-        params![
-            id, inp.vehicle_id, inp.category_id, inp.name_ar, inp.name_en, inp.notes_ar,
-            inp.notes_en, inp.trigger_type, inp.interval_km, inp.interval_days,
-            inp.lead_warn_km.unwrap_or(500), inp.lead_warn_days.unwrap_or(14), now, user_id
-        ],
+         VALUES (?1,?2,'open',NULL,?3,?4,?4,?4,?5,?5,1)",
+        params![id, vehicle_id, odometer_at_open, now, user_id],
     )?;
-    enqueue_row(&tx, "maintenance_templates", &id, "insert", user_id)?;
+    enqueue_row(&tx, "work_orders", &id, "insert", user_id)?;
     tx.commit()?;
     Ok(id)
 }
 
-pub fn template_update(pool: &DbPool, id: &str, inp: &TemplateInput, user_id: i64) -> AppResult<()> {
+pub fn wo_close(pool: &DbPool, id: &str, user_id: i64) -> AppResult<()> {
     let mut conn = pool.get()?;
     let tx = conn.transaction()?;
+    let now = now_iso();
     let n = tx.execute(
-        "UPDATE maintenance_templates SET
-            category_id=?2, name_ar=?3, name_en=?4, notes_ar=?5, notes_en=?6, trigger_type=?7,
-            interval_km=?8, interval_days=?9, lead_warn_km=?10, lead_warn_days=?11, updated_at=?12,
-            updated_by_user_id=?13
-          WHERE id=?1 AND deleted_at IS NULL",
-        params![
-            id, inp.category_id, inp.name_ar, inp.name_en, inp.notes_ar, inp.notes_en,
-            inp.trigger_type, inp.interval_km, inp.interval_days,
-            inp.lead_warn_km.unwrap_or(500), inp.lead_warn_days.unwrap_or(14), now_iso(), user_id
-        ],
+        "UPDATE work_orders SET status='closed', closed_at=?2, updated_at=?2, updated_by_user_id=?3
+          WHERE id=?1 AND status='open' AND deleted_at IS NULL",
+        params![id, now, user_id],
     )?;
     if n == 0 {
-        return Err(AppError::Internal("template not found".into()));
+        return Err(AppError::Internal("open work order not found".into()));
     }
-    enqueue_row(&tx, "maintenance_templates", id, "update", user_id)?;
+    enqueue_row(&tx, "work_orders", id, "update", user_id)?;
     tx.commit()?;
     Ok(())
 }
 
-pub fn template_delete(pool: &DbPool, id: &str, user_id: i64) -> AppResult<()> {
-    let mut conn = pool.get()?;
-    let tx = conn.transaction()?;
-    tx.execute(
-        "UPDATE maintenance_templates SET deleted_at=?2, updated_at=?2, updated_by_user_id=?3 WHERE id=?1",
-        params![id, now_iso(), user_id],
-    )?;
-    enqueue_row(&tx, "maintenance_templates", id, "delete", user_id)?;
-    tx.commit()?;
-    Ok(())
-}
-
-// ═════════════════════════════ records ═══════════════════════════════════════
-
-#[derive(Debug, Deserialize)]
-pub struct RecordInput {
-    pub template_id: Option<String>,
-    pub vehicle_id: i64,
-    pub category_id: String,
-    pub performed_at: String,
-    pub odometer_at_service: Option<i64>,
-    pub cost: Option<f64>,
-    pub vendor: Option<String>,
-    pub performed_by: Option<String>,
-    pub notes: Option<String>,
-}
-
-/// Creating a record also resets the template's clock: next_due is derived
-/// from the template interval + this record's odometer/date.
-pub fn record_create(pool: &DbPool, inp: &RecordInput, user_id: i64) -> AppResult<String> {
+pub fn wo_add_task(
+    pool: &DbPool,
+    work_order_id: &str,
+    category_id: Option<&str>,
+    description_ar: &str,
+    user_id: i64,
+) -> AppResult<String> {
     let id = Uuid::new_v4().to_string();
     let mut conn = pool.get()?;
     let tx = conn.transaction()?;
-
-    let (mut next_due_at, mut next_due_km): (Option<String>, Option<i64>) = (None, None);
-    if let Some(tid) = &inp.template_id {
-        let tpl: Option<(String, Option<i64>, Option<i64>)> = tx
-            .query_row(
-                "SELECT trigger_type, interval_km, interval_days
-                   FROM maintenance_templates WHERE id = ?1 AND deleted_at IS NULL",
-                params![tid],
-                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
-            )
-            .optional()?;
-        if let Some((trigger, km, days)) = tpl {
-            match trigger.as_str() {
-                "mileage" => {
-                    next_due_km = match (inp.odometer_at_service, km) {
-                        (Some(o), Some(k)) => Some(o + k),
-                        _ => None,
-                    }
-                }
-                "time" => {
-                    if let Some(d) = days {
-                        let base = chrono::DateTime::parse_from_rfc3339(&inp.performed_at)
-                            .map_err(|e| AppError::Internal(format!("performed_at: {e}")))?;
-                        next_due_at = Some(
-                            (base + chrono::Duration::days(d))
-                                .to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
-                        );
-                    }
-                }
-                _ => {}
-            }
-        }
-    }
-
     let now = now_iso();
-    tx.execute(
-        "INSERT INTO maintenance_records
-           (id, template_id, vehicle_id, category_id, performed_at, odometer_at_service,
-            next_due_at, next_due_km, cost, vendor, performed_by, notes, attachments,
-            created_at, updated_at, created_by_user_id, updated_by_user_id, sync_version)
-         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,'[]',?13,?13,?14,?14,1)",
-        params![
-            id, inp.template_id, inp.vehicle_id, inp.category_id, inp.performed_at,
-            inp.odometer_at_service, next_due_at, next_due_km, inp.cost, inp.vendor,
-            inp.performed_by, inp.notes, now, user_id
-        ],
+    let sort: i64 = tx.query_row(
+        "SELECT COALESCE(MAX(sort_order),0)+1 FROM work_order_tasks WHERE work_order_id=?1",
+        params![work_order_id],
+        |r| r.get(0),
     )?;
-    enqueue_row(&tx, "maintenance_records", &id, "insert", user_id)?;
+    tx.execute(
+        "INSERT INTO work_order_tasks
+           (id, work_order_id, kind, category_id, description_ar, is_done, sort_order,
+            created_at, updated_at, created_by_user_id, updated_by_user_id, sync_version)
+         VALUES (?1,?2,'free',?3,?4,1,?5,?6,?6,?7,?7,1)",
+        params![id, work_order_id, category_id, description_ar, sort, now, user_id],
+    )?;
+    enqueue_row(&tx, "work_order_tasks", &id, "insert", user_id)?;
     tx.commit()?;
     Ok(id)
 }
 
-pub fn record_delete(pool: &DbPool, id: &str, user_id: i64) -> AppResult<()> {
+pub fn wo_delete_task(pool: &DbPool, task_id: &str, user_id: i64) -> AppResult<()> {
     let mut conn = pool.get()?;
     let tx = conn.transaction()?;
     tx.execute(
-        "UPDATE maintenance_records SET deleted_at=?2, updated_at=?2, updated_by_user_id=?3 WHERE id=?1",
-        params![id, now_iso(), user_id],
+        "UPDATE work_order_tasks SET deleted_at=?2, updated_at=?2, updated_by_user_id=?3 WHERE id=?1",
+        params![task_id, now_iso(), user_id],
     )?;
-    enqueue_row(&tx, "maintenance_records", id, "delete", user_id)?;
+    enqueue_row(&tx, "work_order_tasks", task_id, "delete", user_id)?;
     tx.commit()?;
     Ok(())
 }
 
-// ═════════════════════════════ odometer override ═════════════════════════════
+/// Oil change: oil row + an `oil`-kind task row (drives the due engine's
+/// last-done for the oil_change category), both queued. No local stock
+/// decrement — the mirror stays a server snapshot; projection happens at read.
+pub fn oil_add(
+    pool: &DbPool,
+    work_order_id: &str,
+    vehicle_id: i64,
+    oil_type: &str,
+    liters: f64,
+    odometer: Option<i64>,
+    user_id: i64,
+) -> AppResult<(String, bool)> {
+    if liters <= 0.0 {
+        return Err(AppError::Internal("liters must be > 0".into()));
+    }
+    let flagged = oil_flagged(liters);
+    let oil_id = Uuid::new_v4().to_string();
+    let task_id = Uuid::new_v4().to_string();
+    let mut conn = pool.get()?;
+    let tx = conn.transaction()?;
+    let now = now_iso();
+    tx.execute(
+        "INSERT INTO oil_changes
+           (id, work_order_id, vehicle_id, oil_type, liters, odometer, flagged, performed_at,
+            created_at, updated_at, created_by_user_id, updated_by_user_id, sync_version)
+         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?8,?8,?9,?9,1)",
+        params![oil_id, work_order_id, vehicle_id, oil_type, liters, odometer, flagged as i64, now, user_id],
+    )?;
+    enqueue_row(&tx, "oil_changes", &oil_id, "insert", user_id)?;
+    tx.execute(
+        "INSERT INTO work_order_tasks
+           (id, work_order_id, kind, category_id, is_done, sort_order,
+            created_at, updated_at, created_by_user_id, updated_by_user_id, sync_version)
+         VALUES (?1,?2,'oil','oil_change',1,
+                 (SELECT COALESCE(MAX(sort_order),0)+1 FROM work_order_tasks WHERE work_order_id=?2),
+                 ?3,?3,?4,?4,1)",
+        params![task_id, work_order_id, now, user_id],
+    )?;
+    enqueue_row(&tx, "work_order_tasks", &task_id, "insert", user_id)?;
+    tx.commit()?;
+    Ok((oil_id, flagged))
+}
 
-pub fn override_set(pool: &DbPool, vehicle_id: i64, odometer: i64, notes: Option<&str>, user_id: i64) -> AppResult<()> {
+// ═════════════════════════════ odometer / class ══════════════════════════════
+
+pub fn override_set(
+    pool: &DbPool,
+    vehicle_id: i64,
+    odometer: i64,
+    notes: Option<&str>,
+    user_id: i64,
+) -> AppResult<()> {
     if odometer < 0 {
         return Err(AppError::Internal("odometer must be ≥ 0".into()));
     }
@@ -286,130 +264,196 @@ pub fn override_set(pool: &DbPool, vehicle_id: i64, odometer: i64, notes: Option
            updated_at=excluded.updated_at, updated_by_user_id=excluded.updated_by_user_id",
         params![vehicle_id, odometer, now, notes, user_id],
     )?;
-    // The server's override endpoint upserts on insert, so a fresh insert op is
-    // correct for both cases; an existing row keeps optimistic concurrency.
     let op = if existed.is_some() { "update" } else { "insert" };
     enqueue_row(&tx, "vehicle_odometer_overrides", &vehicle_id.to_string(), op, user_id)?;
     tx.commit()?;
     Ok(())
 }
 
-// ═════════════════════════════ tires ═════════════════════════════════════════
-
-#[derive(Debug, Deserialize)]
-pub struct TireInput {
-    pub dot_code: String,
-    pub brand: String,
-    pub model: Option<String>,
-    pub purchase_date: Option<String>,
-    pub purchase_cost: Option<f64>,
-    pub supplier: Option<String>,
-    pub is_retread: Option<bool>,
-    pub stock_location: Option<String>,
-    pub notes: Option<String>,
-}
-
-pub fn tire_create(pool: &DbPool, inp: &TireInput, user_id: i64) -> AppResult<String> {
-    let id = Uuid::new_v4().to_string();
+/// Tag a vehicle with a maintenance class (drives the fleet-wide service plans).
+pub fn class_assign(pool: &DbPool, vehicle_id: i64, class_id: &str, user_id: i64) -> AppResult<()> {
     let mut conn = pool.get()?;
     let tx = conn.transaction()?;
     let now = now_iso();
+    let existed: Option<i64> = tx
+        .query_row(
+            "SELECT sync_version FROM vehicle_class_assignments WHERE vehicle_id = ?1",
+            params![vehicle_id],
+            |r| r.get(0),
+        )
+        .optional()?;
     tx.execute(
-        "INSERT INTO tires
-           (id, dot_code, brand, model, purchase_date, purchase_cost, supplier,
-            is_retread, retread_count, status, stock_location, notes,
-            created_at, updated_at, created_by_user_id, updated_by_user_id, sync_version)
-         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,0,'in_stock',?9,?10,?11,?11,?12,?12,1)",
-        params![
-            id, inp.dot_code.trim(), inp.brand, inp.model, inp.purchase_date, inp.purchase_cost,
-            inp.supplier, inp.is_retread.unwrap_or(false) as i64, inp.stock_location, inp.notes,
-            now, user_id
-        ],
+        "INSERT INTO vehicle_class_assignments
+           (vehicle_id, class_id, created_at, updated_at,
+            created_by_user_id, updated_by_user_id, sync_version)
+         VALUES (?1,?2,?3,?3,?4,?4,1)
+         ON CONFLICT(vehicle_id) DO UPDATE SET
+           class_id=excluded.class_id, deleted_at=NULL,
+           updated_at=excluded.updated_at, updated_by_user_id=excluded.updated_by_user_id",
+        params![vehicle_id, class_id, now, user_id],
     )?;
-    enqueue_row(&tx, "tires", &id, "insert", user_id)?;
+    // The server upserts class assignments on insert, so insert covers both
+    // the fresh tag and the re-tag.
+    let _ = existed;
+    enqueue_row(&tx, "vehicle_class_assignments", &vehicle_id.to_string(), "insert", user_id)?;
     tx.commit()?;
-    Ok(id)
+    Ok(())
 }
 
-/// Mount a tire onto a position. One transaction: assignment insert + tire
-/// status flip + both outbox rows. The partial unique indexes (one active
-/// assignment per position / per tire) enforce the domain invariant.
-pub fn tire_mount(
+// ═════════════════════════════ tires ═════════════════════════════════════════
+
+#[derive(Debug, Deserialize, specta::Type)]
+pub struct MountFromStockInput {
+    pub position_id: String,
+    pub vehicle_id: i64,
+    pub work_order_id: String,
+    /// The fungible stock line being consumed.
+    pub brand: String,
+    pub model: Option<String>,
+    pub size: Option<String>,
+    /// Identity captured at the only moment you hold the tire: optional but
+    /// this is the moment to fill it.
+    pub dot_code: Option<String>,
+    pub odometer: Option<i64>,
+}
+
+/// Mount a NEW tire from fungible stock: mints the individual asset (identity
+/// capture) + the assignment, both queued. The server derives the stock debit
+/// from the shipment-origin tire insert — the client never posts a debit.
+pub fn mount_from_stock(
     pool: &DbPool,
-    tire_id: &str,
-    position_id: &str,
-    vehicle_id: i64,
-    odometer: Option<i64>,
-    reason: &str,
+    inp: &MountFromStockInput,
     user_id: i64,
-) -> AppResult<String> {
-    let id = Uuid::new_v4().to_string();
+) -> AppResult<(String, String)> {
+    let tire_id = Uuid::new_v4().to_string();
+    let assignment_id = Uuid::new_v4().to_string();
+    let mut conn = pool.get()?;
+    let tx = conn.transaction()?;
+    let now = now_iso();
+    let dot = inp.dot_code.as_deref().map(str::trim).filter(|s| !s.is_empty());
+    tx.execute(
+        "INSERT INTO tires
+           (id, dot_code, brand, model, size, status, origin, total_km, retread_count,
+            created_at, updated_at, created_by_user_id, updated_by_user_id, sync_version)
+         VALUES (?1,?2,?3,?4,?5,'mounted','shipment',0,0,?6,?6,?7,?7,1)",
+        params![tire_id, dot, inp.brand, inp.model, inp.size, now, user_id],
+    )?;
+    enqueue_row(&tx, "tires", &tire_id, "insert", user_id)?;
+    insert_assignment(&tx, &assignment_id, &tire_id, inp.position_id.as_str(), inp.vehicle_id,
+                      Some(inp.work_order_id.as_str()), inp.odometer, "new", &now, user_id)?;
+    enqueue_row(&tx, "tire_assignments", &assignment_id, "insert", user_id)?;
+    tx.commit()?;
+    Ok((tire_id, assignment_id))
+}
+
+#[derive(Debug, Deserialize, specta::Type)]
+pub struct MountUsedInput {
+    pub tire_id: String,
+    pub position_id: String,
+    pub vehicle_id: i64,
+    pub work_order_id: String,
+    pub odometer: Option<i64>,
+    /// new | rotation | replacement | repair_return | onboard
+    pub reason: String,
+}
+
+/// Mount an existing pool tire. Local status flip mirrors the server's
+/// derivation and is NOT enqueued.
+pub fn mount_used(pool: &DbPool, inp: &MountUsedInput, user_id: i64) -> AppResult<String> {
+    let assignment_id = Uuid::new_v4().to_string();
     let mut conn = pool.get()?;
     let tx = conn.transaction()?;
     let now = now_iso();
 
     let status: Option<String> = tx
-        .query_row("SELECT status FROM tires WHERE id=?1 AND deleted_at IS NULL", params![tire_id], |r| r.get(0))
+        .query_row(
+            "SELECT status FROM tires WHERE id=?1 AND deleted_at IS NULL",
+            params![inp.tire_id],
+            |r| r.get(0),
+        )
         .optional()?;
     match status.as_deref() {
-        Some("in_stock") => {}
+        Some("in_stock_used") => {}
         Some(other) => {
-            return Err(AppError::Internal(format!("tire is {other}, not in_stock")));
+            return Err(AppError::Internal(format!("tire is {other}, not in_stock_used")));
         }
         None => return Err(AppError::Internal("tire not found".into())),
     }
 
+    insert_assignment(&tx, &assignment_id, &inp.tire_id, &inp.position_id, inp.vehicle_id,
+                      Some(&inp.work_order_id), inp.odometer, &inp.reason, &now, user_id)?;
+    enqueue_row(&tx, "tire_assignments", &assignment_id, "insert", user_id)?;
+    // Server-derived projection, applied locally, never enqueued.
     tx.execute(
-        "INSERT INTO tire_assignments
-           (id, tire_id, position_id, vehicle_id, mounted_at, mounted_odometer, mount_reason,
-            created_at, updated_at, created_by_user_id, updated_by_user_id, sync_version)
-         VALUES (?1,?2,?3,?4,?5,?6,?7,?5,?5,?8,?8,1)",
-        params![id, tire_id, position_id, vehicle_id, now, odometer, reason, user_id],
-    )
-    .map_err(|e| match e {
-        rusqlite::Error::SqliteFailure(err, Some(msg))
-            if err.code == rusqlite::ErrorCode::ConstraintViolation =>
-        {
-            AppError::Internal(format!("position or tire already has an active assignment ({msg})"))
-        }
-        other => AppError::Db(other),
-    })?;
-    tx.execute(
-        "UPDATE tires SET status='mounted', updated_at=?2, updated_by_user_id=?3 WHERE id=?1",
-        params![tire_id, now, user_id],
+        "UPDATE tires SET status='mounted', updated_at=?2 WHERE id=?1",
+        params![inp.tire_id, now],
     )?;
-
-    enqueue_row(&tx, "tire_assignments", &id, "insert", user_id)?;
-    enqueue_row(&tx, "tires", tire_id, "update", user_id)?;
     tx.commit()?;
-    Ok(id)
+    Ok(assignment_id)
 }
 
-/// Dismount the active assignment at a position; the tire moves to `to_status`.
-pub fn tire_dismount(
-    pool: &DbPool,
-    assignment_id: &str,
+#[allow(clippy::too_many_arguments)]
+fn insert_assignment(
+    tx: &Connection,
+    id: &str,
+    tire_id: &str,
+    position_id: &str,
+    vehicle_id: i64,
+    work_order_id: Option<&str>,
     odometer: Option<i64>,
     reason: &str,
-    to_status: &str,
+    now: &str,
     user_id: i64,
 ) -> AppResult<()> {
-    if !["in_stock", "in_repair", "retreading", "scrapped"].contains(&to_status) {
-        return Err(AppError::Internal(format!("invalid destination status: {to_status}")));
+    // Local guard mirroring the server's partial unique indexes.
+    let occupied: Option<String> = tx
+        .query_row(
+            "SELECT id FROM tire_assignments
+              WHERE position_id=?1 AND dismounted_at IS NULL AND deleted_at IS NULL",
+            params![position_id],
+            |r| r.get(0),
+        )
+        .optional()?;
+    if occupied.is_some() {
+        return Err(AppError::Internal("position already has an active tire".into()));
     }
+    tx.execute(
+        "INSERT INTO tire_assignments
+           (id, tire_id, position_id, vehicle_id, work_order_id, mounted_at, mounted_odometer,
+            mount_reason, created_at, updated_at, created_by_user_id, updated_by_user_id, sync_version)
+         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?6,?6,?9,?9,1)",
+        params![id, tire_id, position_id, vehicle_id, work_order_id, now, odometer, reason, user_id],
+    )?;
+    Ok(())
+}
+
+#[derive(Debug, Deserialize, specta::Type)]
+pub struct DismountInput {
+    pub assignment_id: String,
+    pub odometer: Option<i64>,
+    /// worn | damaged | rotation | puncture | retread | other
+    pub reason: String,
+}
+
+/// Dismount: close the assignment (queued). Status + km are the server's
+/// derivation; the same rule is applied locally for immediate UX, not enqueued.
+pub fn dismount(pool: &DbPool, inp: &DismountInput, user_id: i64) -> AppResult<String> {
     let mut conn = pool.get()?;
     let tx = conn.transaction()?;
     let now = now_iso();
 
-    let tire_id: Option<String> = tx
+    let row: Option<(String, Option<i64>, Option<String>)> = tx
         .query_row(
-            "SELECT tire_id FROM tire_assignments
-              WHERE id=?1 AND dismounted_at IS NULL AND deleted_at IS NULL",
-            params![assignment_id],
-            |r| r.get(0),
+            "SELECT ta.tire_id, ta.mounted_odometer,
+                    (SELECT CASE WHEN cp.is_spare=1 THEN 'spare' ELSE 'road' END
+                       FROM chassis_positions cp WHERE cp.id = ta.position_id)
+               FROM tire_assignments ta
+              WHERE ta.id=?1 AND ta.dismounted_at IS NULL AND ta.deleted_at IS NULL",
+            params![inp.assignment_id],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
         )
         .optional()?;
-    let Some(tire_id) = tire_id else {
+    let Some((tire_id, mounted_km, pos_kind)) = row else {
         return Err(AppError::Internal("active assignment not found".into()));
     };
 
@@ -417,34 +461,164 @@ pub fn tire_dismount(
         "UPDATE tire_assignments SET dismounted_at=?2, dismounted_odometer=?3,
             dismount_reason=?4, updated_at=?2, updated_by_user_id=?5
           WHERE id=?1",
-        params![assignment_id, now, odometer, reason, user_id],
+        params![inp.assignment_id, now, inp.odometer, inp.reason, user_id],
     )?;
+    enqueue_row(&tx, "tire_assignments", &inp.assignment_id, "update", user_id)?;
+
+    // Local mirror of the server derivation (never enqueued).
+    let to_status = dismount_status(&inp.reason);
+    let delta = match (mounted_km, inp.odometer, pos_kind.as_deref()) {
+        (Some(m), Some(d), Some("road")) if d > m => d - m,
+        _ => 0,
+    };
     tx.execute(
-        "UPDATE tires SET status=?2,
-            scrap_date = CASE WHEN ?2='scrapped' THEN ?3 ELSE scrap_date END,
-            updated_at=?3, updated_by_user_id=?4
-          WHERE id=?1",
+        "UPDATE tires SET status=?2, total_km=COALESCE(total_km,0)+?3, updated_at=?4 WHERE id=?1",
+        params![tire_id, to_status, delta, now],
+    )?;
+    tx.commit()?;
+    Ok(tire_id)
+}
+
+#[derive(Debug, Deserialize, specta::Type)]
+pub struct OnboardPositionInput {
+    pub position_id: String,
+    pub vehicle_id: i64,
+    pub brand: String,
+    pub model: Option<String>,
+    pub size: Option<String>,
+    pub dot_code: Option<String>,
+    /// Best-guess km already run (optional, becomes the asset's starting total).
+    pub estimated_km: Option<i64>,
+}
+
+/// First-time onboarding of rubber already ON the truck: mints a legacy asset
+/// already mounted. No stock effect anywhere (origin = legacy).
+pub fn onboard_position(
+    pool: &DbPool,
+    inp: &OnboardPositionInput,
+    user_id: i64,
+) -> AppResult<(String, String)> {
+    let tire_id = Uuid::new_v4().to_string();
+    let assignment_id = Uuid::new_v4().to_string();
+    let mut conn = pool.get()?;
+    let tx = conn.transaction()?;
+    let now = now_iso();
+    let dot = inp.dot_code.as_deref().map(str::trim).filter(|s| !s.is_empty());
+    tx.execute(
+        "INSERT INTO tires
+           (id, dot_code, brand, model, size, status, origin, total_km, retread_count,
+            created_at, updated_at, created_by_user_id, updated_by_user_id, sync_version)
+         VALUES (?1,?2,?3,?4,?5,'mounted','legacy',?6,0,?7,?7,?8,?8,1)",
+        params![tire_id, dot, inp.brand, inp.model, inp.size, inp.estimated_km.unwrap_or(0), now, user_id],
+    )?;
+    enqueue_row(&tx, "tires", &tire_id, "insert", user_id)?;
+    insert_assignment(&tx, &assignment_id, &tire_id, &inp.position_id, inp.vehicle_id,
+                      None, None, "onboard", &now, user_id)?;
+    enqueue_row(&tx, "tire_assignments", &assignment_id, "insert", user_id)?;
+    tx.commit()?;
+    Ok((tire_id, assignment_id))
+}
+
+#[derive(Debug, Deserialize, specta::Type)]
+pub struct LegacyTireInput {
+    pub brand: String,
+    pub model: Option<String>,
+    pub size: Option<String>,
+    pub dot_code: Option<String>,
+    pub estimated_km: Option<i64>,
+}
+
+/// Bulk intake of used tires sitting in the yard → individuated used stock.
+pub fn intake_legacy(pool: &DbPool, tires: &[LegacyTireInput], user_id: i64) -> AppResult<Vec<String>> {
+    let mut conn = pool.get()?;
+    let tx = conn.transaction()?;
+    let now = now_iso();
+    let mut ids = Vec::with_capacity(tires.len());
+    for t in tires {
+        let id = Uuid::new_v4().to_string();
+        let dot = t.dot_code.as_deref().map(str::trim).filter(|s| !s.is_empty());
+        tx.execute(
+            "INSERT INTO tires
+               (id, dot_code, brand, model, size, status, origin, total_km, retread_count,
+                created_at, updated_at, created_by_user_id, updated_by_user_id, sync_version)
+             VALUES (?1,?2,?3,?4,?5,'in_stock_used','legacy',?6,0,?7,?7,?8,?8,1)",
+            params![id, dot, t.brand, t.model, t.size, t.estimated_km.unwrap_or(0), now, user_id],
+        )?;
+        enqueue_row(&tx, "tires", &id, "insert", user_id)?;
+        ids.push(id);
+    }
+    tx.commit()?;
+    Ok(ids)
+}
+
+/// Explicit lifecycle transition from the tire file (repair out/in, retread
+/// send, restock, scrap). Mount/dismount is NOT done here — assignments carry
+/// those. This is a client-authored change, so it IS enqueued (the server only
+/// derives status from assignment ops, so there is no version race).
+pub fn tire_set_status(
+    pool: &DbPool,
+    tire_id: &str,
+    to_status: &str,
+    event_type: &str,
+    notes: Option<&str>,
+    user_id: i64,
+) -> AppResult<()> {
+    if !["in_stock_used", "in_repair", "retreading", "scrapped"].contains(&to_status) {
+        return Err(AppError::Internal(format!("invalid destination status: {to_status}")));
+    }
+    if !["scrap", "retread", "repair_out", "repair_in", "restock", "intake"].contains(&event_type) {
+        return Err(AppError::Internal(format!("invalid event type: {event_type}")));
+    }
+    let mut conn = pool.get()?;
+    let tx = conn.transaction()?;
+    let now = now_iso();
+
+    let from_status: Option<String> = tx
+        .query_row(
+            "SELECT status FROM tires WHERE id=?1 AND deleted_at IS NULL",
+            params![tire_id],
+            |r| r.get(0),
+        )
+        .optional()?;
+    let Some(from_status) = from_status else {
+        return Err(AppError::Internal("tire not found".into()));
+    };
+    if from_status == "mounted" {
+        return Err(AppError::Internal("dismount the tire first".into()));
+    }
+
+    tx.execute(
+        "UPDATE tires SET status=?2, updated_at=?3, updated_by_user_id=?4 WHERE id=?1",
         params![tire_id, to_status, now, user_id],
     )?;
+    enqueue_row(&tx, "tires", tire_id, "update", user_id)?;
 
-    enqueue_row(&tx, "tire_assignments", assignment_id, "update", user_id)?;
-    enqueue_row(&tx, "tires", &tire_id, "update", user_id)?;
+    let event_id = Uuid::new_v4().to_string();
+    tx.execute(
+        "INSERT INTO tire_status_events
+           (id, tire_id, event_type, from_status, to_status, notes, occurred_at,
+            created_at, updated_at, created_by_user_id, updated_by_user_id, sync_version)
+         VALUES (?1,?2,?3,?4,?5,?6,?7,?7,?7,?8,?8,1)",
+        params![event_id, tire_id, event_type, from_status, to_status, notes, now, user_id],
+    )?;
+    enqueue_row(&tx, "tire_status_events", &event_id, "insert", user_id)?;
     tx.commit()?;
     Ok(())
 }
 
 // ═════════════════════════════ chassis ═══════════════════════════════════════
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, specta::Type)]
 pub struct ChassisConfig {
-    pub drive_axles: i64,   // tractor axles behind the steering axle
+    /// Tractor axles behind the steering axle (dual wheels each).
+    pub drive_axles: i64,
     pub trailer_axles: i64,
     pub spares: i64,
     pub single_trailer_axles: Option<bool>,
 }
 
 /// Create a layout + axles + positions for a vehicle in one shot, mirroring
-/// maint-rust's chassis_builder codes exactly:
+/// maint-rust's chassis codes exactly:
 ///   tractor single: H{n}L/H{n}R · dual: H{n}LO/LI/RI/RO · trailer: TR{n}… · spare: SP{n}
 pub fn chassis_create(pool: &DbPool, vehicle_id: i64, cfg: &ChassisConfig, user_id: i64) -> AppResult<String> {
     if cfg.drive_axles < 1 || cfg.trailer_axles < 0 || cfg.spares < 0 {
@@ -488,7 +662,8 @@ pub fn chassis_create(pool: &DbPool, vehicle_id: i64, cfg: &ChassisConfig, user_
         Ok(id)
     };
 
-    let mut positions: Vec<(String, Option<String>, Option<&str>, Option<&str>, bool, Option<i64>, String)> = Vec::new();
+    type Pos = (String, Option<String>, Option<&'static str>, Option<&'static str>, bool, Option<i64>, String);
+    let mut positions: Vec<Pos> = Vec::new();
 
     // Steering axle (single) + drive axles (dual).
     let steer = add_axle("tractor", 1, "single", true)?;
@@ -552,394 +727,4 @@ pub fn chassis_create(pool: &DbPool, vehicle_id: i64, cfg: &ChassisConfig, user_
 
     tx.commit()?;
     Ok(layout_id)
-}
-
-// ═════════════════════════════ reads ═════════════════════════════════════════
-
-/// The local mirror of v_maintenance_due — including the 0011 odometer-truth
-/// resolution: current odometer = MAX over every observation we hold (Falcon
-/// mileage, Falcon fuel, manual override, highest service reading), with the
-/// winning source + its observation time exposed so staleness is visible.
-pub const DUE_SQL: &str = "
-WITH readings(vehicle_id, reading, src, observed_at) AS (
-    SELECT id, COALESCE(mileage, 0), 'falcon_mileage', fetched_at FROM vehicles_cache
-    UNION ALL
-    SELECT id, COALESCE(last_fuel_odometer, 0), 'falcon_fuel', fetched_at FROM vehicles_cache
-    UNION ALL
-    SELECT vehicle_id, odometer, 'manual', set_at FROM vehicle_odometer_overrides
-    UNION ALL
-    SELECT vehicle_id, MAX(odometer_at_service), 'service', MAX(performed_at)
-      FROM maintenance_records
-     WHERE deleted_at IS NULL AND odometer_at_service IS NOT NULL
-     GROUP BY vehicle_id
-),
-best AS (
-    SELECT vehicle_id, reading AS current_odometer, src AS odometer_source,
-           observed_at AS odometer_observed_at
-      FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY vehicle_id ORDER BY reading DESC) rn
-              FROM readings)
-     WHERE rn = 1
-),
-latest AS (
-    SELECT r.* FROM maintenance_records r
-     WHERE r.deleted_at IS NULL
-       AND r.id = (SELECT id FROM maintenance_records
-                    WHERE template_id = r.template_id AND deleted_at IS NULL
-                    ORDER BY performed_at DESC LIMIT 1)
-)
-SELECT
-    t.id                AS template_id,
-    t.vehicle_id,
-    v.car_no_plate      AS plate_number,
-    t.category_id,
-    c.icon              AS category_icon,
-    t.name_ar, t.name_en,
-    t.trigger_type,
-    t.interval_km, t.interval_days,
-    r.performed_at      AS last_done_at,
-    r.odometer_at_service AS last_done_km,
-    r.next_due_at, r.next_due_km,
-    COALESCE(b.current_odometer, 0)     AS current_odometer,
-    COALESCE(b.odometer_source, 'none') AS odometer_source,
-    b.odometer_observed_at,
-    CASE
-      WHEN r.id IS NULL THEN 'never_done'
-      WHEN t.trigger_type = 'mileage' AND r.next_due_km IS NOT NULL THEN
-        CASE
-          WHEN COALESCE(b.current_odometer,0) >= r.next_due_km THEN 'overdue'
-          WHEN COALESCE(b.current_odometer,0) >= r.next_due_km - t.lead_warn_km THEN 'due_soon'
-          ELSE 'ok'
-        END
-      WHEN t.trigger_type = 'time' AND r.next_due_at IS NOT NULL THEN
-        CASE
-          WHEN datetime('now') >= datetime(r.next_due_at) THEN 'overdue'
-          WHEN datetime('now') >= datetime(r.next_due_at, '-' || t.lead_warn_days || ' days') THEN 'due_soon'
-          ELSE 'ok'
-        END
-      ELSE 'never_done'
-    END AS status
-FROM maintenance_templates t
-JOIN vehicles_cache v ON v.id = t.vehicle_id AND v.source_deleted_at IS NULL
-JOIN maintenance_categories c ON c.id = t.category_id
-LEFT JOIN best b ON b.vehicle_id = t.vehicle_id
-LEFT JOIN latest r ON r.template_id = t.id
-WHERE t.deleted_at IS NULL AND t.is_active = 1
-";
-
-#[derive(Debug, Clone, Serialize)]
-pub struct DueItem {
-    pub template_id: String,
-    pub vehicle_id: i64,
-    pub plate_number: String,
-    pub category_id: String,
-    pub category_icon: Option<String>,
-    pub name_ar: String,
-    pub name_en: String,
-    pub trigger_type: String,
-    pub interval_km: Option<i64>,
-    pub interval_days: Option<i64>,
-    pub last_done_at: Option<String>,
-    pub last_done_km: Option<i64>,
-    pub next_due_at: Option<String>,
-    pub next_due_km: Option<i64>,
-    pub current_odometer: i64,
-    pub odometer_source: String,
-    pub odometer_observed_at: Option<String>,
-    pub status: String,
-}
-
-pub fn due_list(pool: &DbPool, vehicle_id: Option<i64>) -> AppResult<Vec<DueItem>> {
-    let conn = pool.get()?;
-    let sql = match vehicle_id {
-        Some(_) => format!("{DUE_SQL} AND t.vehicle_id = ?1"),
-        None => DUE_SQL.to_string(),
-    };
-    let mut stmt = conn.prepare(&sql)?;
-    let map = |r: &rusqlite::Row<'_>| -> rusqlite::Result<DueItem> {
-        Ok(DueItem {
-            template_id: r.get("template_id")?,
-            vehicle_id: r.get("vehicle_id")?,
-            plate_number: r.get("plate_number")?,
-            category_id: r.get("category_id")?,
-            category_icon: r.get("category_icon")?,
-            name_ar: r.get("name_ar")?,
-            name_en: r.get("name_en")?,
-            trigger_type: r.get("trigger_type")?,
-            interval_km: r.get("interval_km")?,
-            interval_days: r.get("interval_days")?,
-            last_done_at: r.get("last_done_at")?,
-            last_done_km: r.get("last_done_km")?,
-            next_due_at: r.get("next_due_at")?,
-            next_due_km: r.get("next_due_km")?,
-            current_odometer: r.get("current_odometer")?,
-            odometer_source: r.get("odometer_source")?,
-            odometer_observed_at: r.get("odometer_observed_at")?,
-            status: r.get("status")?,
-        })
-    };
-    let rows = match vehicle_id {
-        Some(vid) => stmt.query_map(params![vid], map)?.collect::<Result<Vec<_>, _>>()?,
-        None => stmt.query_map([], map)?.collect::<Result<Vec<_>, _>>()?,
-    };
-    Ok(rows)
-}
-
-/// Generic list reads, returned as raw JSON rows (the frontend types them).
-pub fn rows_json(pool: &DbPool, sql: &str, args: &[&dyn rusqlite::types::ToSql]) -> AppResult<Vec<Value>> {
-    let conn = pool.get()?;
-    let mut stmt = conn.prepare(sql)?;
-    let col_names: Vec<String> = stmt.column_names().iter().map(|s| s.to_string()).collect();
-    let rows = stmt
-        .query_map(args, |r| {
-            let mut obj = serde_json::Map::new();
-            for (i, name) in col_names.iter().enumerate() {
-                let v = match r.get_ref(i)? {
-                    rusqlite::types::ValueRef::Null => Value::Null,
-                    rusqlite::types::ValueRef::Integer(n) => json!(n),
-                    rusqlite::types::ValueRef::Real(f) => json!(f),
-                    rusqlite::types::ValueRef::Text(t) => {
-                        let s = String::from_utf8_lossy(t).to_string();
-                        if name == "attachments" {
-                            serde_json::from_str(&s).unwrap_or(Value::String(s))
-                        } else {
-                            Value::String(s)
-                        }
-                    }
-                    rusqlite::types::ValueRef::Blob(_) => Value::Null,
-                };
-                obj.insert(name.clone(), v);
-            }
-            Ok(Value::Object(obj))
-        })?
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok(rows)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn pool() -> DbPool {
-        let dir = std::env::temp_dir().join(format!("apex-test-{}", Uuid::new_v4()));
-        std::fs::create_dir_all(&dir).unwrap();
-        let p = DbPool::open(&dir.join("t.db")).unwrap();
-        p.run_migrations().unwrap();
-        p
-    }
-
-    fn seed_vehicle(pool: &DbPool, id: i64, fuel: i64, mileage: Option<i64>) {
-        let conn = pool.get().unwrap();
-        conn.execute(
-            "INSERT INTO vehicles_cache (id, car_no_plate, last_fuel_odometer, mileage, raw_payload, fetched_at)
-             VALUES (?1, 'T '||?1, ?2, ?3, '{}', ?4)",
-            params![id, fuel, mileage, now_iso()],
-        )
-        .unwrap();
-    }
-
-    #[test]
-    fn record_create_resets_the_template_clock() {
-        let p = pool();
-        seed_vehicle(&p, 901, 480_000, None);
-        let tid = template_create(
-            &p,
-            &TemplateInput {
-                vehicle_id: 901,
-                category_id: "oil_change".into(),
-                name_ar: "زيت".into(),
-                name_en: "Oil".into(),
-                notes_ar: None,
-                notes_en: None,
-                trigger_type: "mileage".into(),
-                interval_km: Some(10_000),
-                interval_days: None,
-                lead_warn_km: None,
-                lead_warn_days: None,
-            },
-            1,
-        )
-        .unwrap();
-        record_create(
-            &p,
-            &RecordInput {
-                template_id: Some(tid),
-                vehicle_id: 901,
-                category_id: "oil_change".into(),
-                performed_at: "2026-07-01T10:00:00Z".into(),
-                odometer_at_service: Some(486_320),
-                cost: Some(1500.0),
-                vendor: None,
-                performed_by: None,
-                notes: None,
-            },
-            1,
-        )
-        .unwrap();
-        let due = due_list(&p, Some(901)).unwrap();
-        assert_eq!(due.len(), 1);
-        assert_eq!(due[0].next_due_km, Some(496_320));
-        // Odometer truth: the service reading (486,320) beats the fuel reading.
-        assert_eq!(due[0].current_odometer, 486_320);
-        assert_eq!(due[0].odometer_source, "service");
-        assert_eq!(due[0].status, "ok");
-    }
-
-    #[test]
-    fn due_flips_overdue_when_service_reading_passes_next_due() {
-        let p = pool();
-        seed_vehicle(&p, 902, 480_000, Some(481_000));
-        let tid = template_create(
-            &p,
-            &TemplateInput {
-                vehicle_id: 902,
-                category_id: "oil_change".into(),
-                name_ar: "زيت".into(),
-                name_en: "Oil".into(),
-                notes_ar: None,
-                notes_en: None,
-                trigger_type: "mileage".into(),
-                interval_km: Some(5_000),
-                interval_days: None,
-                lead_warn_km: None,
-                lead_warn_days: None,
-            },
-            1,
-        )
-        .unwrap();
-        // Old service at 480k → next due 485k. Then a NEWER record at 490k on
-        // another template? No — same template resets the clock. Instead the
-        // override pushes the current reading past due.
-        record_create(
-            &p,
-            &RecordInput {
-                template_id: Some(tid),
-                vehicle_id: 902,
-                category_id: "oil_change".into(),
-                performed_at: "2026-06-01T10:00:00Z".into(),
-                odometer_at_service: Some(480_000),
-                cost: None,
-                vendor: None,
-                performed_by: None,
-                notes: None,
-            },
-            1,
-        )
-        .unwrap();
-        override_set(&p, 902, 486_000, Some("dashboard reading"), 1).unwrap();
-        let due = due_list(&p, Some(902)).unwrap();
-        assert_eq!(due[0].current_odometer, 486_000);
-        assert_eq!(due[0].odometer_source, "manual");
-        assert_eq!(due[0].status, "overdue");
-    }
-
-    #[test]
-    fn mount_dismount_roundtrip_enqueues_everything() {
-        let p = pool();
-        seed_vehicle(&p, 903, 100_000, None);
-        let layout = chassis_create(
-            &p,
-            903,
-            &ChassisConfig { drive_axles: 2, trailer_axles: 4, spares: 2, single_trailer_axles: None },
-            1,
-        )
-        .unwrap();
-        assert!(!layout.is_empty());
-
-        let conn = p.get().unwrap();
-        // 2 (steer) + 2×4 (drive) + 4×4 (trailer) + 2 spares = 28 positions.
-        let n: i64 = conn
-            .query_row("SELECT COUNT(*) FROM chassis_positions", [], |r| r.get(0))
-            .unwrap();
-        assert_eq!(n, 28);
-        let h2lo: String = conn
-            .query_row(
-                "SELECT id FROM chassis_positions WHERE position_code = 'H2LO'",
-                [],
-                |r| r.get(0),
-            )
-            .unwrap();
-        drop(conn);
-
-        let tire = tire_create(
-            &p,
-            &TireInput {
-                dot_code: "DOT TEST 1".into(),
-                brand: "Michelin".into(),
-                model: None,
-                purchase_date: None,
-                purchase_cost: None,
-                supplier: None,
-                is_retread: None,
-                stock_location: None,
-                notes: None,
-            },
-            1,
-        )
-        .unwrap();
-        let asg = tire_mount(&p, &tire, &h2lo, 903, Some(100_000), "new_install", 1).unwrap();
-
-        // Second mount on the same position must fail (partial unique index).
-        let tire2 = tire_create(
-            &p,
-            &TireInput {
-                dot_code: "DOT TEST 2".into(),
-                brand: "Goodyear".into(),
-                model: None,
-                purchase_date: None,
-                purchase_cost: None,
-                supplier: None,
-                is_retread: None,
-                stock_location: None,
-                notes: None,
-            },
-            1,
-        )
-        .unwrap();
-        assert!(tire_mount(&p, &tire2, &h2lo, 903, None, "new_install", 1).is_err());
-
-        tire_dismount(&p, &asg, Some(130_000), "wear", "scrapped", 1).unwrap();
-        let conn = p.get().unwrap();
-        let status: String = conn
-            .query_row("SELECT status FROM tires WHERE id=?1", params![tire], |r| r.get(0))
-            .unwrap();
-        assert_eq!(status, "scrapped");
-
-        // Everything above must be queued for the server.
-        let counts = crate::services::outbox::counts(&conn).unwrap();
-        assert!(counts.pending >= 30, "layout + axles + positions + tires + assignment all enqueued, got {}", counts.pending);
-    }
-
-    #[test]
-    fn outbox_payload_booleans_are_real_json_booleans() {
-        let p = pool();
-        seed_vehicle(&p, 904, 0, None);
-        template_create(
-            &p,
-            &TemplateInput {
-                vehicle_id: 904,
-                category_id: "oil_change".into(),
-                name_ar: "x".into(),
-                name_en: "x".into(),
-                notes_ar: None,
-                notes_en: None,
-                trigger_type: "time".into(),
-                interval_km: None,
-                interval_days: Some(90),
-                lead_warn_km: None,
-                lead_warn_days: None,
-            },
-            1,
-        )
-        .unwrap();
-        let conn = p.get().unwrap();
-        let payload: String = conn
-            .query_row(
-                "SELECT payload FROM outbox WHERE entity_type='maintenance_templates'",
-                [],
-                |r| r.get(0),
-            )
-            .unwrap();
-        let v: Value = serde_json::from_str(&payload).unwrap();
-        assert_eq!(v.get("is_active"), Some(&Value::Bool(true)), "0/1 → true/false for the server");
-    }
 }

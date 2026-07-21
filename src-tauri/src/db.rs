@@ -47,6 +47,11 @@ const MIGRATIONS: &[Migration] = &[
         name: "0005_new_domain",
         sql: include_str!("migrations/0005_new_domain.sql"),
     },
+    Migration {
+        version: 6,
+        name: "0006_reference_stock",
+        sql: include_str!("migrations/0006_reference_stock.sql"),
+    },
 ];
 
 #[derive(Clone)]
@@ -177,7 +182,7 @@ impl DbPool {
     }
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub struct DbHealth {
     pub ok: bool,
     pub migrations_applied: i64,

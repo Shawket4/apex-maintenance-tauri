@@ -100,7 +100,7 @@ fn default_payload() -> Value {
 }
 
 /// Compact projection sent to the JS layer for list rendering.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 pub struct VehicleRow {
     pub id: i64,
     pub car_no_plate: String,

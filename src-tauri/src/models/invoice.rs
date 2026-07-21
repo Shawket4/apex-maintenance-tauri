@@ -86,7 +86,7 @@ pub struct CachePage<T> {
     pub pagination: Option<CachePagination>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, specta::Type)]
 pub struct CachePagination {
     #[serde(default, deserialize_with = "serde_de::opt_i32")]
     pub limit: Option<i32>,
@@ -115,7 +115,7 @@ pub struct SearchEnvelope<T> {
 
 /* ---------- projections sent to the JS layer ---------- */
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 pub struct InvoiceRow {
     pub id: i64,
     pub car_id: Option<i64>,
@@ -130,7 +130,7 @@ pub struct InvoiceRow {
     pub fetched_at: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 pub struct InvoiceListResult {
     pub rows: Vec<InvoiceRow>,
     pub total: i64,
@@ -138,7 +138,7 @@ pub struct InvoiceListResult {
     pub limit: i32,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 pub struct InvoiceSearchResult {
     pub rows: Vec<InvoiceRow>,
     pub source: SearchSource,
@@ -146,7 +146,7 @@ pub struct InvoiceSearchResult {
     pub query: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "snake_case")]
 pub enum SearchSource {
     Online,
@@ -154,7 +154,7 @@ pub enum SearchSource {
 }
 
 /// Per-item projection inside an invoice detail view.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 pub struct InvoiceItemRow {
     pub id: i64,
     pub service: String,
@@ -164,7 +164,7 @@ pub struct InvoiceItemRow {
 
 /// Vehicle subset embedded in `InvoiceDetail`. Mirrors what the user's
 /// reference detail UI reads off `invoice.car`.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 pub struct InvoiceCarInfo {
     pub id: i64,
     pub car_no_plate: String,
@@ -174,7 +174,7 @@ pub struct InvoiceCarInfo {
 }
 
 /// Full invoice for the detail page — header fields + items + car.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 pub struct InvoiceDetail {
     pub id: i64,
     pub car_id: Option<i64>,

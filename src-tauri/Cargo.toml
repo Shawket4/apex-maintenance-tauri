@@ -58,6 +58,12 @@ parking_lot = "0.12"
 dotenvy = "0.15"
 keyring = "3.6.3"
 tauri-plugin-opener = "2.0.0-rc.0"
+
+# Typed IPC — TS bindings generated from the #[tauri::command] fns (debug builds).
+specta = { version = "=2.0.0-rc.22", features = ["derive", "serde_json"] }
+specta-typescript = "0.0.9"
+tauri-specta = { version = "=2.0.0-rc.21", features = ["derive", "typescript"] }
+
 tauri-plugin-dialog = "2"
 rust_xlsxwriter = "0.79"
 

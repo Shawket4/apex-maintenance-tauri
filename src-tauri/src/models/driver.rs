@@ -38,7 +38,7 @@ fn default_payload() -> Value {
     Value::Object(serde_json::Map::new())
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 pub struct DriverRow {
     pub id: i64,
     pub name: String,
