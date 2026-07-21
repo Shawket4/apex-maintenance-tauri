@@ -48,13 +48,14 @@ pub async fn auth_login(
         password,
     };
 
-    let resp = state.http.falcon_login_raw("/api/login", &req).await?;
+    // §5.1 — proxy through maint-rust; the client never talks to Falcon directly.
+    let resp = state.http.maint_post_unauth_raw("/auth/login", &req).await?;
 
     tracing::debug!(
         email = %email,
         status = %resp.status,
         body_len = resp.body.len(),
-        "falcon login response"
+        "maint login response"
     );
 
     let json: Value = match serde_json::from_str(&resp.body) {
@@ -67,46 +68,26 @@ pub async fn auth_login(
         }
     };
 
-    let success = json
-        .get("success")
-        .map(|v| {
-            if let Some(b) = v.as_bool() {
-                b
-            } else if let Some(s) = v.as_str() {
-                !s.is_empty() && s.to_lowercase() != "false"
-            } else {
-                false
-            }
-        })
-        .unwrap_or(false);
-
-    if !success {
+    let jwt = json.get("jwt").and_then(|v| v.as_str()).unwrap_or("");
+    if jwt.is_empty() {
         let message = json
             .get("message")
             .or_else(|| json.get("error"))
             .and_then(|v| v.as_str())
             .unwrap_or("wrong email or password")
             .to_string();
-
-        tracing::warn!(
-            email = %email,
-            success,
-            body = %snippet(&resp.body),
-            "login rejected by server"
-        );
-
+        tracing::warn!(email = %email, body = %snippet(&resp.body), "login rejected");
         return Err(AppError::AuthFailed(message));
     }
 
-    let jwt = json.get("jwt").and_then(|v| v.as_str()).unwrap_or("");
-    let exp = decode_jwt_exp(jwt).unwrap_or(0);
+    let exp = as_i64(&json, "exp").unwrap_or_else(|| decode_jwt_exp(jwt).unwrap_or(0));
 
     let user = UserInfo {
-        id: as_i64(&json, "id").unwrap_or(0),
-        email: as_string(&json, "email").unwrap_or_else(|| email.clone()),
+        id: as_i64(&json, "user_id").unwrap_or(0),
+        email: email.clone(),
         name: as_string(&json, "name").unwrap_or_default(),
         permission: as_i64(&json, "permission").unwrap_or(0) as i32,
-        driver_id: as_i64(&json, "driver_id").unwrap_or(0),
+        driver_id: 0,
         jwt_exp: exp,
     };
 

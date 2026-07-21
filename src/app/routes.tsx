@@ -9,31 +9,26 @@ import {
   RouterProvider,
 } from "@tanstack/react-router";
 
-import { AppLayout } from "./layouts/AppLayout";
+import { MainLayout } from "./layouts/MainLayout";
 import { AuthLayout } from "./layouts/AuthLayout";
 import { fetchCurrentUser } from "@/shared/api/auth";
 import { LoginPage } from "@/pages/login/LoginPage";
-import { DuePage } from "@/pages/due/DuePage";
-import { VehicleDetailPage } from "@/pages/vehicles/detail/VehicleDetailPage";
-import { TiresPage } from "@/pages/tires/TiresPage";
-import { DiagnosticsPage } from "@/pages/diagnostics/DiagnosticsPage";
-import { VehiclesListPage } from "@/pages/vehicles/list/VehiclesListPage";
-import { ServiceInvoicesIndexPage } from "@/pages/service-invoices/index/ServiceInvoicesIndexPage";
-import { ServiceInvoicesByVehiclePage } from "@/pages/service-invoices/by-vehicle/ServiceInvoicesByVehiclePage";
-import { ServiceInvoiceDetailPage } from "@/pages/service-invoices/detail/ServiceInvoiceDetailPage";
+import { TrucksPage } from "@/pages/trucks/TrucksPage";
+import { TruckDetailPage } from "@/pages/trucks/TruckDetailPage";
+import { WorkOrderDetailPage } from "@/pages/wo/WorkOrderDetailPage";
+import { DueBoardPage } from "@/pages/board/DueBoardPage";
+import { InventoryPage } from "@/pages/inventory/InventoryPage";
+import { SettingsPage } from "@/pages/settings/SettingsPage";
+import { AiSearchPage } from "@/pages/ai/AiSearchPage";
 
-const rootRoute = createRootRoute({
-  component: () => <Outlet />,
-});
+const rootRoute = createRootRoute({ component: () => <Outlet /> });
 
 const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/login",
   beforeLoad: async () => {
     const user = await fetchCurrentUser();
-    if (user) {
-      throw redirect({ to: "/" });
-    }
+    if (user) throw redirect({ to: "/" });
   },
   component: () => (
     <AuthLayout>
@@ -47,67 +42,23 @@ const protectedRoute = createRoute({
   id: "protected",
   beforeLoad: async () => {
     const user = await fetchCurrentUser();
-    if (!user) {
-      throw redirect({ to: "/login" });
-    }
+    if (!user) throw redirect({ to: "/login" });
     return { user };
   },
   component: () => (
-    <AppLayout>
+    <MainLayout>
       <Outlet />
-    </AppLayout>
+    </MainLayout>
   ),
 });
 
-const dueRoute = createRoute({
-  getParentRoute: () => protectedRoute,
-  path: "/",
-  component: () => <DuePage />,
-});
-
-const vehicleDetailRoute = createRoute({
-  getParentRoute: () => protectedRoute,
-  path: "/vehicles/$vehicleId",
-  component: () => <VehicleDetailPage />,
-});
-
-const tiresRoute = createRoute({
-  getParentRoute: () => protectedRoute,
-  path: "/tires",
-  component: () => <TiresPage />,
-});
-
-const diagnosticsRoute = createRoute({
-  getParentRoute: () => protectedRoute,
-  path: "/diagnostics",
-  component: () => <DiagnosticsPage />,
-});
-
-const vehiclesRoute = createRoute({
-  getParentRoute: () => protectedRoute,
-  path: "/vehicles",
-  component: () => <VehiclesListPage />,
-});
-
-/* ---- service invoices: vehicles → invoices → detail ---- */
-
-const serviceInvoicesIndexRoute = createRoute({
-  getParentRoute: () => protectedRoute,
-  path: "/service-invoices",
-  component: () => <ServiceInvoicesIndexPage />,
-});
-
-const serviceInvoicesByVehicleRoute = createRoute({
-  getParentRoute: () => protectedRoute,
-  path: "/service-invoices/$vehicleId",
-  component: () => <ServiceInvoicesByVehiclePage />,
-});
-
-const serviceInvoiceDetailRoute = createRoute({
-  getParentRoute: () => protectedRoute,
-  path: "/service-invoices/$vehicleId/$invoiceId",
-  component: () => <ServiceInvoiceDetailPage />,
-});
+const trucksRoute = createRoute({ getParentRoute: () => protectedRoute, path: "/", component: () => <TrucksPage /> });
+const truckDetailRoute = createRoute({ getParentRoute: () => protectedRoute, path: "/trucks/$id", component: () => <TruckDetailPage /> });
+const workOrderDetailRoute = createRoute({ getParentRoute: () => protectedRoute, path: "/wo/$id", component: () => <WorkOrderDetailPage /> });
+const aiRoute = createRoute({ getParentRoute: () => protectedRoute, path: "/ai", component: () => <AiSearchPage /> });
+const dueRoute = createRoute({ getParentRoute: () => protectedRoute, path: "/due", component: () => <DueBoardPage /> });
+const inventoryRoute = createRoute({ getParentRoute: () => protectedRoute, path: "/inventory", component: () => <InventoryPage /> });
+const settingsRoute = createRoute({ getParentRoute: () => protectedRoute, path: "/settings", component: () => <SettingsPage /> });
 
 const notFoundRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -118,14 +69,13 @@ const notFoundRoute = createRoute({
 const routeTree = rootRoute.addChildren([
   loginRoute,
   protectedRoute.addChildren([
+    trucksRoute,
+    truckDetailRoute,
+    workOrderDetailRoute,
+    aiRoute,
     dueRoute,
-    vehicleDetailRoute,
-    tiresRoute,
-    diagnosticsRoute,
-    vehiclesRoute,
-    serviceInvoicesIndexRoute,
-    serviceInvoicesByVehicleRoute,
-    serviceInvoiceDetailRoute,
+    inventoryRoute,
+    settingsRoute,
   ]),
   notFoundRoute,
 ]);

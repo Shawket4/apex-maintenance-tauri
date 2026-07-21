@@ -139,6 +139,26 @@ pub fn run() {
             commands::domain::tire_dismount,
             commands::domain::chassis_get,
             commands::domain::chassis_create,
+            // New domain (online-first passthrough to maint-rust)
+            commands::maint::maint_vehicles,
+            commands::maint::maint_categories,
+            commands::maint::maint_due,
+            commands::maint::maint_work_orders,
+            commands::maint::maint_work_order_get,
+            commands::maint::maint_tires,
+            commands::maint::maint_stock_tires,
+            commands::maint::maint_stock_oil,
+            commands::maint::maint_open_work_order,
+            commands::maint::maint_close_work_order,
+            commands::maint::maint_add_task,
+            commands::maint::maint_add_oil_change,
+            commands::maint::maint_service_plans,
+            commands::maint::maint_upsert_plan,
+            commands::maint::maint_vehicle_classes,
+            commands::maint::maint_assign_class,
+            commands::maint::maint_service_events,
+            commands::maint::maint_ai_query,
+            commands::maint::maint_dev_seed,
         ])
         .run(tauri::generate_context!())
         .expect("error while running apex-maintenance");

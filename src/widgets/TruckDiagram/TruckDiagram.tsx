@@ -402,6 +402,11 @@ function CameraRig({ focus }: { focus: { centre: [number, number, number]; span:
   const controls = useThree((s) => s.controls) as { target: THREE.Vector3; update: () => void; addEventListener: (e: string, f: () => void) => void; removeEventListener: (e: string, f: () => void) => void } | null;
   const goal = useRef<Glide | null>(null);
   const first = useRef(true);
+  // Track the focus identity so a resize-triggered re-fit snaps instead of
+  // gliding. Without this, the container settling to its real size one frame
+  // after mount fires a second fit that glides from the stale fit to the
+  // correct one — read on screen as a jitter on load.
+  const prevFocusKey = useRef<string | null>(null);
 
   useEffect(() => {
     if (!controls) return;
@@ -448,10 +453,17 @@ function CameraRig({ focus }: { focus: { centre: [number, number, number]; span:
       return { tgt, pos: tgt.clone().addScaledVector(TOP_DOWN, dist) };
     };
 
+    const focusKey = focus ? focus.centre.join(",") : null;
+    const focusChanged = focusKey !== prevFocusKey.current;
+    prevFocusKey.current = focusKey;
+
     const raf = requestAnimationFrame(() => {
       const g = focus ? solveFocus(focus) : solveFit();
       if (!g) return;
-      if (first.current || RM) {
+      // Snap (no glide) on the first fit, when reduced-motion is set, or when
+      // this re-fit is only due to a container resize (focus unchanged). Glide
+      // only for a genuine focus change — click into a pair, or Esc back out.
+      if (first.current || RM || !focusChanged) {
         camera.position.copy(g.pos);
         controls.target.copy(g.tgt);
         controls.update();

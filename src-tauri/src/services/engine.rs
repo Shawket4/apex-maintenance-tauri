@@ -41,11 +41,14 @@ pub const ENTITY_TYPES: &[&str] = &[
     "chassis_layouts",
     "chassis_axles",
     "chassis_positions",
-    "maintenance_templates",
-    "maintenance_records",
+    "work_orders",
+    "work_order_tasks",
+    "oil_changes",
+    "vehicle_class_assignments",
     "vehicle_odometer_overrides",
     "tires",
     "tire_assignments",
+    "tire_status_events",
 ];
 
 /// Column lists for applying pulled rows locally. Mirrors the local DDL; the
@@ -54,16 +57,28 @@ pub const ENTITY_TYPES: &[&str] = &[
 /// Here values go through one JSON-aware extractor instead.
 fn columns_for(entity: &str) -> &'static [&'static str] {
     match entity {
-        "maintenance_templates" => &[
-            "id", "vehicle_id", "category_id", "name_ar", "name_en", "notes_ar", "notes_en",
-            "trigger_type", "interval_km", "interval_days", "lead_warn_km", "lead_warn_days",
-            "is_active", "created_at", "updated_at", "deleted_at", "created_by_user_id",
-            "updated_by_user_id", "sync_version",
+        "work_orders" => &[
+            "id", "vehicle_id", "status", "title", "odometer_at_open", "opened_at", "closed_at",
+            "notes_ar", "notes_en", "created_at", "updated_at", "deleted_at",
+            "created_by_user_id", "updated_by_user_id", "sync_version",
         ],
-        "maintenance_records" => &[
-            "id", "template_id", "vehicle_id", "category_id", "performed_at",
-            "odometer_at_service", "next_due_at", "next_due_km", "cost", "vendor",
-            "performed_by", "notes", "attachments", "created_at", "updated_at", "deleted_at",
+        "work_order_tasks" => &[
+            "id", "work_order_id", "kind", "category_id", "description_ar", "description_en",
+            "is_done", "sort_order", "created_at", "updated_at", "deleted_at",
+            "created_by_user_id", "updated_by_user_id", "sync_version",
+        ],
+        "oil_changes" => &[
+            "id", "work_order_id", "vehicle_id", "oil_type", "liters", "odometer", "flagged",
+            "notes", "performed_at", "created_at", "updated_at", "deleted_at",
+            "created_by_user_id", "updated_by_user_id", "sync_version",
+        ],
+        "tire_status_events" => &[
+            "id", "tire_id", "event_type", "work_order_id", "from_status", "to_status",
+            "notes", "occurred_at", "created_at", "updated_at", "deleted_at",
+            "created_by_user_id", "updated_by_user_id", "sync_version",
+        ],
+        "vehicle_class_assignments" => &[
+            "vehicle_id", "class_id", "created_at", "updated_at", "deleted_at",
             "created_by_user_id", "updated_by_user_id", "sync_version",
         ],
         "chassis_layouts" => &[
@@ -81,15 +96,15 @@ fn columns_for(entity: &str) -> &'static [&'static str] {
             "updated_by_user_id", "sync_version",
         ],
         "tires" => &[
-            "id", "dot_code", "internal_serial", "brand", "model", "purchase_date",
-            "purchase_cost", "supplier", "production_week", "production_year", "production_date",
-            "is_retread", "retread_count", "parent_tire_id", "status", "stock_location",
-            "scrap_reason", "scrap_date", "notes", "created_at", "updated_at", "deleted_at",
+            "id", "dot_code", "brand", "model", "size", "status", "origin", "total_km",
+            "parent_tire_id", "retread_count", "notes_ar", "notes_en",
+            "created_at", "updated_at", "deleted_at",
             "created_by_user_id", "updated_by_user_id", "sync_version",
         ],
         "tire_assignments" => &[
-            "id", "tire_id", "position_id", "vehicle_id", "mounted_at", "mounted_odometer",
-            "dismounted_at", "dismounted_odometer", "mount_reason", "dismount_reason", "notes",
+            "id", "tire_id", "position_id", "vehicle_id", "work_order_id", "mounted_at",
+            "mounted_odometer", "mount_reason", "dismounted_at", "dismounted_odometer",
+            "dismount_reason", "notes",
             "created_at", "updated_at", "deleted_at", "created_by_user_id", "updated_by_user_id",
             "sync_version",
         ],
@@ -107,7 +122,7 @@ pub fn columns_for_public(entity: &str) -> &'static [&'static str] {
 }
 
 fn pk_for(entity: &str) -> &'static str {
-    if entity == "vehicle_odometer_overrides" {
+    if entity == "vehicle_odometer_overrides" || entity == "vehicle_class_assignments" {
         "vehicle_id"
     } else {
         "id"

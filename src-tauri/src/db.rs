@@ -42,6 +42,11 @@ const MIGRATIONS: &[Migration] = &[
         name: "0004_offline_engine",
         sql: include_str!("migrations/0004_offline_engine.sql"),
     },
+    Migration {
+        version: 5,
+        name: "0005_new_domain",
+        sql: include_str!("migrations/0005_new_domain.sql"),
+    },
 ];
 
 #[derive(Clone)]

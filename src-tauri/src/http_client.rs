@@ -92,6 +92,18 @@ impl HttpClient {
         consume_response(&url, resp).await
     }
 
+    /// Unauthenticated POST to maint-rust (login proxy — no JWT yet).
+    pub async fn maint_post_unauth_raw<B: Serialize>(
+        &self,
+        path: &str,
+        body: &B,
+    ) -> AppResult<RawResponse> {
+        let url = self.maint_url(path);
+        tracing::debug!(%url, "maint POST (unauth)");
+        let resp = self.inner.post(&url).json(body).send().await?;
+        consume_response(&url, resp).await
+    }
+
     pub async fn maint_post_raw<B: Serialize>(
         &self,
         path: &str,
