@@ -64,7 +64,7 @@ function LoginPage() {
           <form onSubmit={(e) => void onSubmit(e)} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">{t("login.email")}</Label>
-              <Input id="email" type="email" dir="ltr" autoFocus {...register("email")} />
+              <Input id="email" type="text" dir="ltr" autoFocus {...register("email")} />
               {errors.email?.message && (
                 <p className="text-xs text-destructive">{t(errors.email.message)}</p>
               )}
