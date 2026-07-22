@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Link, createFileRoute } from "@tanstack/react-router";
+import { Link, createFileRoute, useCanGoBack, useRouter } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
@@ -73,13 +73,7 @@ function WoCockpit() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-6 p-6">
-      <Link
-        to="/trucks/$truckId"
-        params={{ truckId: String(d.wo.vehicle_id) }}
-        className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowRight className="h-4 w-4 ltr:rotate-180" /> {d.wo.plate}
-      </Link>
+      <WoBackLink vehicleId={d.wo.vehicle_id} plate={d.wo.plate} />
 
       {/* Header */}
       <div className="rounded-2xl border bg-gradient-to-br from-primary/5 to-transparent p-5">
@@ -465,5 +459,25 @@ function CloseWoButton({ woId }: { woId: string }) {
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+/** Back to wherever the WO was opened from; the truck file on a cold entry. */
+function WoBackLink({ vehicleId, plate }: { vehicleId: number; plate: string }) {
+  const { t } = useTranslation();
+  const router = useRouter();
+  const canGoBack = useCanGoBack();
+  const cls = "flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground";
+  if (canGoBack) {
+    return (
+      <button onClick={() => router.history.back()} className={cls}>
+        <ArrowRight className="h-4 w-4 ltr:rotate-180" /> {t("common.back")}
+      </button>
+    );
+  }
+  return (
+    <Link to="/trucks/$truckId" params={{ truckId: String(vehicleId) }} className={cls}>
+      <ArrowRight className="h-4 w-4 ltr:rotate-180" /> {plate}
+    </Link>
   );
 }

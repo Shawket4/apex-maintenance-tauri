@@ -224,6 +224,13 @@
       "mounted": "Odometer at mount",
       "dismounted": "Odometer at dismount",
       "hint": "Kilometers are derived from these readings — a correction repropagates instantly"
+    },
+    "mountReason": {
+      "new": "New",
+      "rotation": "Rotation",
+      "replacement": "Replacement",
+      "repair_return": "Back from repair",
+      "onboard": "Initial onboarding"
     }
   },
   "diagram": {
@@ -271,7 +278,16 @@
       "done": "Done — {{count}} tires recorded"
     },
     "needWo": "An open work order is needed to mount or dismount",
-    "openWoNow": "Open one now"
+    "openWoNow": "Open one now",
+    "inspect": {
+      "mountedAt": "Mounted since",
+      "mountedOdo": "Odometer at mount",
+      "currentRun": "Run this mount",
+      "lifetimeKm": "Lifetime km",
+      "fullFile": "Full file",
+      "mountReason": "Mount reason",
+      "origin": "Origin"
+    }
   },
   "ai": {
     "title": "AI search over service history",

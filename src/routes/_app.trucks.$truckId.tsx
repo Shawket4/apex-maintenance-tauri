@@ -1,4 +1,4 @@
-import { Link, Outlet, createFileRoute } from "@tanstack/react-router";
+import { Link, Outlet, createFileRoute, useCanGoBack, useRouter } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { ArrowRight, Gauge, User } from "lucide-react";
 
@@ -32,12 +32,7 @@ function TruckLayout() {
 
   return (
     <div className="mx-auto max-w-5xl p-6">
-      <Link
-        to="/trucks"
-        className="mb-4 flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowRight className="h-4 w-4 ltr:rotate-180" /> {t("trucks.title")}
-      </Link>
+      <TruckBackLink />
 
       {truck.isLoading ? (
         <Skeleton className="mb-6 h-28 rounded-2xl" />
@@ -97,6 +92,7 @@ function TruckLayout() {
             key={key}
             to={to}
             params={{ truckId }}
+            replace
             activeOptions={{ exact }}
             className="flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition hover:bg-accent [&.active]:bg-primary [&.active]:text-primary-foreground [&.active]:shadow-sm"
           >
@@ -107,5 +103,26 @@ function TruckLayout() {
 
       <Outlet />
     </div>
+  );
+}
+
+/** Back to wherever the truck was opened from (home, fleet, search, due);
+ * fleet list on a cold entry. */
+function TruckBackLink() {
+  const { t } = useTranslation();
+  const router = useRouter();
+  const canGoBack = useCanGoBack();
+  const cls = "mb-4 flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground";
+  if (canGoBack) {
+    return (
+      <button onClick={() => router.history.back()} className={cls}>
+        <ArrowRight className="h-4 w-4 ltr:rotate-180" /> {t("common.back")}
+      </button>
+    );
+  }
+  return (
+    <Link to="/trucks" className={cls}>
+      <ArrowRight className="h-4 w-4 ltr:rotate-180" /> {t("trucks.title")}
+    </Link>
   );
 }

@@ -23,6 +23,12 @@ import { Input } from "@/shared/ui/input";
 import { Skeleton } from "@/shared/ui/skeleton";
 
 export const Route = createFileRoute("/_app/tires/")({
+  // Filter + search live in the URL so back-navigation (e.g. from a tire
+  // file) restores the exact list state.
+  validateSearch: (s: Record<string, unknown>): { status?: string; q?: string } => ({
+    ...(typeof s.status === "string" && s.status !== "all" && s.status ? { status: s.status } : {}),
+    ...(typeof s.q === "string" && s.q ? { q: s.q } : {}),
+  }),
   component: TiresPage,
 });
 
@@ -30,8 +36,17 @@ const STATUS_FILTERS = ["all", "mounted", "in_stock_used", "in_repair", "retread
 
 function TiresPage() {
   const { t, i18n } = useTranslation();
-  const [status, setStatus] = useState<string>("all");
-  const [q, setQ] = useState("");
+  const search = Route.useSearch();
+  const navigate = Route.useNavigate();
+  const status = search.status ?? "all";
+  const q = search.q ?? "";
+  const setStatus = (v: string) =>
+    void navigate({
+      search: (prev) => ({ ...prev, status: v === "all" ? undefined : v }),
+      replace: true,
+    });
+  const setQ = (v: string) =>
+    void navigate({ search: (prev) => ({ ...prev, q: v || undefined }), replace: true });
   const stock = useStock();
   const tires = useTires(status === "all" ? undefined : status, q || undefined);
 

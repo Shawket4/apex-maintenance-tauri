@@ -907,6 +907,11 @@ pub struct PositionRow {
     pub tire_id: Option<String>,
     pub dot_code: Option<String>,
     pub brand: Option<String>,
+    pub model: Option<String>,
+    pub size: Option<String>,
+    pub origin: Option<String>,
+    pub retread_count: Option<i64>,
+    pub mount_reason: Option<String>,
     pub tire_status: Option<String>,
     pub mounted_at: Option<String>,
     pub mounted_odometer: Option<i64>,
@@ -965,7 +970,8 @@ pub fn chassis_get(pool: &DbPool, vehicle_id: i64) -> AppResult<Option<ChassisPa
                          AND x.dismounted_at IS NOT NULL
                          AND x.mounted_odometer IS NOT NULL AND x.dismounted_odometer IS NOT NULL
                          AND x.dismounted_odometer > x.mounted_odometer
-                         AND COALESCE(xp.is_spare,0)=0), 0)
+                         AND COALESCE(xp.is_spare,0)=0), 0),
+                t.model, t.size, t.origin, t.retread_count, ta.mount_reason
            FROM chassis_positions p
            LEFT JOIN tire_assignments ta ON ta.position_id = p.id
                 AND ta.dismounted_at IS NULL AND ta.deleted_at IS NULL
@@ -996,6 +1002,11 @@ pub fn chassis_get(pool: &DbPool, vehicle_id: i64) -> AppResult<Option<ChassisPa
                 mounted_at: r.get(12)?,
                 mounted_odometer: r.get(13)?,
                 total_km: r.get(14)?,
+                model: r.get(15)?,
+                size: r.get(16)?,
+                origin: r.get(17)?,
+                retread_count: r.get(18)?,
+                mount_reason: r.get(19)?,
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;

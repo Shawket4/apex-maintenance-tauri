@@ -570,7 +570,7 @@ export type OnboardPositionInput = { position_id: string; vehicle_id: number; br
 estimated_km: number | null }
 export type OutboxItem = { seq: number; id: string; entity_type: string; entity_id: string; op: string; payload: string; base_sync_version: number; status: string; attempts: number; last_error: string | null; server_row: string | null; enqueued_at: string }
 export type PlanRow = { id: string; class_id: string; category_id: string; trigger_type: string; interval_km: number | null; interval_days: number | null; lead_warn_km: number | null; lead_warn_days: number | null; is_active: boolean }
-export type PositionRow = { id: string; axle_id: string | null; side: string | null; depth: string | null; is_spare: boolean; spare_index: number | null; position_code: string; assignment_id: string | null; tire_id: string | null; dot_code: string | null; brand: string | null; tire_status: string | null; mounted_at: string | null; mounted_odometer: number | null; total_km: number | null; 
+export type PositionRow = { id: string; axle_id: string | null; side: string | null; depth: string | null; is_spare: boolean; spare_index: number | null; position_code: string; assignment_id: string | null; tire_id: string | null; dot_code: string | null; brand: string | null; model: string | null; size: string | null; origin: string | null; retread_count: number | null; mount_reason: string | null; tire_status: string | null; mounted_at: string | null; mounted_odometer: number | null; total_km: number | null; 
 /**
  * The mount/dismount for this position is still queued/unacked.
  */

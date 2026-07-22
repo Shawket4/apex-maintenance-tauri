@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { Gauge, User } from "lucide-react";
@@ -12,12 +11,18 @@ import { Input } from "@/shared/ui/input";
 import { Skeleton } from "@/shared/ui/skeleton";
 
 export const Route = createFileRoute("/_app/trucks/")({
+  // Search text lives in the URL so back-navigation restores the filter.
+  validateSearch: (s: Record<string, unknown>): { q?: string } =>
+    typeof s.q === "string" && s.q ? { q: s.q } : {},
   component: TrucksPage,
 });
 
 function TrucksPage() {
   const { t, i18n } = useTranslation();
-  const [q, setQ] = useState("");
+  const { q = "" } = Route.useSearch();
+  const navigate = Route.useNavigate();
+  const setQ = (v: string) =>
+    void navigate({ search: v ? { q: v } : {}, replace: true });
   const trucks = useTrucks(q || undefined);
 
   return (

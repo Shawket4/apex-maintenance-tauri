@@ -1,4 +1,4 @@
-import { Link, createFileRoute } from "@tanstack/react-router";
+import { Link, createFileRoute, useCanGoBack, useRouter } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useState } from "react";
 import { ArrowRight, Wrench, Recycle, PackageCheck, Ban, Undo2, Pencil } from "lucide-react";
@@ -85,12 +85,7 @@ function TireFilePage() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-6 p-6">
-      <Link
-        to="/tires"
-        className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowRight className="h-4 w-4 ltr:rotate-180" /> {t("tires.title")}
-      </Link>
+      <BackLink fallbackLabel={t("tires.title")} />
 
       <div className="rounded-2xl border bg-gradient-to-br from-primary/5 to-transparent p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
@@ -277,5 +272,32 @@ function EditOdoDialog({ op, onClose }: { op: TireOpRow; onClose: () => void }) 
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** History-aware back: returns to wherever the user actually came from
+ * (truck diagram with its selection intact, search results, …); falls back
+ * to the tires list on a cold entry. */
+function BackLink({ fallbackLabel }: { fallbackLabel: string }) {
+  const { t } = useTranslation();
+  const router = useRouter();
+  const canGoBack = useCanGoBack();
+  if (canGoBack) {
+    return (
+      <button
+        onClick={() => router.history.back()}
+        className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+      >
+        <ArrowRight className="h-4 w-4 ltr:rotate-180" /> {t("common.back")}
+      </button>
+    );
+  }
+  return (
+    <Link
+      to="/tires"
+      className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+    >
+      <ArrowRight className="h-4 w-4 ltr:rotate-180" /> {fallbackLabel}
+    </Link>
   );
 }
