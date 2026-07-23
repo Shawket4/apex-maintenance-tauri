@@ -9,6 +9,7 @@ import { OpenWoDialog } from "@/widgets/wo/OpenWoDialog";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
 import { Skeleton } from "@/shared/ui/skeleton";
+import { EmptyState, PageShell } from "@/widgets/layout/PageShell";
 
 export const Route = createFileRoute("/_app/trucks/$truckId")({
   component: TruckLayout,
@@ -31,13 +32,13 @@ function TruckLayout() {
   const openWo = (openWos.data ?? [])[0];
 
   return (
-    <div className="mx-auto max-w-5xl p-6">
+    <PageShell>
       <TruckBackLink />
 
       {truck.isLoading ? (
-        <Skeleton className="mb-6 h-28 rounded-2xl" />
+        <Skeleton className="h-28 rounded-xl" />
       ) : truck.data ? (
-        <div className="mb-6 rounded-xl border bg-card p-6 shadow-sm">
+        <div className="rounded-xl border bg-card p-6 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <div className="text-2xl font-bold tracking-wide">{truck.data.plate}</div>
@@ -81,12 +82,10 @@ function TruckLayout() {
           </div>
         </div>
       ) : (
-        <div className="mb-6 rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
-          {t("common.notFound")}
-        </div>
+        <EmptyState>{t("common.notFound")}</EmptyState>
       )}
 
-      <div className="mb-6 flex gap-1 rounded-xl border bg-card p-1">
+      <div className="flex gap-1 rounded-xl border bg-card p-1 shadow-sm">
         {TABS.map(({ to, key, exact }) => (
           <Link
             key={key}
@@ -102,7 +101,7 @@ function TruckLayout() {
       </div>
 
       <Outlet />
-    </div>
+    </PageShell>
   );
 }
 
@@ -112,7 +111,7 @@ function TruckBackLink() {
   const { t } = useTranslation();
   const router = useRouter();
   const canGoBack = useCanGoBack();
-  const cls = "mb-4 flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground";
+  const cls = "flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground";
   if (canGoBack) {
     return (
       <button onClick={() => router.history.back()} className={cls}>

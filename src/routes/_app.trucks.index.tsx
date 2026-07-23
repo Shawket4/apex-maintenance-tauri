@@ -8,6 +8,7 @@ import { cn } from "@/shared/lib/cn";
 import { Badge } from "@/shared/ui/badge";
 import { Input } from "@/shared/ui/input";
 import { Skeleton } from "@/shared/ui/skeleton";
+import { EmptyState, PageShell } from "@/widgets/layout/PageShell";
 
 export const Route = createFileRoute("/_app/trucks/")({
   // Search text lives in the URL so back-navigation restores the filter.
@@ -25,17 +26,18 @@ function TrucksPage() {
   const trucks = useTrucks(q || undefined);
 
   return (
-    <div className="mx-auto max-w-5xl space-y-4 p-6">
-      <div className="flex items-center justify-between gap-4">
-        <h1 className="text-2xl font-bold">{t("trucks.title")}</h1>
+    <PageShell
+      title={t("trucks.title")}
+      actions={
         <Input
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder={t("trucks.searchPlaceholder")}
-          className="max-w-xs"
+          className="w-64"
           dir="auto"
         />
-      </div>
+      }
+    >
 
       {trucks.isLoading ? (
         <div className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
@@ -44,9 +46,7 @@ function TrucksPage() {
           ))}
         </div>
       ) : (trucks.data ?? []).length === 0 ? (
-        <div className="rounded-xl border border-dashed p-10 text-center text-sm text-muted-foreground">
-          {t("trucks.empty")}
-        </div>
+        <EmptyState className="p-10">{t("trucks.empty")}</EmptyState>
       ) : (
         <div className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
           {(trucks.data ?? []).map((tr) => (
@@ -54,7 +54,7 @@ function TrucksPage() {
           ))}
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }
 

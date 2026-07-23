@@ -21,6 +21,7 @@ import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
 import { Input } from "@/shared/ui/input";
+import { PageShell } from "@/widgets/layout/PageShell";
 import {
   Select,
   SelectContent,
@@ -36,12 +37,11 @@ export const Route = createFileRoute("/_app/settings")({
 function SettingsPage() {
   const { t } = useTranslation();
   return (
-    <div className="mx-auto max-w-4xl space-y-6 p-6">
-      <h1 className="text-2xl font-bold">{t("settings.title")}</h1>
+    <PageShell title={t("settings.title")}>
       <SyncSection />
       <PlansSection />
       <AppearanceSection />
-    </div>
+    </PageShell>
   );
 }
 

@@ -9,7 +9,6 @@ import { cn } from "@/shared/lib/cn";
 import { Button } from "@/shared/ui/button";
 import { Input } from "@/shared/ui/input";
 import { Label } from "@/shared/ui/label";
-import { DiagramPanel } from "./DiagramPanel";
 
 /** Reason → resulting status. MUST mirror the Rust rule (client domain.rs /
  * server side_effects.rs) — shown to the mechanic before confirming. */
@@ -22,7 +21,7 @@ const REASON_STATUS: Record<string, string> = {
   other: "in_stock_used",
 };
 
-export function DismountSheet({
+export function DismountForm({
   position,
   workOrderId,
   defaultOdometer,
@@ -51,13 +50,7 @@ export function DismountSheet({
   );
 
   return (
-    <DiagramPanel
-      code={position.position_code}
-      title={t("diagram.dismount.title")}
-      subtitle={position.dot_code ?? position.brand ?? undefined}
-      accent="destructive"
-      onClose={onClose}
-    >
+    <div>
       <div className="space-y-1.5">
         <Label className="text-xs text-muted-foreground">{t("diagram.dismount.reason")}</Label>
         <div className="grid grid-cols-3 gap-1.5">
@@ -103,6 +96,6 @@ export function DismountSheet({
       >
         {t("diagram.dismount.submit")}
       </Button>
-    </DiagramPanel>
+    </div>
   );
 }

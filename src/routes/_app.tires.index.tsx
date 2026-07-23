@@ -11,7 +11,6 @@ import { TIRE_BADGE } from "@/shared/lib/status";
 import { cn } from "@/shared/lib/cn";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -21,6 +20,7 @@ import {
 } from "@/shared/ui/dialog";
 import { Input } from "@/shared/ui/input";
 import { Skeleton } from "@/shared/ui/skeleton";
+import { EmptyState, ListCard, PageShell, Section } from "@/widgets/layout/PageShell";
 
 export const Route = createFileRoute("/_app/tires/")({
   // Filter + search live in the URL so back-navigation (e.g. from a tire
@@ -51,74 +51,65 @@ function TiresPage() {
   const tires = useTires(status === "all" ? undefined : status, q || undefined);
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6 p-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">{t("tires.title")}</h1>
-        <LegacyIntakeDialog />
-      </div>
-
+    <PageShell title={t("tires.title")} actions={<LegacyIntakeDialog />}>
       {/* Fungible stock — projected on-hand with pending debits visible. */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm">{t("tires.stock.title")}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {stock.isLoading ? (
-            <Skeleton className="h-16" />
-          ) : (stock.data?.tires ?? []).length === 0 ? (
-            <p className="text-sm text-muted-foreground">{t("tires.stock.empty")}</p>
-          ) : (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {(stock.data?.tires ?? []).map((line) => (
-                <div key={line.id} className="rounded-xl border p-3">
-                  <div className="font-semibold" dir="ltr">
-                    {line.brand} {line.model ?? ""}
-                  </div>
-                  <div className="text-xs text-muted-foreground" dir="ltr">
-                    {line.size ?? ""}
-                  </div>
-                  <div className="mt-2 flex items-baseline gap-2">
-                    <span
-                      className={cn(
-                        "text-2xl font-bold tabular",
-                        line.projected_qty <= 0 && "text-status-overdue",
-                        line.projected_qty > 0 && line.projected_qty <= 4 && "text-status-due_soon",
-                      )}
-                    >
-                      {fmtNumber(line.projected_qty, i18n.language)}
-                    </span>
-                    <span className="text-xs text-muted-foreground">{t("tires.stock.projected")}</span>
-                    {line.pending_debits > 0 && (
-                      <span className="text-xs text-info tabular">
-                        −{fmtNumber(line.pending_debits, i18n.language)} {t("tires.stock.pending")}
-                      </span>
-                    )}
-                  </div>
+      <Section title={t("tires.stock.title")}>
+        {stock.isLoading ? (
+          <Skeleton className="h-16" />
+        ) : (stock.data?.tires ?? []).length === 0 ? (
+          <EmptyState className="p-6">{t("tires.stock.empty")}</EmptyState>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {(stock.data?.tires ?? []).map((line) => (
+              <div key={line.id} className="rounded-xl border bg-card p-3.5 shadow-sm">
+                <div className="font-semibold" dir="ltr">
+                  {line.brand} {line.model ?? ""}
                 </div>
-              ))}
-              <div className="rounded-xl border border-dashed p-3">
-                <div className="text-xs text-muted-foreground">{t("tires.stock.usedPool")}</div>
-                <div className="mt-2 text-2xl font-bold tabular">
-                  {fmtNumber(stock.data?.used_pool_count ?? 0, i18n.language)}
+                <div className="text-xs text-muted-foreground" dir="ltr">
+                  {line.size ?? ""}
+                </div>
+                <div className="mt-2 flex items-baseline gap-2">
+                  <span
+                    className={cn(
+                      "text-2xl font-bold tabular",
+                      line.projected_qty <= 0 && "text-status-overdue",
+                      line.projected_qty > 0 && line.projected_qty <= 4 && "text-status-due_soon",
+                    )}
+                  >
+                    {fmtNumber(line.projected_qty, i18n.language)}
+                  </span>
+                  <span className="text-xs text-muted-foreground">{t("tires.stock.projected")}</span>
+                  {line.pending_debits > 0 && (
+                    <span className="text-xs text-info tabular">
+                      −{fmtNumber(line.pending_debits, i18n.language)} {t("tires.stock.pending")}
+                    </span>
+                  )}
                 </div>
               </div>
+            ))}
+            <div className="rounded-xl border border-dashed p-3.5">
+              <div className="text-xs text-muted-foreground">{t("tires.stock.usedPool")}</div>
+              <div className="mt-2 text-2xl font-bold tabular">
+                {fmtNumber(stock.data?.used_pool_count ?? 0, i18n.language)}
+              </div>
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </div>
+        )}
+      </Section>
 
       {/* Individual assets */}
-      <section>
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-sm font-semibold text-muted-foreground">{t("tires.assets.title")}</h2>
+      <Section
+        title={t("tires.assets.title")}
+        action={
           <Input
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder={t("tires.assets.searchPlaceholder")}
-            className="max-w-56"
+            className="h-8 w-56"
             dir="auto"
           />
-        </div>
+        }
+      >
         <div className="mb-3 flex flex-wrap gap-1.5">
           {STATUS_FILTERS.map((s) => (
             <button
@@ -137,13 +128,11 @@ function TiresPage() {
         </div>
 
         {tires.isLoading ? (
-          <Skeleton className="h-40 rounded-2xl" />
+          <Skeleton className="h-40 rounded-xl" />
         ) : (tires.data ?? []).length === 0 ? (
-          <div className="rounded-xl border border-dashed p-10 text-center text-sm text-muted-foreground">
-            {t("tires.assets.empty")}
-          </div>
+          <EmptyState className="p-10">{t("tires.assets.empty")}</EmptyState>
         ) : (
-          <div className="overflow-hidden rounded-xl border">
+          <ListCard>
             <table className="w-full text-sm">
               <thead className="bg-background/70 text-xs text-muted-foreground">
                 <tr>
@@ -197,10 +186,10 @@ function TiresPage() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </ListCard>
         )}
-      </section>
-    </div>
+      </Section>
+    </PageShell>
   );
 }
 

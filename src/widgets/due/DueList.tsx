@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { EmptyState } from "@/widgets/layout/PageShell";
 
 import type { DueRow } from "@/shared/api/client";
 import { cn } from "@/shared/lib/cn";
@@ -23,11 +24,7 @@ export function DueList({
   const ar = i18n.language.startsWith("ar");
 
   if (rows.length === 0) {
-    return (
-      <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
-        {emptyText}
-      </div>
-    );
+    return <EmptyState>{emptyText}</EmptyState>;
   }
 
   return (

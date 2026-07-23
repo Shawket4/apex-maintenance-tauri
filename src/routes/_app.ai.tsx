@@ -9,6 +9,7 @@ import { notifyError } from "@/shared/lib/notify";
 import { Button } from "@/shared/ui/button";
 import { Input } from "@/shared/ui/input";
 import { Card, CardContent } from "@/shared/ui/card";
+import { EmptyState, PageShell } from "@/widgets/layout/PageShell";
 
 export const Route = createFileRoute("/_app/ai")({
   component: AiSearchPage,
@@ -53,11 +54,14 @@ function AiSearchPage() {
   const cols = rows.length > 0 ? Object.keys(rows[0]) : [];
 
   return (
-    <div className="mx-auto max-w-4xl space-y-4 p-6">
-      <h1 className="flex items-center gap-2 text-2xl font-bold">
-        <Sparkles className="h-6 w-6 text-primary" />
-        {t("ai.title")}
-      </h1>
+    <PageShell
+      title={
+        <span className="flex items-center gap-2">
+          <Sparkles className="h-6 w-6 text-primary" />
+          {t("ai.title")}
+        </span>
+      }
+    >
 
       <div className="flex gap-2">
         <Input
@@ -118,7 +122,7 @@ function AiSearchPage() {
       )}
 
       {!ask.data && !ask.isPending && (
-        <div className="rounded-xl border border-dashed p-8 text-center">
+        <EmptyState>
           <p className="mb-4 text-sm text-muted-foreground">{t("ai.empty")}</p>
           <div className="flex flex-wrap justify-center gap-2">
             {examples.map((ex) => (
@@ -131,8 +135,8 @@ function AiSearchPage() {
               </button>
             ))}
           </div>
-        </div>
+        </EmptyState>
       )}
-    </div>
+    </PageShell>
   );
 }

@@ -294,7 +294,9 @@
       "fullFile": "Full file",
       "mountReason": "Mount reason",
       "origin": "Origin"
-    }
+    },
+    "positions": "Positions",
+    "selectHint": "Click any wheel on the diagram or in the list"
   },
   "ai": {
     "title": "AI search over service history",

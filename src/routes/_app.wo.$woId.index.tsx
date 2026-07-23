@@ -29,6 +29,7 @@ import {
   SelectValue,
 } from "@/shared/ui/select";
 import { Skeleton } from "@/shared/ui/skeleton";
+import { EmptyState, ListCard, PageShell, Section } from "@/widgets/layout/PageShell";
 
 export const Route = createFileRoute("/_app/wo/$woId/")({
   component: WoCockpit,
@@ -45,26 +46,24 @@ function WoCockpit() {
 
   if (wo.isLoading) {
     return (
-      <div className="mx-auto max-w-6xl space-y-4 p-7">
+      <PageShell>
         <Skeleton className="h-24 rounded-xl" />
         <Skeleton className="h-64 rounded-xl" />
-      </div>
+      </PageShell>
     );
   }
   const d = wo.data;
   if (!d) {
     return (
-      <div className="mx-auto max-w-6xl p-7">
-        <div className="rounded-xl border border-dashed p-10 text-center text-sm text-muted-foreground">
-          {t("wo.notFound")}
-        </div>
-      </div>
+      <PageShell>
+        <EmptyState className="p-10">{t("wo.notFound")}</EmptyState>
+      </PageShell>
     );
   }
   const isOpen = d.wo.status === "open";
 
   return (
-    <div className="mx-auto max-w-6xl space-y-5 p-7">
+    <PageShell>
       <Breadcrumb plate={d.wo.plate} vehicleId={d.wo.vehicle_id} />
 
       {/* Header card */}
@@ -106,23 +105,29 @@ function WoCockpit() {
       <div className="grid items-start gap-5 lg:grid-cols-[1fr_360px]">
         <div className="space-y-6">
           {/* Tasks — list in a card, composer docked at the bottom. */}
-          <section>
-            <h2 className="mb-3 text-xs font-semibold text-muted-foreground">
-              {t("wo.tasks")} · <span className="tabular">{fmtNumber(d.tasks.length)}</span>
-            </h2>
-            <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
+          <Section
+            title={
+              <>
+                {t("wo.tasks")} · <span className="tabular">{fmtNumber(d.tasks.length)}</span>
+              </>
+            }
+          >
+            <ListCard>
               <TaskList d={d} canEdit={isOpen} />
               {isOpen && <AddTaskInput woId={woId} />}
-            </div>
-          </section>
+            </ListCard>
+          </Section>
 
           {/* Oil */}
-          <section>
-            <h2 className="mb-3 flex items-center gap-2 text-xs font-semibold text-muted-foreground">
-              <Droplets className="h-3.5 w-3.5 text-status-due_soon" />
-              {t("wo.oil.title")}
-            </h2>
-            <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
+          <Section
+            title={
+              <span className="flex items-center gap-2">
+                <Droplets className="h-3.5 w-3.5 text-status-due_soon" />
+                {t("wo.oil.title")}
+              </span>
+            }
+          >
+            <ListCard>
               {d.oil_changes.map((o, i) => (
                 <div
                   key={o.id}
@@ -167,25 +172,28 @@ function WoCockpit() {
                   {t("common.empty")}
                 </div>
               )}
-            </div>
-          </section>
+            </ListCard>
+          </Section>
 
           {/* Tire ops */}
-          <section>
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+          <Section
+            title={
+              <span className="flex items-center gap-2">
                 <CircleDot className="h-3.5 w-3.5 text-primary" />
                 {t("wo.tires.title")}
-              </h2>
-              {isOpen && (
+              </span>
+            }
+            action={
+              isOpen ? (
                 <Link to="/wo/$woId/tires" params={{ woId }}>
                   <Button size="sm" variant="outline">
                     {t("wo.tires.open")}
                   </Button>
                 </Link>
-              )}
-            </div>
-            <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
+              ) : undefined
+            }
+          >
+            <ListCard>
               {d.tire_ops.length === 0 ? (
                 <div className="px-[18px] py-4 text-sm text-muted-foreground">
                   {t("wo.tires.empty")}
@@ -219,14 +227,13 @@ function WoCockpit() {
                   </div>
                 ))
               )}
-            </div>
-          </section>
+            </ListCard>
+          </Section>
         </div>
 
         {/* Aside: vehicle facts + due suggestions. */}
         <aside className="space-y-6">
-          <section>
-            <h2 className="mb-3 text-xs font-semibold text-muted-foreground">{t("wo.vehicle")}</h2>
+          <Section title={t("wo.vehicle")}>
             <div className="rounded-xl border bg-card px-[18px] py-4 shadow-sm">
               <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-[13px]">
                 <dt className="text-xs text-muted-foreground">{t("trucks.driver")}</dt>
@@ -245,15 +252,14 @@ function WoCockpit() {
                 </dd>
               </dl>
             </div>
-          </section>
+          </Section>
 
-          <section>
-            <h2 className="mb-3 text-xs font-semibold text-muted-foreground">{t("wo.due.title")}</h2>
+          <Section title={t("wo.due.title")}>
             <DueSuggestions d={d} woId={woId} canAdd={isOpen} />
-          </section>
+          </Section>
         </aside>
       </div>
-    </div>
+    </PageShell>
   );
 }
 
@@ -461,11 +467,7 @@ function DueSuggestions({ d, woId, canAdd }: { d: WoDetail; woId: string; canAdd
 
   const rows = d.due.filter((r) => r.status !== "ok");
   if (rows.length === 0) {
-    return (
-      <div className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
-        {t("wo.due.empty")}
-      </div>
-    );
+    return <EmptyState className="p-6">{t("wo.due.empty")}</EmptyState>;
   }
   return (
     <div className="rounded-xl border bg-card p-1.5 shadow-sm">

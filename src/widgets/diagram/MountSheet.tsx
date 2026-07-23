@@ -10,14 +10,13 @@ import { Button } from "@/shared/ui/button";
 import { Input } from "@/shared/ui/input";
 import { Label } from "@/shared/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/ui/tabs";
-import { DiagramPanel } from "./DiagramPanel";
 
-/** Mount onto an empty position, inside a WO — corner panel so the zoomed
- * pair stays visible. Two sources:
+/** Mount onto an empty position, inside a WO — rendered in the inspector
+ * column (the canvas is never overlaid). Two sources:
  *  - NEW from fungible stock → identity (DOT) is captured NOW; the server
  *    derives the stock debit from the shipment-origin insert.
  *  - USED from the individual pool (in_stock_used assets). */
-export function MountSheet({
+export function MountForm({
   position,
   vehicleId,
   workOrderId,
@@ -73,11 +72,6 @@ export function MountSheet({
   );
 
   return (
-    <DiagramPanel
-      code={position.position_code}
-      title={t("diagram.mount.title")}
-      onClose={onClose}
-    >
       <Tabs defaultValue="new">
         <TabsList className="w-full">
           <TabsTrigger value="new" className="flex-1">
@@ -173,7 +167,6 @@ export function MountSheet({
           </Button>
         </TabsContent>
       </Tabs>
-    </DiagramPanel>
   );
 }
 

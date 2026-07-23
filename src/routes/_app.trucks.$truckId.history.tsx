@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { Wrench, ReceiptText, ArrowRight } from "lucide-react";
+import { EmptyState } from "@/widgets/layout/PageShell";
 
 import { useInvoice, useInvoices, useWos } from "@/shared/api/queries";
 import { fmtNumber } from "@/shared/lib/numbers";
@@ -94,11 +95,7 @@ function TruckHistory() {
   }
 
   if (timeline.length === 0) {
-    return (
-      <div className="rounded-xl border border-dashed p-10 text-center text-sm text-muted-foreground">
-        {t("truck.history.empty")}
-      </div>
-    );
+    return <EmptyState className="p-10">{t("truck.history.empty")}</EmptyState>;
   }
 
   return (

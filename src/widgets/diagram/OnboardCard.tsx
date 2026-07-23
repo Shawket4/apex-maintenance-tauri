@@ -9,13 +9,11 @@ import { Button } from "@/shared/ui/button";
 import { Checkbox } from "@/shared/ui/checkbox";
 import { Input } from "@/shared/ui/input";
 import { Label } from "@/shared/ui/label";
-import { DiagramPanel } from "./DiagramPanel";
 
-/** First-time onboarding, in the corner panel — the zoomed pair stays
- * visible while you read the sidewall. Legacy origin: no stock deduction,
- * no work order. Optionally applies the same brand to every remaining
- * empty road position. */
-export function OnboardCard({
+/** First-time onboarding, rendered in the inspector column. Legacy origin —
+ * no stock deduction, no work order. Optionally applies the same brand to
+ * every remaining empty road position. */
+export function OnboardForm({
   position,
   vehicleId,
   emptyPositions,
@@ -66,14 +64,11 @@ export function OnboardCard({
   const others = emptyPositions.length - 1;
 
   return (
-    <DiagramPanel
-      code={position.position_code}
-      title={t("diagram.onboard.title")}
-      subtitle={t("diagram.onboard.subtitle")}
-      onClose={onClose}
-    >
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5">
+    <div>
+      <p className="mb-3 text-xs text-muted-foreground">{t("diagram.onboard.subtitle")}</p>
+
+      <div className="grid grid-cols-2 gap-2.5">
+        <div className="space-y-1">
           <Label htmlFor="ob-brand" className="text-xs text-muted-foreground">
             {t("tires.brand")}
           </Label>
@@ -86,25 +81,19 @@ export function OnboardCard({
             autoFocus
           />
         </div>
-        <div className="space-y-1.5">
+        <div className="space-y-1">
           <Label htmlFor="ob-size" className="text-xs text-muted-foreground">
             {t("tires.size")}
           </Label>
-          <Input
-            id="ob-size"
-            dir="ltr"
-            className="h-9"
-            value={size}
-            onChange={(e) => setSize(e.target.value)}
-          />
+          <Input id="ob-size" dir="ltr" className="h-9" value={size} onChange={(e) => setSize(e.target.value)} />
         </div>
-        <div className="col-span-2 space-y-1.5">
+        <div className="col-span-2 space-y-1">
           <Label htmlFor="ob-dot" className="text-xs text-muted-foreground">
             {t("diagram.mount.dotPrompt")}
           </Label>
           <Input id="ob-dot" dir="ltr" className="h-9" value={dot} onChange={(e) => setDot(e.target.value)} />
         </div>
-        <div className="col-span-2 space-y-1.5">
+        <div className="col-span-2 space-y-1">
           <Label htmlFor="ob-km" className="text-xs text-muted-foreground">
             {t("tires.intake.estimatedKm")}
           </Label>
@@ -119,7 +108,7 @@ export function OnboardCard({
       </div>
 
       {others > 0 && (
-        <label className="mt-4 flex cursor-pointer items-center gap-2.5 rounded-lg border bg-muted/30 px-3 py-2.5 text-xs">
+        <label className="mt-3 flex cursor-pointer items-center gap-2.5 rounded-lg border bg-muted/30 px-3 py-2.5 text-xs">
           <Checkbox checked={applyAll} onCheckedChange={(v) => setApplyAll(v === true)} />
           <span>
             {t("diagram.onboard.sameForAll")}
@@ -131,12 +120,12 @@ export function OnboardCard({
       )}
 
       <Button
-        className="mt-4 w-full"
+        className="mt-3 w-full"
         disabled={!brand.trim() || onboard.isPending}
         onClick={() => onboard.mutate()}
       >
         {t("common.save")}
       </Button>
-    </DiagramPanel>
+    </div>
   );
 }

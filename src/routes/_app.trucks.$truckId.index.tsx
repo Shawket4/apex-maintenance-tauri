@@ -2,6 +2,7 @@ import { useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { Gauge } from "lucide-react";
+import { EmptyState, Section } from "@/widgets/layout/PageShell";
 
 import { commands, unwrap } from "@/shared/api/client";
 import { useDomainMutation, useDue, useWos } from "@/shared/api/queries";
@@ -35,15 +36,9 @@ function TruckOverview() {
 
   return (
     <div className="space-y-6">
-      <section>
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-muted-foreground">{t("wo.title")}</h2>
-          <OverrideOdometerDialog vehicleId={vid} />
-        </div>
+      <Section title={t("wo.title")} action={<OverrideOdometerDialog vehicleId={vid} />}>
         {(wos.data ?? []).length === 0 ? (
-          <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
-            {t("common.empty")}
-          </div>
+          <EmptyState>{t("common.empty")}</EmptyState>
         ) : (
           <div className="space-y-2">
             {(wos.data ?? []).map((w) => (
@@ -75,12 +70,11 @@ function TruckOverview() {
             ))}
           </div>
         )}
-      </section>
+      </Section>
 
-      <section>
-        <h2 className="mb-3 text-sm font-semibold text-muted-foreground">{t("due.title")}</h2>
+      <Section title={t("due.title")}>
         <DueList rows={due.data ?? []} emptyText={t("due.empty")} />
-      </section>
+      </Section>
     </div>
   );
 }

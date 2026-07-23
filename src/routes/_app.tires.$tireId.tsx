@@ -12,7 +12,6 @@ import { TIRE_BADGE } from "@/shared/lib/status";
 import { cn } from "@/shared/lib/cn";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -22,6 +21,7 @@ import {
 import { Input } from "@/shared/ui/input";
 import { Label } from "@/shared/ui/label";
 import { Skeleton } from "@/shared/ui/skeleton";
+import { EmptyState, ListCard, PageShell, Section } from "@/widgets/layout/PageShell";
 
 export const Route = createFileRoute("/_app/tires/$tireId")({
   component: TireFilePage,
@@ -64,27 +64,25 @@ function TireFilePage() {
 
   if (tire.isLoading) {
     return (
-      <div className="mx-auto max-w-4xl space-y-4 p-6">
-        <Skeleton className="h-32 rounded-2xl" />
-        <Skeleton className="h-48 rounded-2xl" />
-      </div>
+      <PageShell>
+        <Skeleton className="h-32 rounded-xl" />
+        <Skeleton className="h-48 rounded-xl" />
+      </PageShell>
     );
   }
   const d = tire.data;
   if (!d) {
     return (
-      <div className="mx-auto max-w-4xl p-6">
-        <div className="rounded-xl border border-dashed p-10 text-center text-sm text-muted-foreground">
-          {t("tires.notFound")}
-        </div>
-      </div>
+      <PageShell>
+        <EmptyState className="p-10">{t("tires.notFound")}</EmptyState>
+      </PageShell>
     );
   }
 
   const actions = TRANSITIONS[d.tire.status] ?? [];
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6 p-6">
+    <PageShell>
       <BackLink fallbackLabel={t("tires.title")} />
 
       <div className="rounded-xl border bg-card p-6 shadow-sm">
@@ -139,56 +137,48 @@ function TireFilePage() {
         </div>
       </div>
 
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm">{t("tires.history")}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {d.mounts.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{t("common.empty")}</p>
-          ) : (
-            <div className="space-y-2">
-              {d.mounts.map((m) => (
-                <div key={m.assignment_id} className="group rounded-lg bg-muted/50 p-3 text-sm">
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium" dir="ltr">
-                      {m.position_code ?? "—"}
-                    </span>
-                    <span className="flex items-center gap-2 text-xs text-muted-foreground tabular">
-                      {fmtCairo(m.mounted_at, "YYYY/MM/DD", i18n.language)}
-                      {m.dismounted_at &&
-                        ` ← ${fmtCairo(m.dismounted_at, "YYYY/MM/DD", i18n.language)}`}
-                      <button
-                        title={t("tires.editOdo.title")}
-                        aria-label={t("tires.editOdo.title")}
-                        onClick={() => setEditing(m)}
-                        className="rounded p-1 text-muted-foreground opacity-0 transition hover:bg-accent hover:text-foreground group-hover:opacity-100"
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </button>
-                    </span>
-                  </div>
-                  <div className="mt-1 text-xs text-muted-foreground tabular">
-                    {m.mounted_odometer != null && fmtNumber(m.mounted_odometer, i18n.language)}
-                    {m.dismounted_odometer != null &&
-                      ` ← ${fmtNumber(m.dismounted_odometer, i18n.language)}`}
-                    {m.dismount_reason && ` · ${t(`diagram.reason.${m.dismount_reason}`)}`}
-                  </div>
+      <Section title={t("tires.history")}>
+        {d.mounts.length === 0 ? (
+          <EmptyState className="p-6">{t("common.empty")}</EmptyState>
+        ) : (
+          <ListCard>
+            {d.mounts.map((m) => (
+              <div key={m.assignment_id} className="group px-[18px] py-3 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium" dir="ltr">
+                    {m.position_code ?? "—"}
+                  </span>
+                  <span className="flex items-center gap-2 text-xs text-muted-foreground tabular">
+                    {fmtCairo(m.mounted_at, "YYYY/MM/DD", i18n.language)}
+                    {m.dismounted_at &&
+                      ` ← ${fmtCairo(m.dismounted_at, "YYYY/MM/DD", i18n.language)}`}
+                    <button
+                      title={t("tires.editOdo.title")}
+                      aria-label={t("tires.editOdo.title")}
+                      onClick={() => setEditing(m)}
+                      className="rounded p-1 text-muted-foreground opacity-0 transition hover:bg-accent hover:text-foreground group-hover:opacity-100"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                  </span>
                 </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                <div className="mt-1 text-xs text-muted-foreground tabular">
+                  {m.mounted_odometer != null && fmtNumber(m.mounted_odometer, i18n.language)}
+                  {m.dismounted_odometer != null &&
+                    ` ← ${fmtNumber(m.dismounted_odometer, i18n.language)}`}
+                  {m.dismount_reason && ` · ${t(`diagram.reason.${m.dismount_reason}`)}`}
+                </div>
+              </div>
+            ))}
+          </ListCard>
+        )}
+      </Section>
 
       {d.events.length > 0 && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm">{t("tires.events")}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
+        <Section title={t("tires.events")}>
+          <ListCard>
             {d.events.map((ev) => (
-              <div key={ev.id} className="flex items-center justify-between rounded-lg bg-muted/50 p-3 text-sm">
+              <div key={ev.id} className="flex items-center justify-between px-[18px] py-3 text-sm">
                 <span>
                   {ev.from_status && t(`tires.status.${ev.from_status}`)}
                   {" ← "}
@@ -199,12 +189,12 @@ function TireFilePage() {
                 </span>
               </div>
             ))}
-          </CardContent>
-        </Card>
+          </ListCard>
+        </Section>
       )}
 
       {editing && <EditOdoDialog op={editing} onClose={() => setEditing(null)} />}
-    </div>
+    </PageShell>
   );
 }
 

@@ -10,6 +10,7 @@ import { cn } from "@/shared/lib/cn";
 import { Badge } from "@/shared/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
 import { Skeleton } from "@/shared/ui/skeleton";
+import { EmptyState, ListCard, PageShell, Section, StatCard } from "@/widgets/layout/PageShell";
 
 export const Route = createFileRoute("/_app/")({
   component: HomePage,
@@ -46,33 +47,21 @@ function HomePage() {
   ];
 
   return (
-    <div className="mx-auto max-w-6xl space-y-7 p-7">
-      <div>
-        <h1 className="text-[23px] font-bold leading-relaxed">{t("home.title")}</h1>
-        <div className="text-xs text-muted-foreground">
-          {dayjs().tz("Africa/Cairo").locale(i18n.language).format("dddd D MMMM")}
-        </div>
-      </div>
-
+    <PageShell
+      title={t("home.title")}
+      subtitle={dayjs().tz("Africa/Cairo").locale(i18n.language).format("dddd D MMMM")}
+    >
       {/* KPI strip — every number already lives in the home summary. */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {kpis.map((k) => (
-          <div key={k.label} className="rounded-xl border bg-card px-5 py-4 shadow-sm">
-            <div className={cn("text-[27px] font-bold leading-snug tabular", k.tone)}>
-              {fmtNumber(k.n, i18n.language)}
-            </div>
-            <div className="text-xs text-muted-foreground">{k.label}</div>
-          </div>
+          <StatCard key={k.label} value={fmtNumber(k.n, i18n.language)} label={k.label} tone={k.tone} />
         ))}
       </div>
 
       {/* Open work orders — the resume-work path. */}
-      <section>
-        <h2 className="mb-3 text-xs font-semibold text-muted-foreground">{t("home.openWos")}</h2>
+      <Section title={t("home.openWos")}>
         {data.open_wos.length === 0 ? (
-          <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
-            {t("home.noOpenWos")}
-          </div>
+          <EmptyState>{t("home.noOpenWos")}</EmptyState>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {data.open_wos.map((w) => (
@@ -105,31 +94,27 @@ function HomePage() {
             ))}
           </div>
         )}
-      </section>
+      </Section>
 
       {/* Due now — one card, one row per item. */}
-      <section>
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-xs font-semibold text-muted-foreground">{t("home.attention")}</h2>
+      <Section
+        title={t("home.attention")}
+        action={
           <Link to="/due" className="text-sm text-primary hover:underline">
             {t("home.viewAll")}
           </Link>
-        </div>
+        }
+      >
         {data.attention.length === 0 ? (
-          <div className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
-            {t("home.noAttention")}
-          </div>
+          <EmptyState className="p-6">{t("home.noAttention")}</EmptyState>
         ) : (
-          <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
-            {data.attention.map((d, i) => (
+          <ListCard>
+            {data.attention.map((d) => (
               <Link
                 key={`${d.vehicle_id}-${d.plan_id}`}
                 to="/trucks/$truckId"
                 params={{ truckId: String(d.vehicle_id) }}
-                className={cn(
-                  "flex items-center justify-between gap-3.5 px-[18px] py-3 transition hover:bg-primary/[0.03]",
-                  i > 0 && "border-t",
-                )}
+                className="flex items-center justify-between gap-3.5 px-[18px] py-3 transition hover:bg-primary/[0.03]"
               >
                 <div className="flex min-w-0 items-center gap-3">
                   <span className={cn("h-2 w-2 flex-none rounded-full", DUE_DOT[d.status])} />
@@ -153,9 +138,9 @@ function HomePage() {
                 </span>
               </Link>
             ))}
-          </div>
+          </ListCard>
         )}
-      </section>
+      </Section>
 
       {/* Low stock. */}
       {(data.low_stock_tires.length > 0 || data.low_stock_oil.length > 0) && (
@@ -186,6 +171,6 @@ function HomePage() {
           </Card>
         </section>
       )}
-    </div>
+    </PageShell>
   );
 }
