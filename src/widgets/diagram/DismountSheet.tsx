@@ -4,22 +4,11 @@ import { useTranslation } from "react-i18next";
 import { commands, unwrap, type PositionRow } from "@/shared/api/client";
 import { useDomainMutation } from "@/shared/api/queries";
 import { notifyError } from "@/shared/lib/notify";
-import { TIRE_BADGE } from "@/shared/lib/status";
+import { REASON_STATUS, TIRE_BADGE } from "@/shared/lib/status";
 import { cn } from "@/shared/lib/cn";
 import { Button } from "@/shared/ui/button";
 import { Input } from "@/shared/ui/input";
 import { Label } from "@/shared/ui/label";
-
-/** Reason → resulting status. MUST mirror the Rust rule (client domain.rs /
- * server side_effects.rs) — shown to the mechanic before confirming. */
-const REASON_STATUS: Record<string, string> = {
-  worn: "scrapped",
-  damaged: "scrapped",
-  rotation: "in_stock_used",
-  puncture: "in_repair",
-  retread: "retreading",
-  other: "in_stock_used",
-};
 
 export function DismountForm({
   position,

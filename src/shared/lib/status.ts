@@ -23,3 +23,16 @@ export const TIRE_BADGE: Record<string, string> = {
   retreading: "bg-violet-soft text-violet",
   scrapped: "bg-status-never_done-soft text-status-never_done",
 };
+
+/** Dismount reason → resulting tire status, shown to the mechanic before
+ * confirming. MUST mirror the Rust rule (the actual derivation): client
+ * src-tauri services/domain.rs and server services/side_effects.rs.
+ * status.test.ts pins this map as a drift canary. */
+export const REASON_STATUS: Record<string, string> = {
+  worn: "scrapped",
+  damaged: "scrapped",
+  rotation: "in_stock_used",
+  puncture: "in_repair",
+  retread: "retreading",
+  other: "in_stock_used",
+};
