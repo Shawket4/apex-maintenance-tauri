@@ -242,7 +242,6 @@
   },
   "diagram": {
     "title": "Tire diagram",
-    "emptyPosition": "Empty position",
     "queued": "Still syncing",
     "spare": "Spare",
     "mount": {
@@ -295,7 +294,6 @@
       "mountReason": "Mount reason",
       "origin": "Origin"
     },
-    "positions": "Positions",
     "selectHint": "Click any wheel on the diagram or in the list"
   },
   "ai": {

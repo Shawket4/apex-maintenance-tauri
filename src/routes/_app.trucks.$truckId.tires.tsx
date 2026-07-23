@@ -7,8 +7,7 @@ import { useChassis, useTruck } from "@/shared/api/queries";
 import { TruckDiagram } from "@/widgets/TruckDiagram/TruckDiagram";
 import { ChassisWizard } from "@/widgets/diagram/ChassisWizard";
 import { OnboardForm } from "@/widgets/diagram/OnboardCard";
-import { DiagramLayout, InspectorShell, PositionList, TireFacts } from "@/widgets/diagram/Workbench";
-import { EmptyState } from "@/widgets/layout/PageShell";
+import { DiagramLayout, InspectorShell, TireFacts } from "@/widgets/diagram/Workbench";
 import { Skeleton } from "@/shared/ui/skeleton";
 
 export const Route = createFileRoute("/_app/trucks/$truckId/tires")({
@@ -20,9 +19,9 @@ export const Route = createFileRoute("/_app/trucks/$truckId/tires")({
   component: TruckTires,
 });
 
-/** INSPECT mode. The canvas owns its column; everything informational lives
- * in the inspector beside it — the top-down pair view is never covered.
- * Occupied → facts; empty → onboarding; nothing selected → position list. */
+/** INSPECT mode. The canvas owns the full row; pressing a wheel opens the
+ * inspector card beside it — the top-down pair view is never covered.
+ * Occupied → facts; empty → onboarding. */
 function TruckTires() {
   const { t } = useTranslation();
   const { truckId } = Route.useParams();
@@ -44,6 +43,7 @@ function TruckTires() {
 
   return (
     <DiagramLayout
+      hint={t("diagram.selectHint")}
       canvas={
         <TruckDiagram
           axles={data.axles}
@@ -89,12 +89,7 @@ function TruckTires() {
               />
             </InspectorShell>
           )
-        ) : (
-          <>
-            <EmptyState className="p-4 text-xs">{t("diagram.selectHint")}</EmptyState>
-            <PositionList chassis={data} selectedId={null} onSelect={select} />
-          </>
-        )
+        ) : null
       }
     />
   );

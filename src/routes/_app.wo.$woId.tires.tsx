@@ -7,7 +7,7 @@ import { TruckDiagram } from "@/widgets/TruckDiagram/TruckDiagram";
 import { ChassisWizard } from "@/widgets/diagram/ChassisWizard";
 import { DismountForm } from "@/widgets/diagram/DismountSheet";
 import { MountForm } from "@/widgets/diagram/MountSheet";
-import { DiagramLayout, InspectorShell, PositionList, TireFacts } from "@/widgets/diagram/Workbench";
+import { DiagramLayout, InspectorShell, TireFacts } from "@/widgets/diagram/Workbench";
 import { EmptyState, PageShell } from "@/widgets/layout/PageShell";
 import { Skeleton } from "@/shared/ui/skeleton";
 
@@ -71,6 +71,7 @@ function WoTires() {
         <ChassisWizard vehicleId={vid} />
       ) : (
         <DiagramLayout
+          hint={isOpen ? t("diagram.selectHint") : t("diagram.needWo")}
           canvas={
             <TruckDiagram
               axles={data.axles}
@@ -80,12 +81,7 @@ function WoTires() {
             />
           }
           inspector={
-            !isOpen ? (
-              <>
-                <EmptyState className="p-4 text-xs">{t("diagram.needWo")}</EmptyState>
-                <PositionList chassis={data} selectedId={null} onSelect={() => undefined} />
-              </>
-            ) : selected ? (
+            !isOpen ? null : selected ? (
               selected.tire_id && selected.assignment_id ? (
                 <InspectorShell
                   position={selected}
@@ -120,12 +116,7 @@ function WoTires() {
                   />
                 </InspectorShell>
               )
-            ) : (
-              <>
-                <EmptyState className="p-4 text-xs">{t("diagram.selectHint")}</EmptyState>
-                <PositionList chassis={data} selectedId={null} onSelect={select} />
-              </>
-            )
+            ) : null
           }
         />
       )}

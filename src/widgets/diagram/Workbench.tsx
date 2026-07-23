@@ -1,26 +1,34 @@
 import { useTranslation } from "react-i18next";
 import { X } from "lucide-react";
 
-import type { ChassisPayload, PositionRow } from "@/shared/api/client";
+import type { PositionRow } from "@/shared/api/client";
 import { cn } from "@/shared/lib/cn";
 import { fmtNumber } from "@/shared/lib/numbers";
 import { TIRE_BADGE } from "@/shared/lib/status";
-import { ListCard } from "@/widgets/layout/PageShell";
 
-/** The diagram workbench layout: the canvas owns its column and is NEVER
- * overlaid — everything informational lives in the inspector column beside
- * it, so the top-down pair view stays fully visible. */
+/** The diagram workbench layout: the canvas owns the full row until a wheel
+ * is pressed; then the inspector card takes its column beside the canvas.
+ * The canvas itself is NEVER overlaid by cards — only the small hint pill
+ * floats over it (bottom edge, away from every wheel). */
 export function DiagramLayout({
   canvas,
   inspector,
+  hint,
   canvasClassName,
 }: {
   canvas: React.ReactNode;
-  inspector: React.ReactNode;
+  inspector?: React.ReactNode;
+  /** Shown as a floating pill over the canvas bottom while no inspector is open. */
+  hint?: string;
   canvasClassName?: string;
 }) {
   return (
-    <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
+    <div
+      className={cn(
+        "grid items-start gap-5",
+        inspector && "lg:grid-cols-[minmax(0,1fr)_340px]",
+      )}
+    >
       <div
         className={cn(
           "relative h-[560px] overflow-hidden rounded-xl border bg-card shadow-sm",
@@ -28,8 +36,13 @@ export function DiagramLayout({
         )}
       >
         {canvas}
+        {hint && !inspector && (
+          <div className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border bg-background/85 px-3.5 py-1.5 text-xs text-muted-foreground shadow-sm backdrop-blur">
+            {hint}
+          </div>
+        )}
       </div>
-      <div className="space-y-5">{inspector}</div>
+      {inspector && <div className="space-y-5">{inspector}</div>}
     </div>
   );
 }
@@ -81,83 +94,6 @@ export function InspectorShell({
       </div>
       <div className="p-4">{children}</div>
     </div>
-  );
-}
-
-/** Every position as a scannable list — the other way to reach a wheel, and
- * the at-a-glance answer to "what's on this truck". Click = select + focus. */
-export function PositionList({
-  chassis,
-  selectedId,
-  onSelect,
-}: {
-  chassis: ChassisPayload;
-  selectedId: string | null;
-  onSelect: (p: PositionRow) => void;
-}) {
-  const { t } = useTranslation();
-
-  const groups: { label: string; rows: PositionRow[] }[] = [
-    {
-      label: t("diagram.positions"),
-      rows: chassis.positions.filter((p) => !p.is_spare),
-    },
-    {
-      label: t("diagram.spare"),
-      rows: chassis.positions.filter((p) => p.is_spare),
-    },
-  ].filter((g) => g.rows.length > 0);
-
-  return (
-    <ListCard>
-      {groups.map((g) => (
-        <div key={g.label}>
-          <div className="bg-background/70 px-4 py-1.5 text-[11px] font-semibold text-muted-foreground">
-            {g.label}
-          </div>
-          <div className="divide-y">
-            {g.rows.map((p) => {
-              const occupied = !!p.tire_id;
-              return (
-                <button
-                  key={p.id}
-                  onClick={() => onSelect(p)}
-                  className={cn(
-                    "flex w-full items-center gap-2.5 px-4 py-2 text-start text-[13px] transition hover:bg-primary/[0.03]",
-                    selectedId === p.id && "bg-primary/[0.06]",
-                  )}
-                >
-                  <span
-                    className="w-14 flex-none rounded-md bg-muted px-1.5 py-0.5 text-center text-[11px] font-bold tabular"
-                    dir="ltr"
-                  >
-                    {p.position_code}
-                  </span>
-                  <span className={cn("min-w-0 flex-1 truncate", !occupied && "text-muted-foreground")} dir="auto">
-                    {occupied ? (p.dot_code ?? p.brand ?? "") : t("diagram.emptyPosition")}
-                  </span>
-                  {p.pending && (
-                    <span className="flex-none rounded-full border px-1.5 text-[10px] text-muted-foreground">
-                      {t("diagram.queued")}
-                    </span>
-                  )}
-                  <span
-                    className={cn(
-                      "h-2 w-2 flex-none rounded-full",
-                      occupied
-                        ? p.pending
-                          ? "bg-status-due_soon"
-                          : "bg-status-ok"
-                        : "bg-border-strong",
-                    )}
-                  />
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      ))}
-    </ListCard>
   );
 }
 

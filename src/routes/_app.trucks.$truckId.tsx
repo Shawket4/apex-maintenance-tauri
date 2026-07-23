@@ -1,6 +1,14 @@
 import { Link, Outlet, createFileRoute, useCanGoBack, useRouter } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { ArrowRight, Gauge, User } from "lucide-react";
+import {
+  ArrowRight,
+  CalendarClock,
+  CircleDot,
+  Gauge,
+  History,
+  LayoutDashboard,
+  User,
+} from "lucide-react";
 
 import { useTruck, useWos } from "@/shared/api/queries";
 import { fmtKm } from "@/shared/lib/numbers";
@@ -16,10 +24,10 @@ export const Route = createFileRoute("/_app/trucks/$truckId")({
 });
 
 const TABS = [
-  { to: "/trucks/$truckId", key: "truck.tabs.overview", exact: true },
-  { to: "/trucks/$truckId/tires", key: "truck.tabs.tires", exact: false },
-  { to: "/trucks/$truckId/history", key: "truck.tabs.history", exact: false },
-  { to: "/trucks/$truckId/due", key: "truck.tabs.due", exact: false },
+  { to: "/trucks/$truckId", key: "truck.tabs.overview", icon: LayoutDashboard, exact: true },
+  { to: "/trucks/$truckId/tires", key: "truck.tabs.tires", icon: CircleDot, exact: false },
+  { to: "/trucks/$truckId/history", key: "truck.tabs.history", icon: History, exact: false },
+  { to: "/trucks/$truckId/due", key: "truck.tabs.due", icon: CalendarClock, exact: false },
 ] as const;
 
 function TruckLayout() {
@@ -85,20 +93,24 @@ function TruckLayout() {
         <EmptyState>{t("common.notFound")}</EmptyState>
       )}
 
-      <div className="flex gap-1 rounded-xl border bg-card p-1 shadow-sm">
-        {TABS.map(({ to, key, exact }) => (
+      {/* Underline tabs: quiet until active — the primary bar hugs the
+       * divider, icons carry recognition. */}
+      <nav className="flex gap-1 border-b">
+        {TABS.map(({ to, key, icon: Icon, exact }) => (
           <Link
             key={key}
             to={to}
             params={{ truckId }}
             replace
             activeOptions={{ exact }}
-            className="flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition hover:bg-accent [&.active]:bg-primary [&.active]:text-primary-foreground [&.active]:shadow-sm"
+            className="group relative flex items-center gap-2 rounded-t-lg px-3.5 pb-3 pt-2 text-sm font-medium text-muted-foreground transition hover:bg-primary/[0.04] hover:text-foreground [&.active]:font-semibold [&.active]:text-primary"
           >
+            <Icon className="h-4 w-4 opacity-70 transition group-[.active]:opacity-100" />
             {t(key)}
+            <span className="absolute inset-x-2.5 -bottom-px hidden h-[2.5px] rounded-full bg-primary group-[.active]:block" />
           </Link>
         ))}
-      </div>
+      </nav>
 
       <Outlet />
     </PageShell>
