@@ -21,7 +21,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Html, Instances, Instance, OrbitControls, Outlines, RoundedBox, ContactShadows } from "@react-three/drei";
+import { Html, Instances, Instance, OrbitControls, Outlines, RoundedBox, ContactShadows, Environment, Lightformer, Grid } from "@react-three/drei";
+import { EffectComposer, N8AO, Bloom, Vignette } from "@react-three/postprocessing";
 
 import type { AxleRow as ChassisAxle, PositionRow as ChassisPosition } from "@/shared/api/client";
 import {
@@ -160,6 +161,52 @@ function Part({
   );
 }
 
+/** Status-ring material whose color GLIDES between states (mount acks,
+ * status changes, legend dimming) instead of snapping. Non-animated fields
+ * stay explicit props — R3F mutates materials in place, and a field that
+ * stops being passed is never reset (the ghosting gotcha). */
+function DampedStatusMaterial({
+  target,
+  emissiveTarget,
+  emissiveIntensity,
+  ghost,
+}: {
+  target: string;
+  emissiveTarget: string;
+  emissiveIntensity: number;
+  ghost: { transparent: boolean; opacity: number; depthWrite: boolean };
+}) {
+  const ref = useRef<THREE.MeshStandardMaterial>(null);
+  const goal = useRef({ c: new THREE.Color(target), e: new THREE.Color(emissiveTarget) });
+  goal.current.c.set(target);
+  goal.current.e.set(emissiveTarget);
+
+  useFrame((_, dt) => {
+    const m = ref.current;
+    if (!m) return;
+    if (RM) {
+      m.color.copy(goal.current.c);
+      m.emissive.copy(goal.current.e);
+      return;
+    }
+    const k = 1 - Math.exp(-9 * dt);
+    m.color.lerp(goal.current.c, k);
+    m.emissive.lerp(goal.current.e, k);
+  });
+
+  return (
+    <meshStandardMaterial
+      ref={ref}
+      roughness={0.45}
+      side={THREE.DoubleSide}
+      emissiveIntensity={emissiveIntensity}
+      transparent={ghost.transparent}
+      opacity={ghost.opacity}
+      depthWrite={ghost.depthWrite}
+    />
+  );
+}
+
 // ── the wheel / empty slot ───────────────────────────────────────────────────
 interface WheelProps {
   pos: ChassisPosition;
@@ -215,7 +262,7 @@ function Wheel({ pos, xyz, dimmed, selected, labelled, onSelect }: WheelProps) {
         {occupied ? (
           <>
             <mesh geometry={tireGeo} castShadow={!dimmed}>
-              <meshStandardMaterial color={RUBBER} roughness={0.85} metalness={0} side={THREE.DoubleSide} {...ghost} />
+              <meshStandardMaterial color={RUBBER} roughness={0.92} metalness={0} side={THREE.DoubleSide} {...ghost} />
               {!dimmed && (
                 <Outlines
                   thickness={selected ? 0.014 : hovered ? 0.007 : 0.004}
@@ -227,13 +274,13 @@ function Wheel({ pos, xyz, dimmed, selected, labelled, onSelect }: WheelProps) {
             {!dimmed && (
               <>
                 <mesh geometry={rimGeo} castShadow>
-                  <meshStandardMaterial color={RIM_C} roughness={0.38} metalness={0.3} />
+                  <meshStandardMaterial color={RIM_C} roughness={0.26} metalness={0.72} />
                 </mesh>
                 <mesh geometry={capGeo}>
-                  <meshStandardMaterial color="#c8d1db" roughness={0.44} metalness={0.22} />
+                  <meshStandardMaterial color="#c8d1db" roughness={0.3} metalness={0.6} />
                 </mesh>
                 <Instances limit={10} geometry={lugGeo} castShadow>
-                  <meshStandardMaterial color="#7f8a97" roughness={0.5} metalness={0.3} />
+                  <meshStandardMaterial color="#7f8a97" roughness={0.38} metalness={0.62} />
                   {LUG_ANGLES.map((a, i) => (
                     <Instance key={i} position={[Math.cos(a) * 0.125, 0, Math.sin(a) * 0.125]} />
                   ))}
@@ -242,13 +289,11 @@ function Wheel({ pos, xyz, dimmed, selected, labelled, onSelect }: WheelProps) {
             )}
             {[0.168, -0.168].map((y) => (
               <mesh key={y} geometry={ringGeo} position={[0, y, 0]} rotation={[(y > 0 ? -1 : 1) * (Math.PI / 2), 0, 0]}>
-                <meshStandardMaterial
-                  color={dimmed ? POSITION_COLORS.empty : color}
-                  roughness={0.45}
-                  side={THREE.DoubleSide}
-                  emissive={dimmed ? "#000000" : color}
+                <DampedStatusMaterial
+                  target={dimmed ? POSITION_COLORS.empty : color}
+                  emissiveTarget={dimmed ? "#000000" : color}
                   emissiveIntensity={dimmed ? 0 : selected ? 0.9 : hovered ? 0.6 : 0.3}
-                  {...ghost}
+                  ghost={ghost}
                 />
               </mesh>
             ))}
@@ -319,7 +364,7 @@ function Tractor({ driveZs }: { driveZs: number[] }) {
         <Part key={x} args={[0.14, RAIL_H, railLen]} position={[x, RAIL_Y, railZ]} color={CHASSIS} />
       ))}
       <mesh geometry={cabGeo} castShadow receiveShadow>
-        <meshStandardMaterial color={TANK_WHITE} roughness={0.58} metalness={0.06} />
+        <meshPhysicalMaterial color={TANK_WHITE} roughness={0.34} metalness={0.05} clearcoat={0.55} clearcoatRoughness={0.28} />
         <Outlines thickness={0.004} color={OUT} screenspace />
       </mesh>
       {/* glass + grille, kept minimal — the diagram's subject is the wheels */}
@@ -347,7 +392,7 @@ function Trailer({ axles, axleZ, fifthZ }: { axles: ChassisAxle[]; axleZ: (a: Ch
   return (
     <group>
       <mesh geometry={tankGeo} position={[0, TANK_Y, TANK_Z]} castShadow receiveShadow>
-        <meshStandardMaterial color={TANK_WHITE} roughness={0.42} metalness={0.12} />
+        <meshPhysicalMaterial color={TANK_WHITE} roughness={0.28} metalness={0.1} clearcoat={0.7} clearcoatRoughness={0.22} />
         <Outlines thickness={0.004} color={OUT} screenspace />
       </mesh>
       {[-1, 1].map((s) => (
@@ -561,19 +606,29 @@ export function TruckDiagram({ axles, positions, selectedId, onSelect }: TruckDi
       className="rounded-lg"
       style={{ opacity: ready ? 1 : 0, transition: "opacity 180ms ease-out" }}
     >
-      <ambientLight intensity={0.8} />
+      <ambientLight intensity={0.35} />
       <directionalLight
         position={[9, 14, -7]}
-        intensity={2.0}
+        intensity={1.6}
         castShadow
-        shadow-mapSize={[1024, 1024]}
+        shadow-mapSize={[2048, 2048]}
+        shadow-bias={-0.0002}
         shadow-camera-left={-16}
         shadow-camera-right={16}
         shadow-camera-top={16}
         shadow-camera-bottom={-16}
         shadow-camera-far={50}
       />
-      <directionalLight position={[-10, 7, 10]} intensity={0.6} />
+      <directionalLight position={[-10, 7, 10]} intensity={0.45} />
+      {/* Procedural studio environment — Lightformers only, nothing fetched
+          (the CSP allows no external HDRIs). This is what makes the clearcoat
+          paint and metal rims read as materials instead of flat fills. */}
+      <Environment resolution={256} frames={1}>
+        <Lightformer form="rect" intensity={2.2} position={[0, 12, 0]} rotation={[-Math.PI / 2, 0, 0]} scale={[26, 26, 1]} />
+        <Lightformer form="rect" intensity={1.1} position={[14, 5, -6]} rotation={[0, -Math.PI / 2.6, 0]} scale={[16, 5, 1]} />
+        <Lightformer form="rect" intensity={0.8} position={[-14, 4, 8]} rotation={[0, Math.PI / 2.4, 0]} scale={[14, 4, 1]} />
+        <Lightformer form="ring" intensity={0.6} position={[0, 6, 16]} scale={[9, 9, 1]} />
+      </Environment>
 
       <group name="rig-root">
         {!detail && <Tractor driveZs={driveZs} />}
@@ -607,6 +662,27 @@ export function TruckDiagram({ axles, positions, selectedId, onSelect }: TruckDi
       </group>
 
       <ContactShadows position={[0, 0.005, 3.4]} scale={38} resolution={1024} blur={2.3} opacity={0.36} far={5} color="#0f172a" />
+      <Grid
+        position={[0, -0.002, 3.4]}
+        args={[60, 60]}
+        cellSize={0.62}
+        cellThickness={0.55}
+        cellColor="#c7cfda"
+        sectionSize={3.1}
+        sectionThickness={1}
+        sectionColor="#aeb9c7"
+        fadeDistance={34}
+        fadeStrength={2.2}
+        infiniteGrid
+      />
+      {/* AO grounds the wheels against the body; bloom only catches the
+          selection halos (toneMapped: false pushes them past the threshold);
+          multisampling keeps the technical-illustration edges crisp. */}
+      <EffectComposer multisampling={4}>
+        <N8AO aoRadius={0.5} intensity={2.4} distanceFalloff={0.7} quality="medium" />
+        <Bloom mipmapBlur intensity={0.35} luminanceThreshold={0.95} luminanceSmoothing={0.2} />
+        <Vignette eskil={false} offset={0.24} darkness={0.38} />
+      </EffectComposer>
       <OrbitControls
         makeDefault
         enableDamping
