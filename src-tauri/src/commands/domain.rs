@@ -3,6 +3,18 @@
 //! fire-and-forget — so a healthy network syncs within a second and a dead
 //! one costs the user nothing. Reads come from services/views.rs (local
 //! truth: mirror ∪ pending outbox, with pending flags).
+//!
+//! THREADING (decided 2026-07-23): these commands call rusqlite (sync) INLINE
+//! on Tauri's async command runtime — deliberately, not by oversight. This is
+//! a single-user desktop app over a local WAL SQLite file: every read is
+//! sub-millisecond and there is no second user to starve. Hopping each of
+//! these onto spawn_blocking would add a thread round-trip per call for no
+//! real benefit and 30 fiddly error-plumbing rewrites for real risk.
+//! `commands/cache.rs` DOES use spawn_blocking — not for the DB, but because
+//! those commands interleave DB work with blocking HTTP pagination against
+//! Falcon, which genuinely must leave the async worker free. If a future
+//! multi-user/server story appears, revisit and add one `run_blocking(db, f)`
+//! helper here.
 
 use serde_json::Value;
 use tauri::State;

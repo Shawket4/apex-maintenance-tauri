@@ -226,4 +226,35 @@ mod tests {
             }
         }
     }
+
+    /// Drift canary: the client is the SOLE chassis generator, so its output
+    /// must stay valid against maint-rust's Postgres enums (migration 0003) —
+    /// a value the enum cast rejects would dead-letter every chassis op. These
+    /// lists are the server's enum vocabularies, pinned here.
+    #[test]
+    fn planned_enum_values_are_valid_against_the_server_enums() {
+        const SECTIONS: &[&str] = &["tractor", "trailer"]; // chassis_section
+        const AXLE_TYPES: &[&str] = &["single", "dual"]; // axle_type
+        const SIDES: &[&str] = &["left", "right"]; // position_side
+        const DEPTHS: &[&str] = &["single", "inner", "outer"]; // position_depth
+        for d in 1..=4 {
+            for tr in 0..=8 {
+                for single in [false, true] {
+                    let p = plan_chassis(&cfg(d, tr, 2, single)).unwrap();
+                    for a in &p.axles {
+                        assert!(SECTIONS.contains(&a.section), "bad section {}", a.section);
+                        assert!(AXLE_TYPES.contains(&a.axle_type), "bad axle_type {}", a.axle_type);
+                    }
+                    for pos in &p.positions {
+                        if let Some(side) = pos.side {
+                            assert!(SIDES.contains(&side), "bad side {side}");
+                        }
+                        if let Some(depth) = pos.depth {
+                            assert!(DEPTHS.contains(&depth), "bad depth {depth}");
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
