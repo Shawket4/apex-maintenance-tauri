@@ -37,7 +37,7 @@ function TruckLayout() {
       {truck.isLoading ? (
         <Skeleton className="mb-6 h-28 rounded-2xl" />
       ) : truck.data ? (
-        <div className="mb-6 rounded-xl border bg-gradient-to-br from-primary/5 to-transparent p-6">
+        <div className="mb-6 rounded-xl border bg-card p-6 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <div className="text-2xl font-bold tracking-wide">{truck.data.plate}</div>

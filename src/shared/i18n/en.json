@@ -1,7 +1,8 @@
 {
   "app": {
     "name": "Apex",
-    "subtitle": "Maintenance"
+    "subtitle": "Maintenance",
+    "tagline": "Petroleum transport"
   },
   "common": {
     "search": "Search",
@@ -45,7 +46,11 @@
     "emailRequired": "Enter your email",
     "passwordRequired": "Enter your password",
     "wrongCredentials": "Wrong email or password",
-    "serverError": "Could not reach the server"
+    "serverError": "Could not reach the server",
+    "welcome": "Welcome back",
+    "welcomeSub": "Sign in to manage your fleet",
+    "brandTagline": "One maintenance record, for every vehicle in your fleet.",
+    "copyright": "© 2026 Apex Petroleum Transport"
   },
   "search": {
     "placeholder": "Search by plate or DOT…",
@@ -67,7 +72,8 @@
     "overdue": "Overdue",
     "dueSoon": "Due soon",
     "neverDone": "Never done",
-    "viewAll": "View all"
+    "viewAll": "View all",
+    "kpiOpen": "Open work orders"
   },
   "trucks": {
     "title": "Trucks",
@@ -121,7 +127,7 @@
     "closedAt": "Closed",
     "odometerAtOpen": "Odometer at open",
     "pending": "Still syncing",
-    "tasks": "Work performed",
+    "tasks": "Work items",
     "addTaskPlaceholder": "Type what was done and press Enter…",
     "category": "Category",
     "noCategory": "No category",
@@ -149,7 +155,8 @@
     "close": "Close work order",
     "closeTitle": "Close work order",
     "closeBody": "The order will be closed with all its items. Are you sure?",
-    "notFound": "Work order not found"
+    "notFound": "Work order not found",
+    "vehicle": "Vehicle"
   },
   "due": {
     "title": "Due",

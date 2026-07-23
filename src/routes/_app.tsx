@@ -1,16 +1,10 @@
 import { Link, Outlet, createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import {
-  Truck,
-  Warehouse,
-  CalendarClock,
-  CircleDot,
-  Sparkles,
-  Settings,
-  LogOut,
-} from "lucide-react";
+import { LogOut, Truck } from "lucide-react";
 
 import { fetchCurrentUser, performLogout, useAuth } from "@/shared/api/auth";
+import { useHome } from "@/shared/api/queries";
+import { fmtNumber } from "@/shared/lib/numbers";
 import { Omnisearch } from "@/widgets/shell/Omnisearch";
 import { SyncIndicator } from "@/widgets/shell/SyncIndicator";
 
@@ -24,74 +18,86 @@ export const Route = createFileRoute("/_app")({
 });
 
 const NAV = [
-  { to: "/", key: "nav.home", icon: Warehouse, exact: true },
-  { to: "/trucks", key: "nav.trucks", icon: Truck },
-  { to: "/due", key: "nav.due", icon: CalendarClock },
-  { to: "/tires", key: "nav.tires", icon: CircleDot },
-  { to: "/ai", key: "nav.ai", icon: Sparkles },
-  { to: "/settings", key: "nav.settings", icon: Settings },
+  { to: "/", key: "nav.home", exact: true },
+  { to: "/trucks", key: "nav.trucks", exact: false },
+  { to: "/due", key: "nav.due", exact: false },
+  { to: "/tires", key: "nav.tires", exact: false },
+  { to: "/ai", key: "nav.ai", exact: false },
+  { to: "/settings", key: "nav.settings", exact: false },
 ] as const;
 
+/** Topbar shell (design sync 2026-07-23): brand · horizontal nav (overdue
+ * count on المستحق) · omnisearch · honest sync state · user. Content pages
+ * sit on the soft app background. */
 function AppShell() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const home = useHome();
+  const overdue = home.data?.due_counts.overdue ?? 0;
+
+  const initial = (user?.name || user?.email || "؟").trim().charAt(0);
 
   return (
-    <div className="flex h-screen bg-background text-foreground">
-      <aside className="flex w-64 flex-col border-e bg-card/60 backdrop-blur print:hidden">
-        <div className="flex items-center gap-2 px-5 pb-4 pt-6">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <Truck className="h-5 w-5" />
+    <div className="flex h-screen flex-col bg-background text-foreground">
+      <header className="flex h-[60px] flex-none items-center gap-5 border-b bg-card px-6 print:hidden">
+        <Link to="/" className="flex flex-none items-center gap-2.5">
+          <div className="grid h-8 w-8 place-items-center rounded-lg bg-primary text-[15px] font-bold text-primary-foreground">
+            <Truck className="h-4.5 w-4.5" />
           </div>
-          <div>
-            <div className="text-sm font-bold leading-tight">{t("app.name")}</div>
-            <div className="text-xs text-muted-foreground">{t("app.subtitle")}</div>
+          <div className="whitespace-nowrap text-[13.5px] font-bold">
+            {t("app.name")}{" "}
+            <span className="text-[11.5px] font-medium text-muted-foreground">
+              · {t("app.tagline")}
+            </span>
           </div>
-        </div>
+        </Link>
 
-        <div className="px-3 pb-2">
-          <Omnisearch />
-        </div>
-
-        <nav className="flex-1 space-y-1 px-3">
-          {NAV.map(({ to, key, icon: Icon, ...rest }) => (
+        <nav className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
+          {NAV.map(({ to, key, exact }) => (
             <Link
               key={to}
               to={to}
-              activeOptions={{ exact: "exact" in rest && rest.exact }}
-              className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-muted-foreground transition hover:bg-accent hover:text-foreground [&.active]:bg-primary/10 [&.active]:font-semibold [&.active]:text-primary"
+              activeOptions={{ exact }}
+              className="flex flex-none items-center whitespace-nowrap rounded-lg px-3 py-2 text-[13px] font-medium text-muted-foreground transition hover:bg-foreground/5 hover:text-foreground [&.active]:bg-primary/10 [&.active]:font-bold [&.active]:text-primary"
             >
-              <Icon className="h-4 w-4" />
               {t(key)}
+              {key === "nav.due" && overdue > 0 && (
+                <span className="ms-2 rounded-full bg-status-overdue-soft px-2 py-0.5 text-xs font-semibold text-status-overdue tabular">
+                  {fmtNumber(overdue, i18n.language)}
+                </span>
+              )}
             </Link>
           ))}
         </nav>
 
-        <div className="space-y-1 border-t p-3">
-          <SyncIndicator />
-          <div className="flex items-center justify-between gap-2 rounded-lg px-3 py-2">
-            <div className="min-w-0">
-              <div className="truncate text-xs font-semibold">{user?.name || user?.email}</div>
-              <div className="truncate text-[11px] text-muted-foreground" dir="ltr">
-                {user?.email}
-              </div>
-            </div>
-            <button
-              title={t("nav.logout")}
-              aria-label={t("nav.logout")}
-              onClick={() => {
-                void performLogout().then(() => navigate({ to: "/login" }));
-              }}
-              className="rounded-lg p-2 text-muted-foreground transition hover:bg-accent hover:text-foreground"
-            >
-              <LogOut className="h-4 w-4" />
-            </button>
-          </div>
+        <div className="w-60 flex-none">
+          <Omnisearch />
         </div>
-      </aside>
 
-      <main className="flex-1 overflow-auto">
+        <SyncIndicator />
+
+        <div className="flex flex-none items-center gap-1.5">
+          <div
+            title={user?.email ?? ""}
+            className="grid h-[30px] w-[30px] place-items-center rounded-full bg-muted text-xs font-bold text-muted-foreground"
+          >
+            {initial}
+          </div>
+          <button
+            title={t("nav.logout")}
+            aria-label={t("nav.logout")}
+            onClick={() => {
+              void performLogout().then(() => navigate({ to: "/login" }));
+            }}
+            className="rounded-lg p-2 text-muted-foreground transition hover:bg-foreground/5 hover:text-foreground"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
+        </div>
+      </header>
+
+      <main className="min-h-0 flex-1 overflow-auto">
         <Outlet />
       </main>
     </div>

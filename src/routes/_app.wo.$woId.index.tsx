@@ -2,26 +2,16 @@ import { useRef, useState } from "react";
 import { Link, createFileRoute, useCanGoBack, useRouter } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import {
-  ArrowRight,
-  CircleDot,
-  Droplets,
-  Gauge,
-  Plus,
-  Trash2,
-  TriangleAlert,
-  Lock,
-} from "lucide-react";
+import { CircleDot, Droplets, Gauge, Plus, Trash2, TriangleAlert, Lock } from "lucide-react";
 
 import { commands, unwrap, type WoDetail } from "@/shared/api/client";
-import { useCategories, useDomainMutation, useStock, useWo } from "@/shared/api/queries";
+import { useCategories, useDomainMutation, useStock, useTruck, useWo } from "@/shared/api/queries";
 import { notifyError } from "@/shared/lib/notify";
 import { fmtNumber } from "@/shared/lib/numbers";
 import { fmtAgo, fmtCairo } from "@/shared/lib/time";
-import { DueList } from "@/widgets/due/DueList";
+import { cn } from "@/shared/lib/cn";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -45,24 +35,26 @@ export const Route = createFileRoute("/_app/wo/$woId/")({
 });
 
 /** The cockpit: the screen a mechanic lives in while the truck is in the bay.
- * Enter-to-add tasks, structured oil form, tire ops, due suggestions. */
+ * Design 2026-07-23: breadcrumb, white header card with the odometer block,
+ * task list with a docked composer, vehicle facts + due suggestions aside. */
 function WoCockpit() {
   const { t, i18n } = useTranslation();
   const { woId } = Route.useParams();
   const wo = useWo(woId);
+  const truck = useTruck(wo.data?.wo.vehicle_id ?? 0);
 
   if (wo.isLoading) {
     return (
-      <div className="mx-auto max-w-4xl space-y-4 p-6">
-        <Skeleton className="h-24 rounded-2xl" />
-        <Skeleton className="h-64 rounded-2xl" />
+      <div className="mx-auto max-w-6xl space-y-4 p-7">
+        <Skeleton className="h-24 rounded-xl" />
+        <Skeleton className="h-64 rounded-xl" />
       </div>
     );
   }
   const d = wo.data;
   if (!d) {
     return (
-      <div className="mx-auto max-w-4xl p-6">
+      <div className="mx-auto max-w-6xl p-7">
         <div className="rounded-xl border border-dashed p-10 text-center text-sm text-muted-foreground">
           {t("wo.notFound")}
         </div>
@@ -72,152 +64,219 @@ function WoCockpit() {
   const isOpen = d.wo.status === "open";
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6 p-6">
-      <WoBackLink vehicleId={d.wo.vehicle_id} plate={d.wo.plate} />
+    <div className="mx-auto max-w-6xl space-y-5 p-7">
+      <Breadcrumb plate={d.wo.plate} vehicleId={d.wo.vehicle_id} />
 
-      {/* Header */}
-      <div className="rounded-xl border bg-gradient-to-br from-primary/5 to-transparent p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-3">
-              <span className="text-xl font-bold tracking-wide">{d.wo.plate}</span>
-              <Badge
-                className={
-                  isOpen
-                    ? "bg-status-ok-soft text-status-ok hover:bg-status-ok-soft"
-                    : "bg-muted text-muted-foreground hover:bg-muted"
-                }
-              >
-                {t(`wo.status.${d.wo.status}`)}
-              </Badge>
-              {d.wo.pending && <Badge variant="outline">{t("wo.pending")}</Badge>}
-            </div>
-            <div className="mt-1.5 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-              <span>
-                {t("wo.openedAt")} {fmtAgo(d.wo.opened_at, i18n.language)}
-              </span>
-              {d.wo.odometer_at_open != null && (
-                <span className="flex items-center gap-1 tabular">
-                  <Gauge className="h-3.5 w-3.5" />
-                  {fmtNumber(d.wo.odometer_at_open, i18n.language)} {t("common.km")}
-                </span>
-              )}
-              {d.wo.closed_at && (
-                <span>
-                  {t("wo.closedAt")} {fmtCairo(d.wo.closed_at, "YYYY/MM/DD HH:mm", i18n.language)}
-                </span>
-              )}
-            </div>
+      {/* Header card */}
+      <div className="flex flex-wrap items-center justify-between gap-5 rounded-xl border bg-card px-6 py-5 shadow-sm">
+        <div>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <span className="whitespace-nowrap text-2xl font-bold tracking-wide">{d.wo.plate}</span>
+            <Badge
+              className={
+                isOpen
+                  ? "bg-status-ok-soft text-status-ok hover:bg-status-ok-soft"
+                  : "bg-muted text-muted-foreground hover:bg-muted"
+              }
+            >
+              {t(`wo.status.${d.wo.status}`)}
+            </Badge>
+            {d.wo.pending && <Badge variant="outline">{t("wo.pending")}</Badge>}
           </div>
+          <div className="mt-0.5 text-xs text-muted-foreground">
+            {t("wo.openedAt")} {fmtAgo(d.wo.opened_at, i18n.language)}
+            {d.wo.closed_at &&
+              ` · ${t("wo.closedAt")} ${fmtCairo(d.wo.closed_at, "YYYY/MM/DD HH:mm", i18n.language)}`}
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-6">
+          {d.wo.odometer_at_open != null && (
+            <div>
+              <div className="text-xs text-muted-foreground">{t("wo.odometerAtOpen")}</div>
+              <div className="flex items-center gap-1.5 text-[17px] font-semibold tabular">
+                <Gauge className="h-4 w-4 text-muted-foreground" />
+                {fmtNumber(d.wo.odometer_at_open, i18n.language)} {t("common.km")}
+              </div>
+            </div>
+          )}
           {isOpen && <CloseWoButton woId={woId} />}
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_290px]">
+      <div className="grid items-start gap-5 lg:grid-cols-[1fr_360px]">
         <div className="space-y-6">
-          {/* Tasks */}
+          {/* Tasks — list in a card, composer docked at the bottom. */}
           <section>
-            <h2 className="mb-3 text-sm font-semibold text-muted-foreground">{t("wo.tasks")}</h2>
-            {isOpen && <AddTaskInput woId={woId} />}
-            <TaskList d={d} canEdit={isOpen} />
+            <h2 className="mb-3 text-xs font-semibold text-muted-foreground">
+              {t("wo.tasks")} · <span className="tabular">{fmtNumber(d.tasks.length)}</span>
+            </h2>
+            <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
+              <TaskList d={d} canEdit={isOpen} />
+              {isOpen && <AddTaskInput woId={woId} />}
+            </div>
           </section>
 
           {/* Oil */}
           <section>
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-sm">
-                  <Droplets className="h-4 w-4 text-status-due_soon" />
-                  {t("wo.oil.title")}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {d.oil_changes.map((o) => (
-                  <div
-                    key={o.id}
-                    className="flex items-center justify-between rounded-lg bg-muted/50 p-3 text-sm"
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium" dir="ltr">
-                        {o.oil_type}
-                      </span>
-                      <span className="tabular">
-                        {fmtNumber(o.liters, i18n.language)} {t("common.liters")}
-                      </span>
-                      {o.flagged && (
-                        <Badge variant="outline" className="gap-1 border-status-due_soon text-status-due_soon">
-                          <TriangleAlert className="h-3 w-3" />
-                          {t("wo.oil.flaggedBadge")}
-                        </Badge>
-                      )}
-                    </div>
-                    <span className="text-xs text-muted-foreground tabular">
-                      {o.odometer != null && `${fmtNumber(o.odometer, i18n.language)} ${t("common.km")}`}
+            <h2 className="mb-3 flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+              <Droplets className="h-3.5 w-3.5 text-status-due_soon" />
+              {t("wo.oil.title")}
+            </h2>
+            <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
+              {d.oil_changes.map((o, i) => (
+                <div
+                  key={o.id}
+                  className={cn(
+                    "flex items-center justify-between px-[18px] py-3 text-sm",
+                    i > 0 && "border-t",
+                  )}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <span className="font-semibold" dir="ltr">
+                      {o.oil_type}
                     </span>
+                    <span className="tabular">
+                      {fmtNumber(o.liters, i18n.language)} {t("common.liters")}
+                    </span>
+                    {o.flagged && (
+                      <Badge
+                        variant="outline"
+                        className="gap-1 border-status-due_soon text-status-due_soon"
+                      >
+                        <TriangleAlert className="h-3 w-3" />
+                        {t("wo.oil.flaggedBadge")}
+                      </Badge>
+                    )}
+                    {o.pending && <Badge variant="outline">{t("wo.pending")}</Badge>}
                   </div>
-                ))}
-                {isOpen && <OilForm woId={woId} vehicleId={d.wo.vehicle_id} odometerAtOpen={d.wo.odometer_at_open} />}
-              </CardContent>
-            </Card>
+                  <span className="text-xs text-muted-foreground tabular">
+                    {o.odometer != null && `${fmtNumber(o.odometer, i18n.language)} ${t("common.km")}`}
+                  </span>
+                </div>
+              ))}
+              {isOpen && (
+                <OilForm
+                  woId={woId}
+                  vehicleId={d.wo.vehicle_id}
+                  odometerAtOpen={d.wo.odometer_at_open}
+                  hasRows={d.oil_changes.length > 0}
+                />
+              )}
+              {!isOpen && d.oil_changes.length === 0 && (
+                <div className="px-[18px] py-4 text-sm text-muted-foreground">
+                  {t("common.empty")}
+                </div>
+              )}
+            </div>
           </section>
 
           {/* Tire ops */}
           <section>
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center justify-between text-sm">
-                  <span className="flex items-center gap-2">
-                    <CircleDot className="h-4 w-4 text-primary" />
-                    {t("wo.tires.title")}
-                  </span>
-                  {isOpen && (
-                    <Link to="/wo/$woId/tires" params={{ woId }}>
-                      <Button size="sm" variant="secondary">
-                        {t("wo.tires.open")}
-                      </Button>
-                    </Link>
-                  )}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {d.tire_ops.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">{t("wo.tires.empty")}</p>
-                ) : (
-                  <div className="space-y-2">
-                    {d.tire_ops.map((op) => (
-                      <div
-                        key={op.assignment_id}
-                        className="flex items-center justify-between rounded-lg bg-muted/50 p-3 text-sm"
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+                <CircleDot className="h-3.5 w-3.5 text-primary" />
+                {t("wo.tires.title")}
+              </h2>
+              {isOpen && (
+                <Link to="/wo/$woId/tires" params={{ woId }}>
+                  <Button size="sm" variant="outline">
+                    {t("wo.tires.open")}
+                  </Button>
+                </Link>
+              )}
+            </div>
+            <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
+              {d.tire_ops.length === 0 ? (
+                <div className="px-[18px] py-4 text-sm text-muted-foreground">
+                  {t("wo.tires.empty")}
+                </div>
+              ) : (
+                d.tire_ops.map((op, i) => (
+                  <div
+                    key={op.assignment_id}
+                    className={cn(
+                      "flex items-center justify-between px-[18px] py-3 text-sm",
+                      i > 0 && "border-t",
+                    )}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <span
+                        className="rounded-md bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary tabular"
+                        dir="ltr"
                       >
-                        <div className="flex items-center gap-2">
-                          <span className="rounded bg-background px-1.5 py-0.5 text-xs font-bold tabular" dir="ltr">
-                            {op.position_code ?? "—"}
-                          </span>
-                          <span dir="ltr">{op.dot_code ?? op.brand ?? ""}</span>
-                          {op.pending && (
-                            <Badge variant="outline" className="text-[10px]">
-                              {t("wo.pending")}
-                            </Badge>
-                          )}
-                        </div>
-                        <span className="text-xs text-muted-foreground">
-                          {op.dismounted_at ? t("wo.tires.dismounted") : t("wo.tires.mounted")}
-                        </span>
-                      </div>
-                    ))}
+                        {op.position_code ?? "—"}
+                      </span>
+                      <span dir="ltr">{op.dot_code ?? op.brand ?? ""}</span>
+                      {op.pending && (
+                        <Badge variant="outline" className="text-[10px]">
+                          {t("wo.pending")}
+                        </Badge>
+                      )}
+                    </div>
+                    <span className="text-xs text-muted-foreground">
+                      {op.dismounted_at ? t("wo.tires.dismounted") : t("wo.tires.mounted")}
+                    </span>
                   </div>
-                )}
-              </CardContent>
-            </Card>
+                ))
+              )}
+            </div>
           </section>
         </div>
 
-        {/* Due suggestions */}
-        <aside>
-          <h2 className="mb-3 text-sm font-semibold text-muted-foreground">{t("wo.due.title")}</h2>
-          <DueSuggestions d={d} woId={woId} canAdd={isOpen} />
+        {/* Aside: vehicle facts + due suggestions. */}
+        <aside className="space-y-6">
+          <section>
+            <h2 className="mb-3 text-xs font-semibold text-muted-foreground">{t("wo.vehicle")}</h2>
+            <div className="rounded-xl border bg-card px-[18px] py-4 shadow-sm">
+              <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-[13px]">
+                <dt className="text-xs text-muted-foreground">{t("trucks.driver")}</dt>
+                <dd className="truncate font-semibold">{truck.data?.driver_name ?? "—"}</dd>
+                <dt className="text-xs text-muted-foreground">{t("truck.class")}</dt>
+                <dd className="truncate font-semibold">
+                  {truck.data?.class_name_ar ?? t("trucks.unclassified")}
+                </dd>
+                <dt className="text-xs text-muted-foreground">{t("truck.odometer")}</dt>
+                <dd className="truncate font-semibold tabular">
+                  {truck.data?.odometer
+                    ? `${fmtNumber(truck.data.odometer.km, i18n.language)} ${t("common.km")} (${t(
+                        `truck.odometerSource.${truck.data.odometer.source}`,
+                      )})`
+                    : "—"}
+                </dd>
+              </dl>
+            </div>
+          </section>
+
+          <section>
+            <h2 className="mb-3 text-xs font-semibold text-muted-foreground">{t("wo.due.title")}</h2>
+            <DueSuggestions d={d} woId={woId} canAdd={isOpen} />
+          </section>
         </aside>
       </div>
+    </div>
+  );
+}
+
+function Breadcrumb({ plate, vehicleId }: { plate: string; vehicleId: number }) {
+  const { t } = useTranslation();
+  const router = useRouter();
+  const canGoBack = useCanGoBack();
+  return (
+    <div className="text-xs text-muted-foreground">
+      {canGoBack ? (
+        <button onClick={() => router.history.back()} className="font-medium hover:text-foreground">
+          {t("common.back")}
+        </button>
+      ) : (
+        <Link
+          to="/trucks/$truckId"
+          params={{ truckId: String(vehicleId) }}
+          className="font-medium text-muted-foreground hover:text-foreground"
+        >
+          {plate}
+        </Link>
+      )}{" "}
+      ‹ <span className="font-semibold text-foreground">{t("wo.title")} {plate}</span>
     </div>
   );
 }
@@ -248,7 +307,7 @@ function AddTaskInput({ woId }: { woId: string }) {
   };
 
   return (
-    <div className="mb-3 flex gap-2">
+    <div className="flex gap-2 border-t bg-background/70 px-4 py-3">
       <Input
         ref={inputRef}
         value={text}
@@ -259,9 +318,10 @@ function AddTaskInput({ woId }: { woId: string }) {
         placeholder={t("wo.addTaskPlaceholder")}
         autoFocus
         dir="auto"
+        className="bg-card"
       />
       <Select value={category} onValueChange={setCategory}>
-        <SelectTrigger className="w-40 shrink-0">
+        <SelectTrigger className="w-40 shrink-0 bg-card">
           <SelectValue placeholder={t("wo.noCategory")} />
         </SelectTrigger>
         <SelectContent>
@@ -287,26 +347,25 @@ function TaskList({ d, canEdit }: { d: WoDetail; canEdit: boolean }) {
 
   const freeTasks = d.tasks.filter((task) => task.kind === "free");
   if (freeTasks.length === 0) {
-    return (
-      <div className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
-        {t("common.empty")}
-      </div>
-    );
+    return <div className="px-[18px] py-4 text-sm text-muted-foreground">{t("common.empty")}</div>;
   }
   return (
-    <ul className="space-y-2">
-      {freeTasks.map((task) => (
+    <ul>
+      {freeTasks.map((task, i) => (
         <li
           key={task.id}
-          className="group flex items-center justify-between rounded-xl border bg-card p-3 text-sm"
+          className={cn(
+            "group flex items-center justify-between gap-3 px-[18px] py-3 text-sm",
+            i > 0 && "border-t",
+          )}
         >
-          <div className="flex min-w-0 items-center gap-2">
+          <div className="flex min-w-0 items-center gap-2.5">
             {task.category_name_ar && (
               <Badge variant="secondary" className="shrink-0">
                 {task.category_name_ar}
               </Badge>
             )}
-            <span className="min-w-0 break-words">{task.description_ar}</span>
+            <span className="min-w-0 break-words font-medium">{task.description_ar}</span>
             {task.pending && (
               <Badge variant="outline" className="shrink-0 text-[10px]">
                 {t("wo.pending")}
@@ -333,10 +392,12 @@ function OilForm({
   woId,
   vehicleId,
   odometerAtOpen,
+  hasRows,
 }: {
   woId: string;
   vehicleId: number;
   odometerAtOpen: number | null;
+  hasRows: boolean;
 }) {
   const { t } = useTranslation();
   const stock = useStock();
@@ -355,11 +416,11 @@ function OilForm({
   );
 
   return (
-    <div className="flex flex-wrap items-end gap-2">
+    <div className={cn("flex flex-wrap items-end gap-2 bg-background/70 px-4 py-3", hasRows && "border-t")}>
       <div className="min-w-36 flex-1 space-y-1">
         <Label className="text-xs">{t("wo.oil.type")}</Label>
         <Select value={oilType} onValueChange={setOilType}>
-          <SelectTrigger>
+          <SelectTrigger className="bg-card">
             <SelectValue placeholder={t("wo.oil.type")} />
           </SelectTrigger>
           <SelectContent>
@@ -375,7 +436,7 @@ function OilForm({
         <Label className="text-xs">{t("wo.oil.liters")}</Label>
         <Input
           inputMode="decimal"
-          className="tabular"
+          className="bg-card tabular"
           value={liters}
           onChange={(e) => setLiters(e.target.value.replace(/[^0-9.]/g, ""))}
         />
@@ -399,32 +460,54 @@ function DueSuggestions({ d, woId, canAdd }: { d: WoDetail; woId: string; canAdd
   );
 
   const rows = d.due.filter((r) => r.status !== "ok");
+  if (rows.length === 0) {
+    return (
+      <div className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
+        {t("wo.due.empty")}
+      </div>
+    );
+  }
   return (
-    <DueList
-      rows={rows}
-      emptyText={t("wo.due.empty")}
-      action={
-        canAdd
-          ? (row) => (
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={add.isPending}
-                onClick={() =>
-                  add.mutate({
-                    category: row.category_id,
-                    label: i18n.language.startsWith("ar")
-                      ? row.category_name_ar
-                      : row.category_name_en,
-                  })
-                }
-              >
-                {t("wo.due.addAsTask")}
-              </Button>
-            )
-          : undefined
-      }
-    />
+    <div className="rounded-xl border bg-card p-1.5 shadow-sm">
+      {rows.map((row, i) => (
+        <div
+          key={`${row.vehicle_id}-${row.plan_id}`}
+          className={cn(
+            "flex items-center justify-between gap-2.5 px-3 py-2.5",
+            i > 0 && "border-t border-dashed",
+          )}
+        >
+          <div className="min-w-0">
+            <div className="truncate text-[13px] font-semibold">
+              {i18n.language.startsWith("ar") ? row.category_name_ar : row.category_name_en}
+            </div>
+            <div className="text-xs text-muted-foreground tabular">
+              {row.next_due_km != null
+                ? t("due.nextDueKm", { km: fmtNumber(row.next_due_km, i18n.language) })
+                : t(`due.status.${row.status}`)}
+            </div>
+          </div>
+          {canAdd && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="flex-none"
+              disabled={add.isPending}
+              onClick={() =>
+                add.mutate({
+                  category: row.category_id,
+                  label: i18n.language.startsWith("ar")
+                    ? row.category_name_ar
+                    : row.category_name_en,
+                })
+              }
+            >
+              {t("wo.due.addAsTask")}
+            </Button>
+          )}
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -459,25 +542,5 @@ function CloseWoButton({ woId }: { woId: string }) {
         </DialogContent>
       </Dialog>
     </>
-  );
-}
-
-/** Back to wherever the WO was opened from; the truck file on a cold entry. */
-function WoBackLink({ vehicleId, plate }: { vehicleId: number; plate: string }) {
-  const { t } = useTranslation();
-  const router = useRouter();
-  const canGoBack = useCanGoBack();
-  const cls = "flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground";
-  if (canGoBack) {
-    return (
-      <button onClick={() => router.history.back()} className={cls}>
-        <ArrowRight className="h-4 w-4 ltr:rotate-180" /> {t("common.back")}
-      </button>
-    );
-  }
-  return (
-    <Link to="/trucks/$truckId" params={{ truckId: String(vehicleId) }} className={cls}>
-      <ArrowRight className="h-4 w-4 ltr:rotate-180" /> {plate}
-    </Link>
   );
 }

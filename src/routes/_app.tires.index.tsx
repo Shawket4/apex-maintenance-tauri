@@ -145,7 +145,7 @@ function TiresPage() {
         ) : (
           <div className="overflow-hidden rounded-xl border">
             <table className="w-full text-sm">
-              <thead className="bg-muted/50 text-xs text-muted-foreground">
+              <thead className="bg-background/70 text-xs text-muted-foreground">
                 <tr>
                   <th className="px-3 py-2 text-start">{t("tires.dot")}</th>
                   <th className="px-3 py-2 text-start">{t("tires.brand")}</th>
@@ -156,7 +156,7 @@ function TiresPage() {
               </thead>
               <tbody>
                 {(tires.data ?? []).map((tire) => (
-                  <tr key={tire.id} className="border-t transition hover:bg-accent/50">
+                  <tr key={tire.id} className="border-t transition hover:bg-primary/[0.03]">
                     <td className="px-3 py-2">
                       <Link
                         to="/tires/$tireId"

@@ -6,8 +6,8 @@ import { useSyncStatus } from "@/shared/api/queries";
 import { cn } from "@/shared/lib/cn";
 import { fmtNumber } from "@/shared/lib/numbers";
 
-/** Honest sync state: dead letters are never hidden inside the pending count.
- * Clicking lands on the diagnostics section in Settings. */
+/** Honest sync state, compact for the topbar: dead letters are never hidden
+ * inside the pending count. Clicking lands on diagnostics in Settings. */
 export function SyncIndicator() {
   const { t } = useTranslation();
   const { data } = useSyncStatus();
@@ -19,11 +19,11 @@ export function SyncIndicator() {
 
   let icon = <Check className="h-3.5 w-3.5" />;
   let label = t("sync.synced");
-  let tone = "text-muted-foreground";
+  let tone = "text-status-ok";
   if (dead) {
     icon = <AlertTriangle className="h-3.5 w-3.5" />;
     label = t("sync.dead", { count: data.dead });
-    tone = "text-destructive";
+    tone = "text-status-overdue";
   } else if (offline) {
     icon = <CloudOff className="h-3.5 w-3.5" />;
     label = t("sync.offline");
@@ -38,12 +38,12 @@ export function SyncIndicator() {
     <Link
       to="/settings"
       className={cn(
-        "flex items-center gap-2 rounded-lg px-3 py-2 text-xs transition hover:bg-accent",
+        "flex flex-none items-center gap-1.5 whitespace-nowrap rounded-lg px-2 py-1.5 text-[11.5px] font-semibold transition hover:bg-foreground/5",
         tone,
       )}
     >
       {icon}
-      <span className="truncate">{label}</span>
+      <span className="max-w-44 truncate">{label}</span>
     </Link>
   );
 }

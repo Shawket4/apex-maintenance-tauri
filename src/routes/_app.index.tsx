@@ -1,10 +1,10 @@
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { ClipboardList, TriangleAlert, PackageOpen, ArrowLeft } from "lucide-react";
+import { PackageOpen } from "lucide-react";
 
 import { useHome } from "@/shared/api/queries";
 import { fmtNumber } from "@/shared/lib/numbers";
-import { fmtAgo } from "@/shared/lib/time";
+import { dayjs, fmtAgo } from "@/shared/lib/time";
 import { DUE_BADGE, DUE_DOT } from "@/shared/lib/status";
 import { cn } from "@/shared/lib/cn";
 import { Badge } from "@/shared/ui/badge";
@@ -15,8 +15,8 @@ export const Route = createFileRoute("/_app/")({
   component: HomePage,
 });
 
-/** الورشة — the operational answer to "what's happening right now":
- * open work (resume in one click), what's due, what's running out. */
+/** الورشة — the operational answer to "what's happening right now".
+ * Design 2026-07-23: KPI strip, open-work cards, the due list in one card. */
 function HomePage() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
@@ -24,44 +24,72 @@ function HomePage() {
 
   if (home.isLoading) {
     return (
-      <div className="mx-auto max-w-5xl space-y-4 p-6">
-        <Skeleton className="h-8 w-40" />
-        <Skeleton className="h-32 w-full" />
-        <Skeleton className="h-32 w-full" />
+      <div className="mx-auto max-w-6xl space-y-5 p-7">
+        <Skeleton className="h-14 w-64" />
+        <div className="grid grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-20 rounded-xl" />
+          ))}
+        </div>
+        <Skeleton className="h-40 rounded-xl" />
       </div>
     );
   }
   const data = home.data;
   if (!data) return null;
 
+  const kpis = [
+    { n: data.open_wos.length, label: t("home.kpiOpen"), tone: "" },
+    { n: data.due_counts.overdue, label: t("home.overdue"), tone: "text-status-overdue" },
+    { n: data.due_counts.due_soon, label: t("home.dueSoon"), tone: "text-status-due_soon" },
+    { n: data.sync_pending, label: t("wo.pending"), tone: "text-info" },
+  ];
+
   return (
-    <div className="mx-auto max-w-5xl space-y-6 p-6">
-      <h1 className="text-2xl font-bold">{t("home.title")}</h1>
+    <div className="mx-auto max-w-6xl space-y-7 p-7">
+      <div>
+        <h1 className="text-[23px] font-bold leading-relaxed">{t("home.title")}</h1>
+        <div className="text-xs text-muted-foreground">
+          {dayjs().tz("Africa/Cairo").locale(i18n.language).format("dddd D MMMM")}
+        </div>
+      </div>
+
+      {/* KPI strip — every number already lives in the home summary. */}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        {kpis.map((k) => (
+          <div key={k.label} className="rounded-xl border bg-card px-5 py-4 shadow-sm">
+            <div className={cn("text-[27px] font-bold leading-snug tabular", k.tone)}>
+              {fmtNumber(k.n, i18n.language)}
+            </div>
+            <div className="text-xs text-muted-foreground">{k.label}</div>
+          </div>
+        ))}
+      </div>
 
       {/* Open work orders — the resume-work path. */}
       <section>
-        <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-muted-foreground">
-          <ClipboardList className="h-4 w-4" />
-          {t("home.openWos")}
-          {data.open_wos.length > 0 && (
-            <Badge variant="secondary" className="tabular">{fmtNumber(data.open_wos.length)}</Badge>
-          )}
-        </div>
+        <h2 className="mb-3 text-xs font-semibold text-muted-foreground">{t("home.openWos")}</h2>
         {data.open_wos.length === 0 ? (
           <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
             {t("home.noOpenWos")}
           </div>
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {data.open_wos.map((w) => (
               <button
                 key={w.id}
                 onClick={() => void navigate({ to: "/wo/$woId", params: { woId: w.id } })}
-                className="group rounded-xl border bg-card p-4 text-start shadow-sm transition hover:border-border-strong hover:shadow-md"
+                className="rounded-xl border bg-card p-[18px] text-start shadow-sm transition hover:border-border-strong hover:shadow-md"
               >
-                <div className="flex items-center justify-between">
-                  <span className="text-lg font-bold tracking-wide">{w.plate}</span>
-                  {w.pending && <Badge variant="outline">{t("wo.pending")}</Badge>}
+                <div className="flex items-center justify-between gap-2">
+                  <span className="whitespace-nowrap text-[17px] font-bold">{w.plate}</span>
+                  {w.pending ? (
+                    <Badge variant="outline">{t("wo.pending")}</Badge>
+                  ) : (
+                    <Badge className="bg-status-ok-soft text-status-ok hover:bg-status-ok-soft">
+                      {t("wo.status.open")}
+                    </Badge>
+                  )}
                 </div>
                 <div className="mt-1 text-xs text-muted-foreground">
                   {t("home.openedAt")} {fmtAgo(w.opened_at, i18n.language)}
@@ -70,9 +98,8 @@ function HomePage() {
                     {fmtNumber(w.task_count)} {t("common.items")}
                   </span>
                 </div>
-                <div className="mt-3 flex items-center gap-1 text-sm font-medium text-primary">
-                  {t("home.resume")}
-                  <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-0.5 rtl:rotate-0 ltr:rotate-180" />
+                <div className="mt-3 text-[13px] font-semibold text-primary">
+                  {t("home.resume")} ←
                 </div>
               </button>
             ))}
@@ -80,19 +107,10 @@ function HomePage() {
         )}
       </section>
 
-      {/* Due / overdue strip. */}
+      {/* Due now — one card, one row per item. */}
       <section>
         <div className="mb-3 flex items-center justify-between">
-          <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
-            <TriangleAlert className="h-4 w-4" />
-            {t("home.attention")}
-            <span className={cn("rounded-full px-2 py-0.5 text-xs tabular", DUE_BADGE.overdue)}>
-              {fmtNumber(data.due_counts.overdue)} {t("home.overdue")}
-            </span>
-            <span className={cn("rounded-full px-2 py-0.5 text-xs tabular", DUE_BADGE.due_soon)}>
-              {fmtNumber(data.due_counts.due_soon)} {t("home.dueSoon")}
-            </span>
-          </div>
+          <h2 className="text-xs font-semibold text-muted-foreground">{t("home.attention")}</h2>
           <Link to="/due" className="text-sm text-primary hover:underline">
             {t("home.viewAll")}
           </Link>
@@ -102,22 +120,33 @@ function HomePage() {
             {t("home.noAttention")}
           </div>
         ) : (
-          <div className="space-y-2">
-            {data.attention.map((d) => (
+          <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
+            {data.attention.map((d, i) => (
               <Link
                 key={`${d.vehicle_id}-${d.plan_id}`}
                 to="/trucks/$truckId"
                 params={{ truckId: String(d.vehicle_id) }}
-                className="flex items-center justify-between rounded-xl border bg-card p-3 shadow-sm transition hover:border-border-strong hover:shadow-md"
+                className={cn(
+                  "flex items-center justify-between gap-3.5 px-[18px] py-3 transition hover:bg-primary/[0.03]",
+                  i > 0 && "border-t",
+                )}
               >
-                <div className="flex items-center gap-3">
-                  <span className={cn("h-2.5 w-2.5 rounded-full", DUE_DOT[d.status])} />
-                  <span className="font-semibold">{d.plate}</span>
-                  <span className="text-sm text-muted-foreground">
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className={cn("h-2 w-2 flex-none rounded-full", DUE_DOT[d.status])} />
+                  <span className="whitespace-nowrap font-bold">{d.plate}</span>
+                  <span className="truncate text-sm text-muted-foreground">
                     {i18n.language.startsWith("ar") ? d.category_name_ar : d.category_name_en}
                   </span>
+                  <span
+                    className={cn(
+                      "rounded-full px-2.5 py-0.5 text-xs font-semibold",
+                      DUE_BADGE[d.status],
+                    )}
+                  >
+                    {t(`due.status.${d.status}`)}
+                  </span>
                 </div>
-                <span className="text-xs text-muted-foreground tabular">
+                <span className="flex-none text-xs text-muted-foreground tabular">
                   {d.next_due_km != null
                     ? t("due.nextDueKm", { km: fmtNumber(d.next_due_km, i18n.language) })
                     : t(`due.status.${d.status}`)}
