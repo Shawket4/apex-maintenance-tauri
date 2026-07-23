@@ -75,7 +75,7 @@ export function Omnisearch() {
                   <Truck className="h-4 w-4" />
                   <span className="flex-1">{tr.plate}</span>
                   {tr.open_wo_count > 0 && (
-                    <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs text-emerald-600">
+                    <span className="rounded-full bg-status-ok-soft px-2 py-0.5 text-xs text-status-ok">
                       {t("wo.status.open")}
                     </span>
                   )}

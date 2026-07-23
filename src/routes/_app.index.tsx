@@ -48,7 +48,7 @@ function HomePage() {
           )}
         </div>
         {data.open_wos.length === 0 ? (
-          <div className="rounded-2xl border border-dashed p-8 text-center text-sm text-muted-foreground">
+          <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
             {t("home.noOpenWos")}
           </div>
         ) : (
@@ -57,7 +57,7 @@ function HomePage() {
               <button
                 key={w.id}
                 onClick={() => void navigate({ to: "/wo/$woId", params: { woId: w.id } })}
-                className="group rounded-2xl border bg-card p-4 text-start transition hover:border-primary/40 hover:bg-accent"
+                className="group rounded-xl border bg-card p-4 text-start shadow-sm transition hover:border-border-strong hover:shadow-md"
               >
                 <div className="flex items-center justify-between">
                   <span className="text-lg font-bold tracking-wide">{w.plate}</span>
@@ -98,7 +98,7 @@ function HomePage() {
           </Link>
         </div>
         {data.attention.length === 0 ? (
-          <div className="rounded-2xl border border-dashed p-6 text-center text-sm text-muted-foreground">
+          <div className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
             {t("home.noAttention")}
           </div>
         ) : (
@@ -108,7 +108,7 @@ function HomePage() {
                 key={`${d.vehicle_id}-${d.plan_id}`}
                 to="/trucks/$truckId"
                 params={{ truckId: String(d.vehicle_id) }}
-                className="flex items-center justify-between rounded-xl border bg-card p-3 transition hover:bg-accent"
+                className="flex items-center justify-between rounded-xl border bg-card p-3 shadow-sm transition hover:border-border-strong hover:shadow-md"
               >
                 <div className="flex items-center gap-3">
                   <span className={cn("h-2.5 w-2.5 rounded-full", DUE_DOT[d.status])} />

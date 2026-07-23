@@ -23,7 +23,7 @@ export function DiagramPanel({
 }) {
   const { t } = useTranslation();
   return (
-    <div className="absolute bottom-4 end-4 flex max-h-[calc(100%-2rem)] w-[22.5rem] flex-col overflow-hidden rounded-2xl border bg-card/90 shadow-xl backdrop-blur-md">
+    <div className="absolute bottom-4 end-4 flex max-h-[calc(100%-2rem)] w-[22.5rem] flex-col overflow-hidden rounded-xl border bg-card/90 shadow-xl backdrop-blur-md">
       <div className="flex items-center gap-3 border-b bg-muted/40 px-4 py-3">
         <span
           className={cn(

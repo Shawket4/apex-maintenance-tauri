@@ -63,7 +63,7 @@ function WoCockpit() {
   if (!d) {
     return (
       <div className="mx-auto max-w-4xl p-6">
-        <div className="rounded-2xl border border-dashed p-10 text-center text-sm text-muted-foreground">
+        <div className="rounded-xl border border-dashed p-10 text-center text-sm text-muted-foreground">
           {t("wo.notFound")}
         </div>
       </div>
@@ -76,7 +76,7 @@ function WoCockpit() {
       <WoBackLink vehicleId={d.wo.vehicle_id} plate={d.wo.plate} />
 
       {/* Header */}
-      <div className="rounded-2xl border bg-gradient-to-br from-primary/5 to-transparent p-5">
+      <div className="rounded-xl border bg-gradient-to-br from-primary/5 to-transparent p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="flex items-center gap-3">
@@ -84,7 +84,7 @@ function WoCockpit() {
               <Badge
                 className={
                   isOpen
-                    ? "bg-emerald-500/15 text-emerald-600 hover:bg-emerald-500/15"
+                    ? "bg-status-ok-soft text-status-ok hover:bg-status-ok-soft"
                     : "bg-muted text-muted-foreground hover:bg-muted"
                 }
               >
@@ -127,7 +127,7 @@ function WoCockpit() {
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-sm">
-                  <Droplets className="h-4 w-4 text-amber-500" />
+                  <Droplets className="h-4 w-4 text-status-due_soon" />
                   {t("wo.oil.title")}
                 </CardTitle>
               </CardHeader>

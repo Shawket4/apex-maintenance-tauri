@@ -27,11 +27,11 @@ export function SyncIndicator() {
   } else if (offline) {
     icon = <CloudOff className="h-3.5 w-3.5" />;
     label = t("sync.offline");
-    tone = "text-amber-600 dark:text-amber-500";
+    tone = "text-status-due_soon";
   } else if (pending > 0) {
     icon = <CloudUpload className="h-3.5 w-3.5" />;
     label = t("sync.pending", { n: fmtNumber(pending) });
-    tone = "text-sky-600 dark:text-sky-400";
+    tone = "text-info";
   }
 
   return (

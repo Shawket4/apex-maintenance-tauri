@@ -37,7 +37,7 @@ function TruckLayout() {
       {truck.isLoading ? (
         <Skeleton className="mb-6 h-28 rounded-2xl" />
       ) : truck.data ? (
-        <div className="mb-6 rounded-2xl border bg-gradient-to-br from-primary/5 to-transparent p-6">
+        <div className="mb-6 rounded-xl border bg-gradient-to-br from-primary/5 to-transparent p-6">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <div className="text-2xl font-bold tracking-wide">{truck.data.plate}</div>
@@ -68,7 +68,7 @@ function TruckLayout() {
               {openWo ? (
                 <Link to="/wo/$woId" params={{ woId: openWo.id }}>
                   <Button variant="secondary">
-                    <Badge className="bg-emerald-500/15 text-emerald-600 hover:bg-emerald-500/15">
+                    <Badge className="bg-status-ok-soft text-status-ok hover:bg-status-ok-soft">
                       {t("wo.status.open")}
                     </Badge>
                     {t("truck.resumeWo")}
@@ -81,7 +81,7 @@ function TruckLayout() {
           </div>
         </div>
       ) : (
-        <div className="mb-6 rounded-2xl border border-dashed p-8 text-center text-sm text-muted-foreground">
+        <div className="mb-6 rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
           {t("common.notFound")}
         </div>
       )}

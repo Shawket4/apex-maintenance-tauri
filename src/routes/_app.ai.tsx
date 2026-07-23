@@ -74,7 +74,7 @@ function AiSearchPage() {
       </div>
 
       {keyMissing && (
-        <div className="rounded-xl border border-status-due_soon/40 bg-status-due_soon/10 p-4 text-sm">
+        <div className="rounded-xl border border-status-due_soon/40 bg-status-due_soon-soft p-4 text-sm">
           {t("ai.keyNeeded")}
         </div>
       )}
@@ -118,7 +118,7 @@ function AiSearchPage() {
       )}
 
       {!ask.data && !ask.isPending && (
-        <div className="rounded-2xl border border-dashed p-8 text-center">
+        <div className="rounded-xl border border-dashed p-8 text-center">
           <p className="mb-4 text-sm text-muted-foreground">{t("ai.empty")}</p>
           <div className="flex flex-wrap justify-center gap-2">
             {examples.map((ex) => (

@@ -82,7 +82,7 @@ function SyncSection() {
               "rounded-full px-2 py-0.5 text-xs",
               status.data?.online
                 ? "bg-status-ok/15 text-status-ok"
-                : "bg-status-due_soon/15 text-status-due_soon",
+                : "bg-status-due_soon-soft text-status-due_soon",
             )}
           >
             {status.data?.online ? t("sync.online") : t("sync.offline")}

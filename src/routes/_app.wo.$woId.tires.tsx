@@ -40,7 +40,7 @@ function WoTires() {
   if (!wo.data) {
     return (
       <div className="mx-auto max-w-5xl p-6">
-        <div className="rounded-2xl border border-dashed p-10 text-center text-sm text-muted-foreground">
+        <div className="rounded-xl border border-dashed p-10 text-center text-sm text-muted-foreground">
           {t("wo.notFound")}
         </div>
       </div>
@@ -68,7 +68,7 @@ function WoTires() {
       {!chassis.data ? (
         <ChassisWizard vehicleId={vid} />
       ) : (
-        <div className="relative h-[520px] overflow-hidden rounded-2xl border bg-card">
+        <div className="relative h-[520px] overflow-hidden rounded-xl border bg-card">
           <TruckDiagram
             axles={chassis.data.axles}
             positions={positions}

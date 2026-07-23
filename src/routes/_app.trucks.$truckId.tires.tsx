@@ -52,7 +52,7 @@ function TruckTires() {
       : null;
 
   return (
-    <div className="relative h-[520px] overflow-hidden rounded-2xl border bg-card">
+    <div className="relative h-[520px] overflow-hidden rounded-xl border bg-card">
       <TruckDiagram
         axles={axles}
         positions={positions}

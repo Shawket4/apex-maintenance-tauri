@@ -1,3 +1,62 @@
+/* IBM Plex Sans Arabic — bundled locally (the CSP allows no external hosts).
+   Arabic + Latin subsets, weights 400/500/600/700. */
+@font-face {
+  font-family: 'IBM Plex Sans Arabic';
+  src: url('/fonts/plex/plex-arabic-400.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
+  unicode-range: U+0600-06FF, U+0750-077F, U+FB50-FDFF, U+FE70-FEFC, U+200C-200E;
+}
+@font-face {
+  font-family: 'IBM Plex Sans Arabic';
+  src: url('/fonts/plex/plex-latin-400.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
+  unicode-range: U+0000-00FF, U+2000-206F, U+2191, U+2193;
+}
+@font-face {
+  font-family: 'IBM Plex Sans Arabic';
+  src: url('/fonts/plex/plex-arabic-500.woff2') format('woff2');
+  font-weight: 500;
+  font-display: swap;
+  unicode-range: U+0600-06FF, U+0750-077F, U+FB50-FDFF, U+FE70-FEFC, U+200C-200E;
+}
+@font-face {
+  font-family: 'IBM Plex Sans Arabic';
+  src: url('/fonts/plex/plex-latin-500.woff2') format('woff2');
+  font-weight: 500;
+  font-display: swap;
+  unicode-range: U+0000-00FF, U+2000-206F, U+2191, U+2193;
+}
+@font-face {
+  font-family: 'IBM Plex Sans Arabic';
+  src: url('/fonts/plex/plex-arabic-600.woff2') format('woff2');
+  font-weight: 600;
+  font-display: swap;
+  unicode-range: U+0600-06FF, U+0750-077F, U+FB50-FDFF, U+FE70-FEFC, U+200C-200E;
+}
+@font-face {
+  font-family: 'IBM Plex Sans Arabic';
+  src: url('/fonts/plex/plex-latin-600.woff2') format('woff2');
+  font-weight: 600;
+  font-display: swap;
+  unicode-range: U+0000-00FF, U+2000-206F, U+2191, U+2193;
+}
+@font-face {
+  font-family: 'IBM Plex Sans Arabic';
+  src: url('/fonts/plex/plex-arabic-700.woff2') format('woff2');
+  font-weight: 700;
+  font-display: swap;
+  unicode-range: U+0600-06FF, U+0750-077F, U+FB50-FDFF, U+FE70-FEFC, U+200C-200E;
+}
+@font-face {
+  font-family: 'IBM Plex Sans Arabic';
+  src: url('/fonts/plex/plex-latin-700.woff2') format('woff2');
+  font-weight: 700;
+  font-display: swap;
+  unicode-range: U+0000-00FF, U+2000-206F, U+2191, U+2193;
+}
+/* Cairo stays as fallback for weights/glyphs Plex lacks. */
 @font-face {
   font-family: 'Cairo';
   src: url('/fonts/Cairo-Regular.ttf') format('truetype');
@@ -11,53 +70,84 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Design tokens — synced from the Claude Design project (styles.css).
+   Light values are the design's; dark is derived with the same hue logic. */
 :root {
-  --background: hsl(0 0% 100%);
-  --foreground: hsl(222 47% 11%);
+  --background: hsl(220 30% 97.5%);
+  --foreground: hsl(222 44% 12%);
   --card: hsl(0 0% 100%);
-  --card-foreground: hsl(222 47% 11%);
+  --card-foreground: hsl(222 44% 12%);
   --popover: hsl(0 0% 100%);
-  --popover-foreground: hsl(222 47% 11%);
-  --primary: hsl(217 91% 47%);
-  --primary-foreground: hsl(210 40% 98%);
-  --secondary: hsl(210 40% 96%);
-  --secondary-foreground: hsl(222 47% 11%);
-  --muted: hsl(210 40% 96%);
-  --muted-foreground: hsl(215 16% 47%);
-  --accent: hsl(210 40% 96%);
-  --accent-foreground: hsl(222 47% 11%);
-  --destructive: hsl(0 84% 55%);
-  --destructive-foreground: hsl(210 40% 98%);
-  --border: hsl(214 32% 91%);
-  --input: hsl(214 32% 91%);
-  --ring: hsl(217 91% 47%);
+  --popover-foreground: hsl(222 44% 12%);
+  --primary: hsl(217 90% 45%);
+  --primary-foreground: hsl(0 0% 100%);
+  --secondary: hsl(217 30% 94.5%);
+  --secondary-foreground: hsl(222 44% 12%);
+  --muted: hsl(217 30% 94.5%);
+  --muted-foreground: hsl(215 15% 44%);
+  --accent: hsl(217 30% 94.5%);
+  --accent-foreground: hsl(222 44% 12%);
+  --destructive: hsl(0 74% 50%);
+  --destructive-foreground: hsl(0 0% 100%);
+  --border: hsl(215 25% 89%);
+  --border-strong: hsl(215 18% 78%);
+  --input: hsl(215 25% 89%);
+  --ring: hsl(217 90% 45%);
   --radius: 0.625rem;
+
+  --status-ok: hsl(150 70% 31%);
+  --status-ok-soft: hsl(150 60% 45% / 0.13);
+  --status-due_soon: hsl(33 92% 35%);
+  --status-due_soon-soft: hsl(38 92% 52% / 0.16);
+  --status-overdue: hsl(0 72% 45%);
+  --status-overdue-soft: hsl(0 80% 55% / 0.1);
+  --status-never_done: hsl(220 10% 44%);
+  --status-never_done-soft: hsl(220 10% 50% / 0.12);
+  --info: hsl(202 95% 34%);
+  --info-soft: hsl(200 90% 48% / 0.13);
+  --violet: hsl(262 65% 50%);
+  --violet-soft: hsl(262 80% 58% / 0.1);
 }
 
 .dark {
-  --background: hsl(222 47% 7%);
+  --background: hsl(222 40% 8%);
   --foreground: hsl(210 40% 98%);
-  --card: hsl(222 47% 10%);
+  --card: hsl(222 38% 11%);
   --card-foreground: hsl(210 40% 98%);
-  --popover: hsl(222 47% 10%);
+  --popover: hsl(222 38% 11%);
   --popover-foreground: hsl(210 40% 98%);
-  --primary: hsl(217 91% 60%);
-  --primary-foreground: hsl(222 47% 11%);
-  --secondary: hsl(217 33% 17%);
+  --primary: hsl(217 90% 58%);
+  --primary-foreground: hsl(222 44% 12%);
+  --secondary: hsl(219 30% 16%);
   --secondary-foreground: hsl(210 40% 98%);
-  --muted: hsl(217 33% 14%);
-  --muted-foreground: hsl(215 20% 65%);
-  --accent: hsl(217 33% 17%);
+  --muted: hsl(219 30% 15%);
+  --muted-foreground: hsl(215 15% 62%);
+  --accent: hsl(219 30% 17%);
   --accent-foreground: hsl(210 40% 98%);
-  --destructive: hsl(0 63% 45%);
+  --destructive: hsl(0 70% 55%);
   --destructive-foreground: hsl(210 40% 98%);
-  --border: hsl(217 33% 18%);
-  --input: hsl(217 33% 18%);
-  --ring: hsl(224 76% 48%);
+  --border: hsl(218 25% 20%);
+  --border-strong: hsl(218 22% 30%);
+  --input: hsl(218 25% 20%);
+  --ring: hsl(217 90% 55%);
+
+  --status-ok: hsl(150 55% 48%);
+  --status-ok-soft: hsl(150 60% 45% / 0.16);
+  --status-due_soon: hsl(38 90% 58%);
+  --status-due_soon-soft: hsl(38 92% 52% / 0.16);
+  --status-overdue: hsl(0 78% 60%);
+  --status-overdue-soft: hsl(0 80% 55% / 0.14);
+  --status-never_done: hsl(220 10% 62%);
+  --status-never_done-soft: hsl(220 10% 50% / 0.16);
+  --info: hsl(200 90% 58%);
+  --info-soft: hsl(200 90% 48% / 0.16);
+  --violet: hsl(262 75% 66%);
+  --violet-soft: hsl(262 80% 58% / 0.14);
 }
 
 @theme inline {
-  --font-sans: 'Cairo', 'Tajawal', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-sans: 'IBM Plex Sans Arabic', 'Cairo', 'Tajawal', system-ui, -apple-system, 'Segoe UI',
+    Roboto, sans-serif;
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -76,19 +166,31 @@
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
   --color-input: var(--input);
   --color-ring: var(--ring);
 
-  /* Maintenance status colors — also the tire diagram's fill palette. */
-  --color-status-ok: hsl(142 70% 40%);
-  --color-status-due_soon: hsl(38 92% 50%);
-  --color-status-overdue: hsl(0 84% 55%);
-  --color-status-never_done: hsl(220 9% 55%);
+  /* Status colors: deep tone for text/dots + paired soft tint for fills. */
+  --color-status-ok: var(--status-ok);
+  --color-status-ok-soft: var(--status-ok-soft);
+  --color-status-due_soon: var(--status-due_soon);
+  --color-status-due_soon-soft: var(--status-due_soon-soft);
+  --color-status-overdue: var(--status-overdue);
+  --color-status-overdue-soft: var(--status-overdue-soft);
+  --color-status-never_done: var(--status-never_done);
+  --color-status-never_done-soft: var(--status-never_done-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-violet: var(--violet);
+  --color-violet-soft: var(--violet-soft);
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+
+  --shadow-sm: 0 1px 2px hsl(222 44% 12% / 0.05);
+  --shadow-md: 0 2px 6px -1px hsl(222 44% 12% / 0.07), 0 10px 28px -8px hsl(222 44% 12% / 0.1);
 }
 
 @layer base {

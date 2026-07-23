@@ -74,7 +74,7 @@ function TireFilePage() {
   if (!d) {
     return (
       <div className="mx-auto max-w-4xl p-6">
-        <div className="rounded-2xl border border-dashed p-10 text-center text-sm text-muted-foreground">
+        <div className="rounded-xl border border-dashed p-10 text-center text-sm text-muted-foreground">
           {t("tires.notFound")}
         </div>
       </div>
@@ -87,7 +87,7 @@ function TireFilePage() {
     <div className="mx-auto max-w-4xl space-y-6 p-6">
       <BackLink fallbackLabel={t("tires.title")} />
 
-      <div className="rounded-2xl border bg-gradient-to-br from-primary/5 to-transparent p-6">
+      <div className="rounded-xl border bg-gradient-to-br from-primary/5 to-transparent p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <div className="flex items-center gap-3">

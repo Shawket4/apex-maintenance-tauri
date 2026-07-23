@@ -89,7 +89,7 @@ function TiresPage() {
                     </span>
                     <span className="text-xs text-muted-foreground">{t("tires.stock.projected")}</span>
                     {line.pending_debits > 0 && (
-                      <span className="text-xs text-sky-600 tabular">
+                      <span className="text-xs text-info tabular">
                         −{fmtNumber(line.pending_debits, i18n.language)} {t("tires.stock.pending")}
                       </span>
                     )}
@@ -139,11 +139,11 @@ function TiresPage() {
         {tires.isLoading ? (
           <Skeleton className="h-40 rounded-2xl" />
         ) : (tires.data ?? []).length === 0 ? (
-          <div className="rounded-2xl border border-dashed p-10 text-center text-sm text-muted-foreground">
+          <div className="rounded-xl border border-dashed p-10 text-center text-sm text-muted-foreground">
             {t("tires.assets.empty")}
           </div>
         ) : (
-          <div className="overflow-hidden rounded-2xl border">
+          <div className="overflow-hidden rounded-xl border">
             <table className="w-full text-sm">
               <thead className="bg-muted/50 text-xs text-muted-foreground">
                 <tr>

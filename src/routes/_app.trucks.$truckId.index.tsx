@@ -41,7 +41,7 @@ function TruckOverview() {
           <OverrideOdometerDialog vehicleId={vid} />
         </div>
         {(wos.data ?? []).length === 0 ? (
-          <div className="rounded-2xl border border-dashed p-8 text-center text-sm text-muted-foreground">
+          <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
             {t("common.empty")}
           </div>
         ) : (
@@ -50,7 +50,7 @@ function TruckOverview() {
               <button
                 key={w.id}
                 onClick={() => void navigate({ to: "/wo/$woId", params: { woId: w.id } })}
-                className="flex w-full items-center justify-between rounded-xl border bg-card p-4 text-start transition hover:bg-accent"
+                className="flex w-full items-center justify-between rounded-xl border bg-card p-4 text-start shadow-sm transition hover:border-border-strong hover:shadow-md"
               >
                 <div>
                   <div className="text-sm font-semibold tabular">
@@ -65,7 +65,7 @@ function TruckOverview() {
                 <Badge
                   className={
                     w.status === "open"
-                      ? "bg-emerald-500/15 text-emerald-600 hover:bg-emerald-500/15"
+                      ? "bg-status-ok-soft text-status-ok hover:bg-status-ok-soft"
                       : "bg-muted text-muted-foreground hover:bg-muted"
                   }
                 >

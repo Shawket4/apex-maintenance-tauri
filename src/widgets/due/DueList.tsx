@@ -24,7 +24,7 @@ export function DueList({
 
   if (rows.length === 0) {
     return (
-      <div className="rounded-2xl border border-dashed p-8 text-center text-sm text-muted-foreground">
+      <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
         {emptyText}
       </div>
     );

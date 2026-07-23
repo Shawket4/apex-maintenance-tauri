@@ -67,7 +67,7 @@ function TruckHistory() {
           <ArrowRight className="h-4 w-4 ltr:rotate-180" /> {t("common.back")}
         </button>
         {invoice.data ? (
-          <div className="rounded-2xl border bg-card p-5">
+          <div className="rounded-xl border bg-card p-5">
             <div className="mb-4 flex items-center justify-between">
               <div className="text-sm text-muted-foreground tabular">
                 {fmtCairo(invoice.data.date, "YYYY/MM/DD", i18n.language)}
@@ -95,7 +95,7 @@ function TruckHistory() {
 
   if (timeline.length === 0) {
     return (
-      <div className="rounded-2xl border border-dashed p-10 text-center text-sm text-muted-foreground">
+      <div className="rounded-xl border border-dashed p-10 text-center text-sm text-muted-foreground">
         {t("truck.history.empty")}
       </div>
     );
@@ -111,7 +111,7 @@ function TruckHistory() {
               ? void navigate({ to: "/wo/$woId", params: { woId: item.id } })
               : setOpenInvoice(item.id)
           }
-          className="flex w-full items-center justify-between rounded-xl border bg-card p-4 text-start transition hover:bg-accent"
+          className="flex w-full items-center justify-between rounded-xl border bg-card p-4 text-start shadow-sm transition hover:border-border-strong hover:shadow-md"
         >
           <div className="flex min-w-0 items-center gap-3">
             {item.kind === "wo" ? (
