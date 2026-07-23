@@ -86,7 +86,7 @@ impl ExcelExporter {
     pub fn generate(config: ExcelExportConfig) -> AppResult<Vec<u8>> {
         let mut workbook = Workbook::new();
         let properties = DocProperties::new()
-            .set_author(&config.creator.unwrap_or_else(|| "Apex Fleet".into()))
+            .set_author(config.creator.unwrap_or_else(|| "Apex Fleet".into()))
             .clone();
         workbook.set_properties(&properties);
 

@@ -181,6 +181,16 @@ pub fn run() {
         .expect("error while running apex-maintenance");
 }
 
+fn init_tracing() {
+    let filter = EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| EnvFilter::new("info,apex_maintenance_lib=debug"));
+
+    tracing_subscriber::registry()
+        .with(filter)
+        .with(tracing_subscriber::fmt::layer().with_target(true).compact())
+        .init();
+}
+
 
 #[cfg(test)]
 mod codegen_tests {
@@ -201,14 +211,4 @@ mod codegen_tests {
             )
             .expect("failed to export typescript bindings");
     }
-}
-
-fn init_tracing() {
-    let filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new("info,apex_maintenance_lib=debug"));
-
-    tracing_subscriber::registry()
-        .with(filter)
-        .with(tracing_subscriber::fmt::layer().with_target(true).compact())
-        .init();
 }

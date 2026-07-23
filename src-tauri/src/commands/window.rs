@@ -29,7 +29,7 @@ pub async fn print_pdf(app: AppHandle, bytes: Vec<u8>) -> CmdResult<()> {
         let path_str = file_path.to_string_lossy().to_string();
         tauri_plugin_opener::open_path(path_str, None::<&str>)
             .map_err(|e| crate::AppError::Internal(format!("Failed to open PDF: {e}")))?;
-        return Ok(());
+        Ok(())
     }
 
     #[cfg(target_os = "linux")]

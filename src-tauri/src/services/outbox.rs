@@ -229,10 +229,10 @@ pub fn mark_dead(
 /// Crash recovery: anything stranded inflight goes back to pending. Safe only
 /// because the drain is single-flight (engine holds a mutex across the body).
 pub fn recover_inflight(conn: &Connection) -> rusqlite::Result<usize> {
-    Ok(conn.execute(
+    conn.execute(
         "UPDATE outbox SET status = 'pending' WHERE status = 'inflight'",
         [],
-    )?)
+    )
 }
 
 /// Clear pure-network gates so a confirmed reconnect drains NOW. Leaves real
