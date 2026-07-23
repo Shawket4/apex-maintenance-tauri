@@ -672,7 +672,7 @@ fn map_invoice_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<InvoiceRow> {
     })
 }
 
-fn sanitize_fts5_query(raw: &str) -> String {
+pub(crate) fn sanitize_fts5_query(raw: &str) -> String {
     let cleaned: String = raw
         .chars()
         .map(|c| match c {

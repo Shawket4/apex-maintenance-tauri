@@ -42,7 +42,7 @@ pub const K_OFFLINE_RETRY_MS: i64 = 15_000;
 
 /// JSON value → SQLite value, preserving structure. Arrays/objects are stored
 /// as canonical JSON text (this is the attachments fix), booleans as 0/1.
-fn to_sql(v: Option<&Value>) -> rusqlite::types::Value {
+pub(crate) fn to_sql(v: Option<&Value>) -> rusqlite::types::Value {
     use rusqlite::types::Value as Sql;
     match v {
         None | Some(Value::Null) => Sql::Null,

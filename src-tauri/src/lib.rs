@@ -21,6 +21,8 @@ pub use error::{AppError, AppResult};
 
 
 
+
+
 /// Application-wide state held by Tauri's runtime.
 #[derive(Clone)]
 pub struct AppState {

@@ -226,7 +226,7 @@ pub fn record_baseline(
         "INSERT INTO work_order_tasks
            (id, work_order_id, kind, category_id, is_done, sort_order,
             created_at, updated_at, created_by_user_id, updated_by_user_id, sync_version)
-         VALUES (?1,?2,'planned',?3,1,1,?4,?4,?5,?5,1)",
+         VALUES (?1,?2,'free',?3,1,1,?4,?4,?5,?5,1)",
         params![task_id, wo_id, category_id, now, user_id],
     )?;
     enqueue_row(&tx, "work_order_tasks", &task_id, "insert", user_id)?;
@@ -913,6 +913,14 @@ pub fn chassis_create(pool: &DbPool, vehicle_id: i64, cfg: &ChassisConfig, user_
         return Err(AppError::Internal("vehicle already has a chassis layout".into()));
     }
 
+    let plan = crate::services::chassis_plan::plan_chassis(&crate::services::chassis_plan::PlanConfig {
+        drive_axles: cfg.drive_axles,
+        trailer_axles: cfg.trailer_axles,
+        spares: cfg.spares,
+        single_trailer_axles: cfg.single_trailer_axles.unwrap_or(false),
+    })
+    .map_err(AppError::Internal)?;
+
     let layout_id = Uuid::new_v4().to_string();
     tx.execute(
         "INSERT INTO chassis_layouts
@@ -923,80 +931,31 @@ pub fn chassis_create(pool: &DbPool, vehicle_id: i64, cfg: &ChassisConfig, user_
     )?;
     enqueue_row(&tx, "chassis_layouts", &layout_id, "insert", user_id)?;
 
-    let add_axle = |section: &str, idx: i64, axle_type: &str, steering: bool| -> AppResult<String> {
+    // Persist the pure plan: axles first (positions reference them by id).
+    let mut axle_ids: Vec<String> = Vec::with_capacity(plan.axles.len());
+    for a in &plan.axles {
         let id = Uuid::new_v4().to_string();
         tx.execute(
             "INSERT INTO chassis_axles
                (id, layout_id, section, section_index, axle_type, is_steering, is_lifted,
                 created_at, updated_at, created_by_user_id, updated_by_user_id, sync_version)
              VALUES (?1,?2,?3,?4,?5,?6,0,?7,?7,?8,?8,1)",
-            params![id, layout_id, section, idx, axle_type, steering as i64, now, user_id],
+            params![id, layout_id, a.section, a.index, a.axle_type, a.is_steering as i64, now, user_id],
         )?;
         enqueue_row(&tx, "chassis_axles", &id, "insert", user_id)?;
-        Ok(id)
-    };
-
-    type Pos = (String, Option<String>, Option<&'static str>, Option<&'static str>, bool, Option<i64>, String);
-    let mut positions: Vec<Pos> = Vec::new();
-
-    // Steering axle (single) + drive axles (dual).
-    let steer = add_axle("tractor", 1, "single", true)?;
-    positions.push((Uuid::new_v4().to_string(), Some(steer.clone()), Some("left"), Some("single"), false, None, "H1L".into()));
-    positions.push((Uuid::new_v4().to_string(), Some(steer), Some("right"), Some("single"), false, None, "H1R".into()));
-    for i in 0..cfg.drive_axles {
-        let n = i + 2;
-        let id = add_axle("tractor", n, "dual", false)?;
-        for (side, depth, suffix) in
-            [("left", "outer", "LO"), ("left", "inner", "LI"), ("right", "inner", "RI"), ("right", "outer", "RO")]
-        {
-            positions.push((
-                Uuid::new_v4().to_string(),
-                Some(id.clone()),
-                Some(side),
-                Some(depth),
-                false,
-                None,
-                format!("H{n}{suffix}"),
-            ));
-        }
+        axle_ids.push(id);
     }
-    let single_trailer = cfg.single_trailer_axles.unwrap_or(false);
-    for i in 0..cfg.trailer_axles {
-        let n = i + 1;
-        let axle_type = if single_trailer { "single" } else { "dual" };
-        let id = add_axle("trailer", n, axle_type, false)?;
-        if single_trailer {
-            positions.push((Uuid::new_v4().to_string(), Some(id.clone()), Some("left"), Some("single"), false, None, format!("TR{n}L")));
-            positions.push((Uuid::new_v4().to_string(), Some(id), Some("right"), Some("single"), false, None, format!("TR{n}R")));
-        } else {
-            for (side, depth, suffix) in
-                [("left", "outer", "LO"), ("left", "inner", "LI"), ("right", "inner", "RI"), ("right", "outer", "RO")]
-            {
-                positions.push((
-                    Uuid::new_v4().to_string(),
-                    Some(id.clone()),
-                    Some(side),
-                    Some(depth),
-                    false,
-                    None,
-                    format!("TR{n}{suffix}"),
-                ));
-            }
-        }
-    }
-    for s in 1..=cfg.spares {
-        positions.push((Uuid::new_v4().to_string(), None, None, None, true, Some(s), format!("SP{s}")));
-    }
-
-    for (id, axle_id, side, depth, is_spare, spare_index, code) in &positions {
+    for p in &plan.positions {
+        let id = Uuid::new_v4().to_string();
+        let axle_id = p.axle.map(|ix| axle_ids[ix].as_str());
         tx.execute(
             "INSERT INTO chassis_positions
                (id, layout_id, axle_id, side, depth, is_spare, spare_index, position_code,
                 created_at, updated_at, created_by_user_id, updated_by_user_id, sync_version)
              VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?9,?10,?10,1)",
-            params![id, layout_id, axle_id, side, depth, *is_spare as i64, spare_index, code, now, user_id],
+            params![id, layout_id, axle_id, p.side, p.depth, p.is_spare as i64, p.spare_index, p.code, now, user_id],
         )?;
-        enqueue_row(&tx, "chassis_positions", id, "insert", user_id)?;
+        enqueue_row(&tx, "chassis_positions", &id, "insert", user_id)?;
     }
 
     tx.commit()?;
