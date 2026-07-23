@@ -73,7 +73,7 @@ function TiresPage() {
                     className={cn(
                       "text-2xl font-bold tabular",
                       line.projected_qty <= 0 && "text-status-overdue",
-                      line.projected_qty > 0 && line.projected_qty <= 4 && "text-status-due_soon",
+                      line.projected_qty > 0 && line.low_stock && "text-status-due_soon",
                     )}
                   >
                     {fmtNumber(line.projected_qty, i18n.language)}
@@ -254,9 +254,10 @@ function LegacyIntakeDialog() {
                 inputMode="numeric"
                 className="w-28 tabular"
                 value={row.estimated_km ?? ""}
-                onChange={(e) =>
-                  set(i, { estimated_km: e.target.value ? Number(e.target.value) : null })
-                }
+                onChange={(e) => {
+                  const digits = e.target.value.replace(/[^0-9]/g, "");
+                  set(i, { estimated_km: digits ? Number(digits) : null });
+                }}
               />
               <button
                 aria-label={t("common.delete")}

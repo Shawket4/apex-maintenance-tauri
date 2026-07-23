@@ -9,7 +9,7 @@ import { fmtNumber } from "@/shared/lib/numbers";
 /** Honest sync state, compact for the topbar: dead letters are never hidden
  * inside the pending count. Clicking lands on diagnostics in Settings. */
 export function SyncIndicator() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { data } = useSyncStatus();
   if (!data) return null;
 
@@ -30,7 +30,7 @@ export function SyncIndicator() {
     tone = "text-status-due_soon";
   } else if (pending > 0) {
     icon = <CloudUpload className="h-3.5 w-3.5" />;
-    label = t("sync.pending", { n: fmtNumber(pending) });
+    label = t("sync.pending", { n: fmtNumber(pending, i18n.language) });
     tone = "text-info";
   }
 

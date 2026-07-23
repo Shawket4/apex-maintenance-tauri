@@ -2,6 +2,7 @@
 // SQLite (fast, offline-safe) so staleTime is 0 and refetch is cheap; writes
 // invalidate the domain keys they touch (the Rust side already kicked the
 // sync engine).
+import React from "react";
 import {
   useMutation,
   useQuery,
@@ -42,7 +43,12 @@ export const useTrucks = (q?: string) =>
   useQuery({ queryKey: keys.trucks(q), queryFn: () => unwrap(commands.truckList(q ?? null)) });
 
 export const useTruck = (id: number) =>
-  useQuery({ queryKey: keys.truck(id), queryFn: () => unwrap(commands.truckFile(id)) });
+  useQuery({
+    queryKey: keys.truck(id),
+    queryFn: () => unwrap(commands.truckFile(id)),
+    // Callers pass 0 while a parent query (e.g. the WO) is still loading.
+    enabled: id > 0,
+  });
 
 export const useDue = (vehicleId?: number) =>
   useQuery({
@@ -75,6 +81,7 @@ export const useChassis = (vehicleId: number) =>
   useQuery({
     queryKey: keys.chassis(vehicleId),
     queryFn: () => unwrap(commands.chassisGet(vehicleId)),
+    enabled: vehicleId > 0,
   });
 
 export const useCategories = () =>
@@ -102,12 +109,25 @@ export const useSearch = (q: string) =>
     placeholderData: (prev) => prev,
   });
 
-export const useSyncStatus = () =>
-  useQuery({
+export const useSyncStatus = () => {
+  const qc = useQueryClient();
+  const q = useQuery({
     queryKey: keys.syncStatus,
     queryFn: () => unwrap(commands.syncStatus()),
     refetchInterval: 10_000,
   });
+  // A background pull applies server rows without any React-side event —
+  // when last_pull_at advances, the local view-models may have new data.
+  const lastPull = q.data?.last_pull_at ?? null;
+  const prev = React.useRef(lastPull);
+  React.useEffect(() => {
+    if (prev.current !== null && lastPull !== null && prev.current !== lastPull) {
+      invalidateDomain(qc);
+    }
+    prev.current = lastPull;
+  }, [lastPull, qc]);
+  return q;
+};
 
 export const useOutbox = () =>
   useQuery({
@@ -132,9 +152,14 @@ export const useInvoice = (id: number | null) =>
 
 // ── mutations ────────────────────────────────────────────────────────────────
 
-/** Invalidate everything the owned domain can touch — local reads are cheap. */
+/** Invalidate everything the owned domain can touch — local reads are cheap.
+ * plans/categories/classes are included: planUpsert and the reference refresh
+ * rewrite exactly those mirrors, and their editors render from these keys. */
 function invalidateDomain(qc: ReturnType<typeof useQueryClient>) {
-  for (const k of ["home", "trucks", "truck", "due", "wos", "wo", "tires", "tire", "stock", "chassis", "sync-status", "outbox"]) {
+  for (const k of [
+    "home", "trucks", "truck", "due", "wos", "wo", "tires", "tire", "stock",
+    "chassis", "plans", "categories", "classes", "sync-status", "outbox",
+  ]) {
     void qc.invalidateQueries({ queryKey: [k] });
   }
 }

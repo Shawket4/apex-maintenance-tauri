@@ -46,6 +46,7 @@ export function ChassisWizard({ vehicleId }: { vehicleId: number }) {
           className="h-8 w-8"
           disabled={value <= min}
           onClick={() => set(value - 1)}
+          aria-label={t("chassis.decrement", { label })}
         >
           <Minus className="h-4 w-4" />
         </Button>
@@ -58,6 +59,7 @@ export function ChassisWizard({ vehicleId }: { vehicleId: number }) {
           className="h-8 w-8"
           disabled={value >= max}
           onClick={() => set(value + 1)}
+          aria-label={t("chassis.increment", { label })}
         >
           <Plus className="h-4 w-4" />
         </Button>

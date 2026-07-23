@@ -4,6 +4,8 @@ import { useTranslation } from "react-i18next";
 import { Search, Truck, CircleDot, ClipboardList } from "lucide-react";
 
 import { useSearch } from "@/shared/api/queries";
+import { env } from "@/shared/config/env";
+import { useDebouncedValue } from "@/shared/lib/useDebouncedValue";
 import {
   CommandDialog,
   CommandEmpty,
@@ -17,11 +19,13 @@ import { fmtNumber } from "@/shared/lib/numbers";
 /** The one search box: plates (any digit script), DOT codes, open work.
  * Opens with the sidebar button or the "/" shortcut anywhere. */
 export function Omnisearch() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
-  const { data } = useSearch(q);
+  // One IPC round-trip per pause, not per keystroke.
+  const dq = useDebouncedValue(q, env.searchDebounceMs);
+  const { data } = useSearch(dq);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -54,7 +58,13 @@ export function Omnisearch() {
         <kbd className="rounded border bg-muted px-1.5 text-[10px]">/</kbd>
       </button>
 
-      <CommandDialog open={open} onOpenChange={setOpen} shouldFilter={false}>
+      <CommandDialog
+        open={open}
+        onOpenChange={setOpen}
+        shouldFilter={false}
+        title={t("search.placeholder")}
+        description={t("search.placeholder")}
+      >
         <CommandInput
           value={q}
           onValueChange={setQ}
@@ -115,7 +125,7 @@ export function Omnisearch() {
                   <ClipboardList className="h-4 w-4" />
                   <span className="flex-1">{w.plate}</span>
                   <span className="text-xs text-muted-foreground tabular">
-                    {fmtNumber(w.task_count)} {t("common.items")}
+                    {fmtNumber(w.task_count, i18n.language)} {t("common.items")}
                   </span>
                 </CommandItem>
               ))}

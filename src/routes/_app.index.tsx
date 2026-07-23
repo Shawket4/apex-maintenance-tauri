@@ -1,6 +1,6 @@
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { PackageOpen } from "lucide-react";
+import { ArrowLeft, PackageOpen } from "lucide-react";
 
 import { useHome } from "@/shared/api/queries";
 import { fmtNumber } from "@/shared/lib/numbers";
@@ -84,11 +84,12 @@ function HomePage() {
                   {t("home.openedAt")} {fmtAgo(w.opened_at, i18n.language)}
                   {" · "}
                   <span className="tabular">
-                    {fmtNumber(w.task_count)} {t("common.items")}
+                    {fmtNumber(w.task_count, i18n.language)} {t("common.items")}
                   </span>
                 </div>
-                <div className="mt-3 text-[13px] font-semibold text-primary">
-                  {t("home.resume")} ←
+                <div className="mt-3 flex items-center gap-1 text-[13px] font-semibold text-primary">
+                  {t("home.resume")}
+                  <ArrowLeft className="h-3.5 w-3.5 ltr:rotate-180" />
                 </div>
               </button>
             ))}
@@ -156,14 +157,14 @@ function HomePage() {
               {data.low_stock_tires.map((l) => (
                 <Badge key={l.id} variant="outline" className="gap-1">
                   {l.brand} {l.model ?? ""}
-                  <span className="tabular">{fmtNumber(l.projected_qty)}</span>
+                  <span className="tabular">{fmtNumber(l.projected_qty, i18n.language)}</span>
                 </Badge>
               ))}
               {data.low_stock_oil.map((l) => (
                 <Badge key={l.id} variant="outline" className="gap-1">
                   {l.oil_type}
                   <span className="tabular">
-                    {fmtNumber(l.projected_liters)} {t("common.liters")}
+                    {fmtNumber(l.projected_liters, i18n.language)} {t("common.liters")}
                   </span>
                 </Badge>
               ))}

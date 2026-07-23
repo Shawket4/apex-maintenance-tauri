@@ -613,8 +613,15 @@ pub struct StockTireLine {
     pub snapshot_qty: i64,
     pub pending_debits: i64,
     pub projected_qty: i64,
+    /// projected_qty at or below the reorder threshold — computed HERE so the
+    /// cutoff exists in exactly one place (React styles off this flag).
+    pub low_stock: bool,
     pub fetched_at: Option<String>,
 }
+
+/// Reorder thresholds. The one home of these numbers.
+pub const K_LOW_STOCK_TIRES: i64 = 4;
+pub const K_LOW_STOCK_OIL_LITERS: f64 = 72.0; // ≈ two fills
 
 #[derive(Debug, Clone, Serialize, specta::Type)]
 pub struct StockOilLine {
@@ -623,6 +630,7 @@ pub struct StockOilLine {
     pub snapshot_liters: f64,
     pub pending_liters: f64,
     pub projected_liters: f64,
+    pub low_stock: bool,
     pub fetched_at: Option<String>,
 }
 
@@ -655,6 +663,7 @@ pub fn stock_view(pool: &DbPool) -> AppResult<StockView> {
                 snapshot_qty: r.get(4)?,
                 pending_debits: 0,
                 projected_qty: 0,
+                low_stock: false,
                 fetched_at: r.get(5)?,
             })
         })?
@@ -682,6 +691,7 @@ pub fn stock_view(pool: &DbPool) -> AppResult<StockView> {
     }
     for line in &mut tires {
         line.projected_qty = line.snapshot_qty - line.pending_debits;
+        line.low_stock = line.projected_qty <= K_LOW_STOCK_TIRES;
     }
 
     let mut stmt = conn.prepare(
@@ -695,6 +705,7 @@ pub fn stock_view(pool: &DbPool) -> AppResult<StockView> {
                 snapshot_liters: r.get(2)?,
                 pending_liters: 0.0,
                 projected_liters: 0.0,
+                low_stock: false,
                 fetched_at: r.get(3)?,
             })
         })?
@@ -716,6 +727,7 @@ pub fn stock_view(pool: &DbPool) -> AppResult<StockView> {
     }
     for line in &mut oil {
         line.projected_liters = line.snapshot_liters - line.pending_liters;
+        line.low_stock = line.projected_liters <= K_LOW_STOCK_OIL_LITERS;
     }
 
     let used_pool_count: i64 = conn.query_row(
@@ -762,9 +774,9 @@ pub fn home_summary(pool: &DbPool) -> AppResult<HomeSummary> {
         .collect();
     let stock = stock_view(pool)?;
     let low_stock_tires: Vec<StockTireLine> =
-        stock.tires.into_iter().filter(|t| t.projected_qty <= 4).collect();
+        stock.tires.into_iter().filter(|t| t.low_stock).collect();
     let low_stock_oil: Vec<StockOilLine> =
-        stock.oil.into_iter().filter(|o| o.projected_liters <= 72.0).collect();
+        stock.oil.into_iter().filter(|o| o.low_stock).collect();
 
     let conn = pool.get()?;
     let counts = outbox::counts(&conn)?;

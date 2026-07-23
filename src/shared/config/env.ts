@@ -26,15 +26,13 @@ const validTheme = (raw: unknown): "light" | "dark" | "system" => {
   return "system";
 };
 
+// Every field here is READ somewhere — env settings nobody consumes are the
+// "dead config" antipattern this codebase's history warns about.
 export const env = {
-  appName: str(e.VITE_APP_NAME, "Apex Maintenance"),
   defaultLanguage: str(e.VITE_DEFAULT_LANGUAGE, "ar"),
   fallbackLanguage: str(e.VITE_FALLBACK_LANGUAGE, "ar"),
   queryDevtools: bool(e.VITE_QUERY_DEVTOOLS, true),
   defaultTheme: validTheme(e.VITE_DEFAULT_THEME),
-
-  vehiclesRefetchIntervalMs: num(e.VITE_VEHICLES_REFETCH_INTERVAL_MS, 60_000),
-  invoicesRefetchIntervalMs: num(e.VITE_INVOICES_REFETCH_INTERVAL_MS, 300_000),
   searchDebounceMs: num(e.VITE_SEARCH_DEBOUNCE_MS, 400),
 } as const;
 

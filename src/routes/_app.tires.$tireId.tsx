@@ -151,12 +151,12 @@ function TireFilePage() {
                   <span className="flex items-center gap-2 text-xs text-muted-foreground tabular">
                     {fmtCairo(m.mounted_at, "YYYY/MM/DD", i18n.language)}
                     {m.dismounted_at &&
-                      ` ← ${fmtCairo(m.dismounted_at, "YYYY/MM/DD", i18n.language)}`}
+                      ` – ${fmtCairo(m.dismounted_at, "YYYY/MM/DD", i18n.language)}`}
                     <button
                       title={t("tires.editOdo.title")}
                       aria-label={t("tires.editOdo.title")}
                       onClick={() => setEditing(m)}
-                      className="rounded p-1 text-muted-foreground opacity-0 transition hover:bg-accent hover:text-foreground group-hover:opacity-100"
+                      className="rounded p-1 text-muted-foreground opacity-0 transition focus-visible:opacity-100 hover:bg-accent hover:text-foreground group-focus-within:opacity-100 group-hover:opacity-100"
                     >
                       <Pencil className="h-3.5 w-3.5" />
                     </button>
@@ -165,7 +165,7 @@ function TireFilePage() {
                 <div className="mt-1 text-xs text-muted-foreground tabular">
                   {m.mounted_odometer != null && fmtNumber(m.mounted_odometer, i18n.language)}
                   {m.dismounted_odometer != null &&
-                    ` ← ${fmtNumber(m.dismounted_odometer, i18n.language)}`}
+                    ` – ${fmtNumber(m.dismounted_odometer, i18n.language)}`}
                   {m.dismount_reason && ` · ${t(`diagram.reason.${m.dismount_reason}`)}`}
                 </div>
               </div>
@@ -181,7 +181,7 @@ function TireFilePage() {
               <div key={ev.id} className="flex items-center justify-between px-[18px] py-3 text-sm">
                 <span>
                   {ev.from_status && t(`tires.status.${ev.from_status}`)}
-                  {" ← "}
+                  {" – "}
                   {ev.to_status && t(`tires.status.${ev.to_status}`)}
                 </span>
                 <span className="text-xs text-muted-foreground tabular">

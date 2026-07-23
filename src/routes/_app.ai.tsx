@@ -44,7 +44,7 @@ function AiSearchPage() {
 
   const examples = [t("ai.examples.one"), t("ai.examples.two"), t("ai.examples.three")];
   const submit = (query: string) => {
-    if (!query.trim()) return;
+    if (!query.trim() || ask.isPending) return; // Enter path has no disabled state
     setQ(query);
     setKeyMissing(false);
     ask.mutate(query);

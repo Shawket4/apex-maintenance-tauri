@@ -35,7 +35,9 @@ function TruckTires() {
   if (!chassis.data) return <ChassisWizard vehicleId={vid} />;
 
   const data = chassis.data;
-  const emptyPositions = data.positions.filter((p) => !p.tire_id);
+  // Bulk "same for all" fills ROAD positions only — fabricating spare tires
+  // silently was the bug.
+  const emptyPositions = data.positions.filter((p) => !p.tire_id && !p.is_spare);
   const selected = data.positions.find((p) => p.id === pos) ?? null;
 
   const select = (p: PositionRow | null) =>

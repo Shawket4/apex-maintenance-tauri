@@ -108,7 +108,7 @@ function WoCockpit() {
           <Section
             title={
               <>
-                {t("wo.tasks")} · <span className="tabular">{fmtNumber(d.tasks.length)}</span>
+                {t("wo.tasks")} · <span className="tabular">{fmtNumber(d.tasks.length, i18n.language)}</span>
               </>
             }
           >
@@ -308,7 +308,7 @@ function AddTaskInput({ woId }: { woId: string }) {
 
   const submit = () => {
     const v = text.trim();
-    if (!v) return;
+    if (!v || add.isPending) return; // Enter has no disabled state — guard here
     add.mutate({ text: v, category: category || null });
   };
 
@@ -338,7 +338,13 @@ function AddTaskInput({ woId }: { woId: string }) {
           ))}
         </SelectContent>
       </Select>
-      <Button onClick={submit} disabled={!text.trim() || add.isPending} size="icon" className="shrink-0">
+      <Button
+        onClick={submit}
+        disabled={!text.trim() || add.isPending}
+        size="icon"
+        className="shrink-0"
+        aria-label={t("wo.addTaskPlaceholder")}
+      >
         <Plus className="h-4 w-4" />
       </Button>
     </div>
@@ -383,7 +389,7 @@ function TaskList({ d, canEdit }: { d: WoDetail; canEdit: boolean }) {
               title={t("wo.deleteTask")}
               aria-label={t("wo.deleteTask")}
               onClick={() => del.mutate(task.id)}
-              className="rounded p-1.5 text-muted-foreground opacity-0 transition hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
+              className="rounded p-1.5 text-muted-foreground opacity-0 transition focus-visible:opacity-100 hover:bg-destructive/10 hover:text-destructive group-focus-within:opacity-100 group-hover:opacity-100"
             >
               <Trash2 className="h-4 w-4" />
             </button>
@@ -444,12 +450,21 @@ function OilForm({
           inputMode="decimal"
           className="bg-card tabular"
           value={liters}
-          onChange={(e) => setLiters(e.target.value.replace(/[^0-9.]/g, ""))}
+          onChange={(e) => {
+            // digits + at most one decimal point — "1.2.3" → NaN slipped the guard
+            const v = e.target.value.replace(/[^0-9.]/g, "");
+            const firstDot = v.indexOf(".");
+            setLiters(
+              firstDot === -1
+                ? v
+                : v.slice(0, firstDot + 1) + v.slice(firstDot + 1).replaceAll(".", ""),
+            );
+          }}
         />
       </div>
       <Button
         onClick={() => add.mutate()}
-        disabled={!oilType || !liters || Number(liters) <= 0 || add.isPending}
+        disabled={!oilType || !(Number(liters) > 0) || add.isPending}
       >
         {t("wo.oil.record")}
       </Button>
@@ -496,12 +511,9 @@ function DueSuggestions({ d, woId, canAdd }: { d: WoDetail; woId: string; canAdd
               className="flex-none"
               disabled={add.isPending}
               onClick={() =>
-                add.mutate({
-                  category: row.category_id,
-                  label: i18n.language.startsWith("ar")
-                    ? row.category_name_ar
-                    : row.category_name_en,
-                })
+                // description_ar is STORED DATA on an Arabic-first record —
+                // always the Arabic name, whatever the UI language is.
+                add.mutate({ category: row.category_id, label: row.category_name_ar })
               }
             >
               {t("wo.due.addAsTask")}

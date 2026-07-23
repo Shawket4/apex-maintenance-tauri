@@ -127,7 +127,7 @@ function TruckHistory() {
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <span className="text-xs text-muted-foreground tabular">
-              {fmtNumber(item.count)} {t("common.items")}
+              {fmtNumber(item.count, i18n.language)} {t("common.items")}
             </span>
             <Badge variant={item.kind === "wo" ? "default" : "secondary"}>
               {item.kind === "wo" ? t("truck.history.workshop") : t("truck.history.falcon")}

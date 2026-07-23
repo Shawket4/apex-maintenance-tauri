@@ -1,30 +1,23 @@
 {
   "app": {
     "name": "Apex",
-    "subtitle": "Maintenance",
     "tagline": "Petroleum transport"
   },
   "common": {
-    "search": "Search",
     "save": "Save",
     "cancel": "Cancel",
     "close": "Close",
-    "add": "Add",
     "delete": "Delete",
     "confirm": "Confirm",
     "retry": "Retry",
     "discard": "Discard",
-    "loading": "Loading…",
     "empty": "No data",
     "back": "Back",
     "all": "All",
     "km": "km",
     "liters": "L",
     "items": "items",
-    "notes": "Notes",
-    "optional": "optional",
     "requiredField": "This field is required",
-    "offlineNote": "Work is saved locally and syncs when the connection returns",
     "notFound": "Not found"
   },
   "nav": {
@@ -54,7 +47,6 @@
   },
   "search": {
     "placeholder": "Search by plate or DOT…",
-    "hint": "Press / to search",
     "trucks": "Trucks",
     "tires": "Tires",
     "workOrders": "Work orders",
@@ -71,7 +63,6 @@
     "resume": "Resume work",
     "overdue": "Overdue",
     "dueSoon": "Due soon",
-    "neverDone": "Never done",
     "viewAll": "View all",
     "kpiOpen": "Open work orders"
   },
@@ -81,7 +72,6 @@
     "driver": "Driver",
     "unclassified": "Unclassified",
     "noChassis": "Chassis not defined",
-    "openWoCount": "open work order",
     "empty": "No trucks — refresh the Falcon data"
   },
   "truck": {
@@ -101,10 +91,8 @@
       "falcon_fuel": "fuel reading",
       "manual_override": "manual reading",
       "oil_change": "last oil change",
-      "work_order": "last work order",
-      "none": "no reading"
+      "work_order": "last work order"
     },
-    "observedAt": "Recorded",
     "overrideOdometer": "Correct odometer",
     "overrideNotes": "Reason for correction",
     "class": "Class",
@@ -114,7 +102,6 @@
       "empty": "No service history",
       "invoiceItems": "Invoice items"
     },
-    "defineChassis": "Define chassis",
     "chassisMissing": "This truck's chassis isn't defined yet — define it to use the diagram"
   },
   "wo": {
@@ -129,7 +116,6 @@
     "pending": "Still syncing",
     "tasks": "Work items",
     "addTaskPlaceholder": "Type what was done and press Enter…",
-    "category": "Category",
     "noCategory": "No category",
     "deleteTask": "Delete task",
     "oil": {
@@ -169,7 +155,6 @@
     "nextDueKm": "Due at {{km}}",
     "nextDueAt": "Due on {{date}}",
     "lastDone": "Last done",
-    "currentOdometer": "Odometer",
     "openWo": "Open work order",
     "empty": "No active service plans — classify trucks and set plans in Settings"
   },
@@ -177,7 +162,6 @@
     "title": "Tires & Stock",
     "stock": {
       "title": "New stock",
-      "snapshot": "On hand",
       "pending": "Pending debits",
       "projected": "Available",
       "usedPool": "Used tires available",
@@ -201,12 +185,10 @@
     },
     "dot": "DOT code",
     "brand": "Brand",
-    "model": "Model",
     "size": "Size",
     "totalKm": "Kilometers",
     "retreads": "Retreads",
     "mountedOn": "Mounted on",
-    "position": "Position",
     "history": "Mount history",
     "events": "Status events",
     "actions": {
@@ -248,7 +230,6 @@
       "title": "Mount a tire",
       "fromNew": "New from stock",
       "fromUsed": "Used from pool",
-      "stockLine": "Pick a stock line",
       "noStock": "No new stock — you can continue and the balance will go negative",
       "noUsed": "No used tires available",
       "dotPrompt": "DOT code (on the sidewall)",
@@ -278,21 +259,16 @@
       "trailerAxles": "Trailer axles",
       "spares": "Spares",
       "create": "Create chassis",
-      "fill": "Record position {{code}}",
       "sameForAll": "Same brand for all empty positions",
-      "skip": "Leave empty",
       "done": "Done — {{count}} tires recorded"
     },
     "needWo": "An open work order is needed to mount or dismount",
-    "openWoNow": "Open one now",
     "inspect": {
-      "mountedAt": "Mounted since",
       "mountedOdo": "Odometer at mount",
       "currentRun": "Run this mount",
       "lifetimeKm": "Lifetime km",
       "fullFile": "Full file",
-      "mountReason": "Mount reason",
-      "origin": "Origin"
+      "mountReason": "Mount reason"
     },
     "selectHint": "Click any wheel on the diagram or in the list"
   },
@@ -317,7 +293,6 @@
       "plansEditor": "Service plans (fleet-wide)",
       "class": "Class",
       "category": "Category",
-      "trigger": "Trigger",
       "byKm": "By kilometers",
       "byDays": "By days",
       "intervalKm": "Every N km",
@@ -333,10 +308,7 @@
       "pendingRows": "On the way to the server",
       "deadRows": "Need attention",
       "queueEmpty": "Nothing waiting — all synced",
-      "entity": "Entity",
-      "operation": "Operation",
       "attempts": "Attempts",
-      "lastError": "Last error",
       "serverRow": "Server row attached"
     },
     "appearance": {
@@ -361,5 +333,9 @@
     "offline": "No connection — try again when back online",
     "unauthorized": "Session expired — sign in again",
     "generic": "Something went wrong: {{message}}"
+  },
+  "chassis": {
+    "decrement": "Decrease {{label}}",
+    "increment": "Increase {{label}}"
   }
 }

@@ -245,6 +245,9 @@ function Wheel({ pos, xyz, dimmed, selected, labelled, onSelect }: WheelProps) {
       ref={grp}
       position={xyz}
       onClick={(e) => {
+        // An orbit drag that ends over a wheel fires click on release —
+        // event.delta is the pointer travel; a real click is near-zero.
+        if (e.delta > 3) return;
         e.stopPropagation();
         onSelect(pos);
       }}
@@ -463,10 +466,14 @@ function CameraRig({
   // correct one — read on screen as a jitter on load.
   const prevFocusKey = useRef<string | null>(null);
 
+  const userMoved = useRef(false);
+
   useEffect(() => {
     if (!controls) return;
     const onStart = () => {
       goal.current = null;
+      // The user owns the camera now — resizes must not teleport it home.
+      userMoved.current = true;
     };
     controls.addEventListener("start", onStart);
     return () => controls.removeEventListener("start", onStart);
@@ -515,6 +522,21 @@ function CameraRig({
     const raf = requestAnimationFrame(() => {
       const g = focus ? solveFocus(focus) : solveFit();
       if (!g) return;
+      // A resize while a glide is IN FLIGHT retargets the glide to the pose
+      // re-solved for the new viewport instead of snapping — selecting a
+      // wheel resizes the canvas (the inspector column appears), and a snap
+      // here killed the signature glide on every first selection.
+      if (!focusChanged && goal.current) {
+        goal.current.pos1 = g.pos;
+        goal.current.tgt1 = g.tgt;
+        return;
+      }
+      // A resize after the user manually orbited must not teleport the camera
+      // back to the solved pose — they own it until the next focus change.
+      if (!focusChanged && userMoved.current && !first.current) {
+        return;
+      }
+      if (focusChanged) userMoved.current = false;
       // Snap (no glide) on the first fit, when reduced-motion is set, or when
       // this re-fit is only due to a container resize (focus unchanged). Glide
       // only for a genuine focus change — click into a pair, or Esc back out.
@@ -591,7 +613,23 @@ export function TruckDiagram({ axles, positions, selectedId, onSelect }: TruckDi
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onSelect(null);
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      // Never deselect while focus is inside a form control — the inspector
+      // forms are keyed by selection, so a global Escape would unmount them
+      // and destroy everything typed (Radix Selects also close via Escape
+      // without stopping propagation to window).
+      const t = e.target as HTMLElement | null;
+      if (
+        t &&
+        (t.tagName === "INPUT" ||
+          t.tagName === "TEXTAREA" ||
+          t.tagName === "SELECT" ||
+          t.isContentEditable ||
+          t.closest('[role="listbox"],[role="dialog"],[role="combobox"]'))
+      ) {
+        return;
+      }
+      onSelect(null);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -655,7 +693,10 @@ export function TruckDiagram({ axles, positions, selectedId, onSelect }: TruckDi
               dimmed={false}
               selected={selectedId === p.id}
               labelled={detail}
-              onSelect={(pos) => onSelect(pos.id === selectedId ? null : pos)}
+              // No toggle-off on the wheel: the second click of a double-click
+              // used to re-select→deselect and fight the camera. Esc, the
+              // close button, or clicking empty space deselect.
+              onSelect={onSelect}
             />
           );
         })}

@@ -578,8 +578,13 @@ pending: boolean }
 export type RefreshResult = { upserted: number; fetched_at: string }
 export type SearchResults = { trucks: TruckRow[]; tires: TireRow[]; work_orders: WoListRow[] }
 export type SearchSource = "online" | "offline"
-export type StockOilLine = { id: string; oil_type: string; snapshot_liters: number; pending_liters: number; projected_liters: number; fetched_at: string | null }
-export type StockTireLine = { id: string; brand: string; model: string | null; size: string | null; snapshot_qty: number; pending_debits: number; projected_qty: number; fetched_at: string | null }
+export type StockOilLine = { id: string; oil_type: string; snapshot_liters: number; pending_liters: number; projected_liters: number; low_stock: boolean; fetched_at: string | null }
+export type StockTireLine = { id: string; brand: string; model: string | null; size: string | null; snapshot_qty: number; pending_debits: number; projected_qty: number; 
+/**
+ * projected_qty at or below the reorder threshold — computed HERE so the
+ * cutoff exists in exactly one place (React styles off this flag).
+ */
+low_stock: boolean; fetched_at: string | null }
 export type StockView = { tires: StockTireLine[]; oil: StockOilLine[]; 
 /**
  * Used tires available to mount (individual assets in the pool).

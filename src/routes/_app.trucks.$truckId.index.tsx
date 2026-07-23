@@ -52,7 +52,7 @@ function TruckOverview() {
                     {fmtCairo(w.opened_at, "YYYY/MM/DD", i18n.language)}
                   </div>
                   <div className="mt-0.5 text-xs text-muted-foreground tabular">
-                    {fmtNumber(w.task_count)} {t("common.items")}
+                    {fmtNumber(w.task_count, i18n.language)} {t("common.items")}
                     {w.odometer_at_open != null &&
                       ` · ${fmtNumber(w.odometer_at_open, i18n.language)} ${t("common.km")}`}
                   </div>
