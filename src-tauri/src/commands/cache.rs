@@ -60,6 +60,10 @@ pub async fn drivers_list(state: State<'_, AppState>) -> CmdResult<Vec<DriverRow
 #[tauri::command]
 #[specta::specta]
 pub async fn vehicles_refresh(state: State<'_, AppState>) -> CmdResult<RefreshResult> {
+    vehicles_refresh_inner(&state).await
+}
+
+pub(crate) async fn vehicles_refresh_inner(state: &AppState) -> CmdResult<RefreshResult> {
     let raw = state.http.maint_get_raw("/cache/vehicles").await?;
 
     let env: VehiclesEnvelope = parse_json(&raw.body, "vehicles cache")?;
@@ -136,6 +140,10 @@ pub async fn invoice_get(
 #[tauri::command]
 #[specta::specta]
 pub async fn invoices_refresh(state: State<'_, AppState>) -> CmdResult<RefreshResult> {
+    invoices_refresh_inner(&state).await
+}
+
+pub(crate) async fn invoices_refresh_inner(state: &AppState) -> CmdResult<RefreshResult> {
     let limit = state.config.cache.invoices_page_size.max(1) as i32;
     let mut page = 1;
     let mut total_upserted = 0usize;

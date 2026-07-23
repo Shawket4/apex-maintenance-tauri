@@ -145,6 +145,95 @@ pub fn wo_close(pool: &DbPool, id: &str, user_id: i64) -> AppResult<()> {
     Ok(())
 }
 
+/// Escape hatch for a WO closed by mistake — the inverse of wo_close.
+pub fn wo_reopen(pool: &DbPool, id: &str, user_id: i64) -> AppResult<()> {
+    let mut conn = pool.get()?;
+    let tx = conn.transaction()?;
+    let n = tx.execute(
+        "UPDATE work_orders SET status='open', closed_at=NULL, updated_at=?2, updated_by_user_id=?3
+          WHERE id=?1 AND status='closed' AND deleted_at IS NULL",
+        params![id, now_iso(), user_id],
+    )?;
+    if n == 0 {
+        return Err(AppError::Internal("closed work order not found".into()));
+    }
+    enqueue_row(&tx, "work_orders", id, "update", user_id)?;
+    tx.commit()?;
+    Ok(())
+}
+
+/// Correct odometer_at_open on an existing WO. It is both an odometer-truth
+/// candidate AND the due baseline last_km — a fat-fingered digit used to skew
+/// next_due_km for every category done under that WO, permanently.
+pub fn wo_set_odometer(
+    pool: &DbPool,
+    id: &str,
+    odometer_at_open: Option<i64>,
+    user_id: i64,
+) -> AppResult<()> {
+    if let Some(km) = odometer_at_open {
+        if km < 0 {
+            return Err(AppError::Internal("odometer must be >= 0".into()));
+        }
+    }
+    let mut conn = pool.get()?;
+    let tx = conn.transaction()?;
+    let n = tx.execute(
+        "UPDATE work_orders SET odometer_at_open=?2, updated_at=?3, updated_by_user_id=?4
+          WHERE id=?1 AND deleted_at IS NULL",
+        params![id, odometer_at_open, now_iso(), user_id],
+    )?;
+    if n == 0 {
+        return Err(AppError::Internal("work order not found".into()));
+    }
+    enqueue_row(&tx, "work_orders", id, "update", user_id)?;
+    tx.commit()?;
+    Ok(())
+}
+
+/// Seed a historical "last done" baseline without faking today's date: a
+/// CLOSED work order stamped with the real performed_at + odometer and one
+/// DONE task of the category. Without this, configuring plans floods every
+/// truck with never_done and the only workaround was fake WOs dated today —
+/// which restarts time-based plans from today.
+pub fn record_baseline(
+    pool: &DbPool,
+    vehicle_id: i64,
+    category_id: &str,
+    performed_at: &str,
+    odometer: Option<i64>,
+    user_id: i64,
+) -> AppResult<String> {
+    // performed_at arrives as YYYY-MM-DD from a date input; store midnight UTC.
+    let ts = format!("{performed_at}T00:00:00Z");
+    if chrono::DateTime::parse_from_rfc3339(&ts).is_err() {
+        return Err(AppError::Internal(format!("invalid date: {performed_at}")));
+    }
+    let wo_id = Uuid::new_v4().to_string();
+    let task_id = Uuid::new_v4().to_string();
+    let mut conn = pool.get()?;
+    let tx = conn.transaction()?;
+    let now = now_iso();
+    tx.execute(
+        "INSERT INTO work_orders
+           (id, vehicle_id, status, title, odometer_at_open, opened_at, closed_at,
+            created_at, updated_at, created_by_user_id, updated_by_user_id, sync_version)
+         VALUES (?1,?2,'closed',NULL,?3,?4,?4,?5,?5,?6,?6,1)",
+        params![wo_id, vehicle_id, odometer, ts, now, user_id],
+    )?;
+    enqueue_row(&tx, "work_orders", &wo_id, "insert", user_id)?;
+    tx.execute(
+        "INSERT INTO work_order_tasks
+           (id, work_order_id, kind, category_id, is_done, sort_order,
+            created_at, updated_at, created_by_user_id, updated_by_user_id, sync_version)
+         VALUES (?1,?2,'planned',?3,1,1,?4,?4,?5,?5,1)",
+        params![task_id, wo_id, category_id, now, user_id],
+    )?;
+    enqueue_row(&tx, "work_order_tasks", &task_id, "insert", user_id)?;
+    tx.commit()?;
+    Ok(wo_id)
+}
+
 pub fn wo_add_task(
     pool: &DbPool,
     work_order_id: &str,
@@ -161,16 +250,38 @@ pub fn wo_add_task(
         params![work_order_id],
         |r| r.get(0),
     )?;
+    // is_done = 0: adding a task is PLANNING. Only checking it off (or the
+    // oil flow, which records performed work) resets the due clock — before
+    // this, "add as task" from the due suggestions reset preventive coverage
+    // the instant it was clicked.
     tx.execute(
         "INSERT INTO work_order_tasks
            (id, work_order_id, kind, category_id, description_ar, is_done, sort_order,
             created_at, updated_at, created_by_user_id, updated_by_user_id, sync_version)
-         VALUES (?1,?2,'free',?3,?4,1,?5,?6,?6,?7,?7,1)",
+         VALUES (?1,?2,'free',?3,?4,0,?5,?6,?6,?7,?7,1)",
         params![id, work_order_id, category_id, description_ar, sort, now, user_id],
     )?;
     enqueue_row(&tx, "work_order_tasks", &id, "insert", user_id)?;
     tx.commit()?;
     Ok(id)
+}
+
+/// Check/uncheck a task. Done-ness is what resets the due clock (0017), so
+/// this is the mechanic's "the work actually happened" statement.
+pub fn wo_task_set_done(pool: &DbPool, task_id: &str, done: bool, user_id: i64) -> AppResult<()> {
+    let mut conn = pool.get()?;
+    let tx = conn.transaction()?;
+    let n = tx.execute(
+        "UPDATE work_order_tasks SET is_done=?2, updated_at=?3, updated_by_user_id=?4
+          WHERE id=?1 AND deleted_at IS NULL",
+        params![task_id, done as i64, now_iso(), user_id],
+    )?;
+    if n == 0 {
+        return Err(AppError::Internal("task not found".into()));
+    }
+    enqueue_row(&tx, "work_order_tasks", task_id, "update", user_id)?;
+    tx.commit()?;
+    Ok(())
 }
 
 pub fn wo_delete_task(pool: &DbPool, task_id: &str, user_id: i64) -> AppResult<()> {
@@ -677,6 +788,14 @@ pub fn tire_set_status(
         "UPDATE tires SET status=?2, updated_at=?3, updated_by_user_id=?4 WHERE id=?1",
         params![tire_id, to_status, now, user_id],
     )?;
+    // A restock FROM the retreader is a completed retread — the lineage
+    // counter finally moves (it was schema-only before).
+    if event_type == "restock" && from_status == "retreading" {
+        tx.execute(
+            "UPDATE tires SET retread_count = retread_count + 1 WHERE id=?1",
+            params![tire_id],
+        )?;
+    }
 
     let event_id = Uuid::new_v4().to_string();
     tx.execute(
@@ -705,6 +824,76 @@ pub struct ChassisConfig {
 /// Create a layout + axles + positions for a vehicle in one shot, mirroring
 /// maint-rust's chassis codes exactly:
 ///   tractor single: H{n}L/H{n}R · dual: H{n}LO/LI/RI/RO · trailer: TR{n}… · spare: SP{n}
+/// Guarded escape hatch for a wrong chassis: soft-delete the whole layout
+/// tree so the wizard can rebuild it. Refused while any position holds an
+/// active assignment — dismount everything first.
+pub fn chassis_delete(pool: &DbPool, vehicle_id: i64, user_id: i64) -> AppResult<()> {
+    let mut conn = pool.get()?;
+    let tx = conn.transaction()?;
+    let layout: Option<String> = tx
+        .query_row(
+            "SELECT id FROM chassis_layouts WHERE vehicle_id=?1 AND deleted_at IS NULL",
+            params![vehicle_id],
+            |r| r.get(0),
+        )
+        .optional()?;
+    let Some(layout_id) = layout else {
+        return Err(AppError::Internal("vehicle has no chassis layout".into()));
+    };
+    let mounted: i64 = tx.query_row(
+        "SELECT COUNT(*) FROM tire_assignments ta
+          JOIN chassis_positions p ON p.id = ta.position_id
+         WHERE p.layout_id=?1 AND ta.dismounted_at IS NULL AND ta.deleted_at IS NULL",
+        params![layout_id],
+        |r| r.get(0),
+    )?;
+    if mounted > 0 {
+        return Err(AppError::Internal(format!(
+            "chassis has {mounted} mounted tires — dismount them first"
+        )));
+    }
+    let now = now_iso();
+    // Children first so the server's FIFO delete order never dangles.
+    let pos_ids: Vec<String> = {
+        let mut stmt = tx.prepare(
+            "SELECT id FROM chassis_positions WHERE layout_id=?1 AND deleted_at IS NULL",
+        )?;
+        let v = stmt
+            .query_map(params![layout_id], |r| r.get::<_, String>(0))?
+            .collect::<Result<Vec<_>, _>>()?;
+        v
+    };
+    let axle_ids: Vec<String> = {
+        let mut stmt = tx
+            .prepare("SELECT id FROM chassis_axles WHERE layout_id=?1 AND deleted_at IS NULL")?;
+        let v = stmt
+            .query_map(params![layout_id], |r| r.get::<_, String>(0))?
+            .collect::<Result<Vec<_>, _>>()?;
+        v
+    };
+    for id in &pos_ids {
+        tx.execute(
+            "UPDATE chassis_positions SET deleted_at=?2, updated_at=?2, updated_by_user_id=?3 WHERE id=?1",
+            params![id, now, user_id],
+        )?;
+        enqueue_row(&tx, "chassis_positions", id, "delete", user_id)?;
+    }
+    for id in &axle_ids {
+        tx.execute(
+            "UPDATE chassis_axles SET deleted_at=?2, updated_at=?2, updated_by_user_id=?3 WHERE id=?1",
+            params![id, now, user_id],
+        )?;
+        enqueue_row(&tx, "chassis_axles", id, "delete", user_id)?;
+    }
+    tx.execute(
+        "UPDATE chassis_layouts SET deleted_at=?2, updated_at=?2, updated_by_user_id=?3 WHERE id=?1",
+        params![layout_id, now, user_id],
+    )?;
+    enqueue_row(&tx, "chassis_layouts", &layout_id, "delete", user_id)?;
+    tx.commit()?;
+    Ok(())
+}
+
 pub fn chassis_create(pool: &DbPool, vehicle_id: i64, cfg: &ChassisConfig, user_id: i64) -> AppResult<String> {
     if cfg.drive_axles < 1 || cfg.trailer_axles < 0 || cfg.spares < 0 {
         return Err(AppError::Internal("invalid chassis config".into()));

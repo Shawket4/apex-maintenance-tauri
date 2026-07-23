@@ -5,7 +5,8 @@ import { Gauge } from "lucide-react";
 import { EmptyState, Section } from "@/widgets/layout/PageShell";
 
 import { commands, unwrap } from "@/shared/api/client";
-import { useDomainMutation, useDue, useWos } from "@/shared/api/queries";
+import { useDomainMutation, useDue, useTruck, useWos } from "@/shared/api/queries";
+import { fmtKm } from "@/shared/lib/numbers";
 import { notifyError } from "@/shared/lib/notify";
 import { fmtNumber } from "@/shared/lib/numbers";
 import { fmtCairo } from "@/shared/lib/time";
@@ -80,10 +81,13 @@ function TruckOverview() {
 }
 
 function OverrideOdometerDialog({ vehicleId }: { vehicleId: number }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const truck = useTruck(vehicleId);
+  const current = truck.data?.odometer ?? null;
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState("");
   const [notes, setNotes] = useState("");
+  const goingDown = current != null && value !== "" && Number(value) < current.km;
   const mutation = useDomainMutation(
     () => unwrap(commands.overrideSet(vehicleId, Number(value), notes || null)),
     {
@@ -109,6 +113,14 @@ function OverrideOdometerDialog({ vehicleId }: { vehicleId: number }) {
           <DialogTitle>{t("truck.overrideOdometer")}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
+          {current && (
+            <p className="text-xs text-muted-foreground tabular">
+              {t("truck.overrideCurrent", {
+                km: fmtKm(current.km, i18n.language),
+                source: t(`truck.odometerSource.${current.source}`),
+              })}
+            </p>
+          )}
           <div className="space-y-2">
             <Label htmlFor="ov-km">{t("truck.odometerPrompt")}</Label>
             <Input
@@ -120,6 +132,11 @@ function OverrideOdometerDialog({ vehicleId }: { vehicleId: number }) {
               autoFocus
             />
           </div>
+          {goingDown && (
+            <p className="rounded-lg bg-status-due_soon-soft px-3 py-2 text-xs text-status-due_soon">
+              {t("truck.overrideDownWarn")}
+            </p>
+          )}
           <div className="space-y-2">
             <Label htmlFor="ov-notes">{t("truck.overrideNotes")}</Label>
             <Input id="ov-notes" value={notes} onChange={(e) => setNotes(e.target.value)} />

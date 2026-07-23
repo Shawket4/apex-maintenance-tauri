@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { CloudOff, CloudUpload, AlertTriangle, Check } from "lucide-react";
+import { CloudOff, CloudUpload, AlertTriangle, Check, KeyRound } from "lucide-react";
 
 import { useSyncStatus } from "@/shared/api/queries";
 import { cn } from "@/shared/lib/cn";
@@ -20,7 +20,15 @@ export function SyncIndicator() {
   let icon = <Check className="h-3.5 w-3.5" />;
   let label = t("sync.synced");
   let tone = "text-status-ok";
-  if (dead) {
+  let to = "/settings";
+  if (data.auth_paused) {
+    // The parked queue was invisible: writes piled up while the indicator
+    // said "synced" and nothing prompted a re-login.
+    icon = <KeyRound className="h-3.5 w-3.5" />;
+    label = t("sync.authExpired");
+    tone = "text-status-overdue";
+    to = "/login";
+  } else if (dead) {
     icon = <AlertTriangle className="h-3.5 w-3.5" />;
     label = t("sync.dead", { count: data.dead });
     tone = "text-status-overdue";
@@ -36,7 +44,7 @@ export function SyncIndicator() {
 
   return (
     <Link
-      to="/settings"
+      to={to}
       className={cn(
         "flex flex-none items-center gap-1.5 whitespace-nowrap rounded-lg px-2 py-1.5 text-[11.5px] font-semibold transition hover:bg-foreground/5",
         tone,

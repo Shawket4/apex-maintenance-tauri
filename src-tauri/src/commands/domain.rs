@@ -192,6 +192,77 @@ pub async fn wo_delete_task(
     Ok(())
 }
 
+
+#[tauri::command]
+#[specta::specta]
+pub async fn wo_reopen(
+    state: State<'_, AppState>,
+    engine: State<'_, EngineState>,
+    id: String,
+) -> CmdResult<()> {
+    let uid = current_user_id(&state)?;
+    domain::wo_reopen(&state.db, &id, uid)?;
+    kick(&engine);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn wo_set_odometer(
+    state: State<'_, AppState>,
+    engine: State<'_, EngineState>,
+    id: String,
+    odometer_at_open: Option<i64>,
+) -> CmdResult<()> {
+    let uid = current_user_id(&state)?;
+    domain::wo_set_odometer(&state.db, &id, odometer_at_open, uid)?;
+    kick(&engine);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn wo_task_set_done(
+    state: State<'_, AppState>,
+    engine: State<'_, EngineState>,
+    task_id: String,
+    done: bool,
+) -> CmdResult<()> {
+    let uid = current_user_id(&state)?;
+    domain::wo_task_set_done(&state.db, &task_id, done, uid)?;
+    kick(&engine);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn record_baseline(
+    state: State<'_, AppState>,
+    engine: State<'_, EngineState>,
+    vehicle_id: i64,
+    category_id: String,
+    performed_at: String,
+    odometer: Option<i64>,
+) -> CmdResult<String> {
+    let uid = current_user_id(&state)?;
+    let id = domain::record_baseline(&state.db, vehicle_id, &category_id, &performed_at, odometer, uid)?;
+    kick(&engine);
+    Ok(id)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn chassis_delete(
+    state: State<'_, AppState>,
+    engine: State<'_, EngineState>,
+    vehicle_id: i64,
+) -> CmdResult<()> {
+    let uid = current_user_id(&state)?;
+    domain::chassis_delete(&state.db, vehicle_id, uid)?;
+    kick(&engine);
+    Ok(())
+}
+
 #[derive(Debug, serde::Serialize, specta::Type)]
 pub struct OilAddResult {
     pub oil_id: String,

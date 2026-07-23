@@ -2,7 +2,18 @@ import { useRef, useState } from "react";
 import { Link, createFileRoute, useCanGoBack, useRouter } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { CircleDot, Droplets, Gauge, Plus, Trash2, TriangleAlert, Lock } from "lucide-react";
+import {
+  Check,
+  CircleDot,
+  Droplets,
+  Gauge,
+  Pencil,
+  Plus,
+  RotateCcw,
+  Trash2,
+  TriangleAlert,
+  Lock,
+} from "lucide-react";
 
 import { commands, unwrap, type WoDetail } from "@/shared/api/client";
 import { useCategories, useDomainMutation, useStock, useTruck, useWo } from "@/shared/api/queries";
@@ -89,16 +100,21 @@ function WoCockpit() {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-6">
-          {d.wo.odometer_at_open != null && (
-            <div>
-              <div className="text-xs text-muted-foreground">{t("wo.odometerAtOpen")}</div>
-              <div className="flex items-center gap-1.5 text-[17px] font-semibold tabular">
-                <Gauge className="h-4 w-4 text-muted-foreground" />
-                {fmtNumber(d.wo.odometer_at_open, i18n.language)} {t("common.km")}
-              </div>
+          <div>
+            <div className="text-xs text-muted-foreground">{t("wo.odometerAtOpen")}</div>
+            <div className="group flex items-center gap-1.5 text-[17px] font-semibold tabular">
+              <Gauge className="h-4 w-4 text-muted-foreground" />
+              {d.wo.odometer_at_open != null
+                ? `${fmtNumber(d.wo.odometer_at_open, i18n.language)} ${t("common.km")}`
+                : "—"}
+              <EditWoOdometer woId={woId} current={d.wo.odometer_at_open} />
             </div>
+          </div>
+          {isOpen ? (
+            <CloseWoButton woId={woId} undoneCount={d.tasks.filter((x) => !x.is_done).length} />
+          ) : (
+            <ReopenWoButton woId={woId} />
           )}
-          {isOpen && <CloseWoButton woId={woId} />}
         </div>
       </div>
 
@@ -356,6 +372,11 @@ function TaskList({ d, canEdit }: { d: WoDetail; canEdit: boolean }) {
   const del = useDomainMutation((taskId: string) => unwrap(commands.woDeleteTask(taskId)), {
     onError: notifyError,
   });
+  // The checkbox IS the due clock: only checked tasks reset "last done".
+  const setDone = useDomainMutation(
+    (p: { taskId: string; done: boolean }) => unwrap(commands.woTaskSetDone(p.taskId, p.done)),
+    { onError: notifyError },
+  );
 
   const freeTasks = d.tasks.filter((task) => task.kind === "free");
   if (freeTasks.length === 0) {
@@ -372,12 +393,35 @@ function TaskList({ d, canEdit }: { d: WoDetail; canEdit: boolean }) {
           )}
         >
           <div className="flex min-w-0 items-center gap-2.5">
+            <button
+              role="checkbox"
+              aria-checked={task.is_done}
+              aria-label={t("wo.taskDone")}
+              disabled={!canEdit}
+              onClick={() => setDone.mutate({ taskId: task.id, done: !task.is_done })}
+              className={cn(
+                "flex h-5 w-5 flex-none items-center justify-center rounded-md border transition",
+                task.is_done
+                  ? "border-status-ok bg-status-ok text-white"
+                  : "bg-card hover:border-border-strong",
+                !canEdit && "opacity-60",
+              )}
+            >
+              {task.is_done && <Check className="h-3.5 w-3.5" />}
+            </button>
             {task.category_name_ar && (
               <Badge variant="secondary" className="shrink-0">
                 {task.category_name_ar}
               </Badge>
             )}
-            <span className="min-w-0 break-words font-medium">{task.description_ar}</span>
+            <span
+              className={cn(
+                "min-w-0 break-words font-medium",
+                task.is_done && "text-muted-foreground line-through decoration-border-strong",
+              )}
+            >
+              {task.description_ar}
+            </span>
             {task.pending && (
               <Badge variant="outline" className="shrink-0 text-[10px]">
                 {t("wo.pending")}
@@ -415,6 +459,9 @@ function OilForm({
   const stock = useStock();
   const [oilType, setOilType] = useState("");
   const [liters, setLiters] = useState("");
+  // Empty mirror (fresh install / offline day one) must never block recording
+  // oil — the server tolerates unknown types and the debit is derived anyway.
+  const stockEmpty = (stock.data?.oil ?? []).length === 0;
 
   const add = useDomainMutation(
     () => unwrap(commands.oilAdd(woId, vehicleId, oilType, Number(liters), odometerAtOpen)),
@@ -431,18 +478,31 @@ function OilForm({
     <div className={cn("flex flex-wrap items-end gap-2 bg-background/70 px-4 py-3", hasRows && "border-t")}>
       <div className="min-w-36 flex-1 space-y-1">
         <Label className="text-xs">{t("wo.oil.type")}</Label>
-        <Select value={oilType} onValueChange={setOilType}>
-          <SelectTrigger className="bg-card">
-            <SelectValue placeholder={t("wo.oil.type")} />
-          </SelectTrigger>
-          <SelectContent>
-            {(stock.data?.oil ?? []).map((o) => (
-              <SelectItem key={o.id} value={o.oil_type}>
-                <span dir="ltr">{o.oil_type}</span>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {stockEmpty ? (
+          <Input
+            dir="ltr"
+            className="bg-card"
+            placeholder={t("wo.oil.freeTypePlaceholder")}
+            value={oilType}
+            onChange={(e) => setOilType(e.target.value)}
+          />
+        ) : (
+          <Select value={oilType} onValueChange={setOilType}>
+            <SelectTrigger className="bg-card">
+              <SelectValue placeholder={t("wo.oil.type")} />
+            </SelectTrigger>
+            <SelectContent>
+              {(stock.data?.oil ?? []).map((o) => (
+                <SelectItem key={o.id} value={o.oil_type}>
+                  <span dir="ltr">{o.oil_type}</span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        {stockEmpty && (
+          <p className="text-[11px] text-muted-foreground">{t("wo.oil.noStockHint")}</p>
+        )}
       </div>
       <div className="w-28 space-y-1">
         <Label className="text-xs">{t("wo.oil.liters")}</Label>
@@ -464,7 +524,7 @@ function OilForm({
       </div>
       <Button
         onClick={() => add.mutate()}
-        disabled={!oilType || !(Number(liters) > 0) || add.isPending}
+        disabled={!oilType.trim() || !(Number(liters) > 0) || add.isPending}
       >
         {t("wo.oil.record")}
       </Button>
@@ -525,8 +585,8 @@ function DueSuggestions({ d, woId, canAdd }: { d: WoDetail; woId: string; canAdd
   );
 }
 
-function CloseWoButton({ woId }: { woId: string }) {
-  const { t } = useTranslation();
+function CloseWoButton({ woId, undoneCount }: { woId: string; undoneCount: number }) {
+  const { t, i18n } = useTranslation();
   const [open, setOpen] = useState(false);
   const close = useDomainMutation(() => unwrap(commands.woClose(woId)), {
     onSuccess: () => setOpen(false),
@@ -545,12 +605,81 @@ function CloseWoButton({ woId }: { woId: string }) {
             <DialogTitle>{t("wo.closeTitle")}</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">{t("wo.closeBody")}</p>
+          {undoneCount > 0 && (
+            <p className="rounded-lg bg-status-due_soon-soft px-3 py-2 text-sm text-status-due_soon">
+              {t("wo.closeUndone", { n: fmtNumber(undoneCount, i18n.language) })}
+            </p>
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>
               {t("common.cancel")}
             </Button>
             <Button variant="destructive" disabled={close.isPending} onClick={() => close.mutate()}>
               {t("common.confirm")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+/** Escape hatch: a WO closed by mistake used to be unrecoverable. */
+function ReopenWoButton({ woId }: { woId: string }) {
+  const { t } = useTranslation();
+  const reopen = useDomainMutation(() => unwrap(commands.woReopen(woId)), {
+    onError: notifyError,
+  });
+  return (
+    <Button variant="secondary" disabled={reopen.isPending} onClick={() => reopen.mutate()}>
+      <RotateCcw className="h-4 w-4" />
+      {t("wo.reopen")}
+    </Button>
+  );
+}
+
+/** odometer_at_open is BOTH an odometer-truth candidate and the due baseline
+ * — a fat-fingered digit used to skew next_due_km permanently. */
+function EditWoOdometer({ woId, current }: { woId: string; current: number | null }) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const [value, setValue] = useState(current != null ? String(current) : "");
+  const save = useDomainMutation(
+    () => unwrap(commands.woSetOdometer(woId, value ? Number(value) : null)),
+    { onSuccess: () => setOpen(false), onError: notifyError },
+  );
+  return (
+    <>
+      <button
+        aria-label={t("wo.editOdo")}
+        title={t("wo.editOdo")}
+        onClick={() => {
+          setValue(current != null ? String(current) : "");
+          setOpen(true);
+        }}
+        className="rounded p-1 text-muted-foreground opacity-0 transition focus-visible:opacity-100 hover:bg-accent hover:text-foreground group-hover:opacity-100"
+      >
+        <Pencil className="h-3.5 w-3.5" />
+      </button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t("wo.editOdo")}</DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-muted-foreground">{t("wo.editOdoHint")}</p>
+          <Input
+            inputMode="numeric"
+            className="tabular"
+            value={value}
+            onChange={(e) => setValue(e.target.value.replace(/[^0-9]/g, ""))}
+            autoFocus
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              {t("common.cancel")}
+            </Button>
+            <Button disabled={save.isPending} onClick={() => save.mutate()}>
+              {t("common.save")}
             </Button>
           </DialogFooter>
         </DialogContent>

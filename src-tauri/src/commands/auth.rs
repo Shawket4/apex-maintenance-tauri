@@ -101,9 +101,13 @@ pub async fn auth_login(
     engine.0.unpark_auth();
     {
         let eng = engine.0.clone();
+        let st: AppState = state.inner().clone();
         tauri::async_runtime::spawn(async move {
             let _ = eng.drain().await;
             let _ = eng.pull().await;
+            // Day-one bootstrap: fleet, reference, stock, invoices — see
+            // online::refresh_all_mirrors. Best-effort; login never blocks.
+            crate::commands::online::refresh_all_mirrors(&st).await;
         });
     }
     session_store::store_user_json(&state.data_dir, &serde_json::to_string(&user)?)?;

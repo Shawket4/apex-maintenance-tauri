@@ -55,6 +55,7 @@ function TireFilePage() {
   const { tireId } = Route.useParams();
   const tire = useTire(tireId);
   const [editing, setEditing] = useState<TireOpRow | null>(null);
+  const [confirmScrap, setConfirmScrap] = useState<{ to: string; event: string } | null>(null);
 
   const transition = useDomainMutation(
     (p: { to: string; event: string }) =>
@@ -126,7 +127,13 @@ function TireFilePage() {
                   size="sm"
                   variant={a.to === "scrapped" ? "destructive" : "secondary"}
                   disabled={transition.isPending}
-                  onClick={() => transition.mutate({ to: a.to, event: a.event })}
+                  onClick={() =>
+                    // Scrap is irreversible (no transitions out) — one stray
+                    // click on a shared PC must not end a tire's life.
+                    a.to === "scrapped"
+                      ? setConfirmScrap({ to: a.to, event: a.event })
+                      : transition.mutate({ to: a.to, event: a.event })
+                  }
                 >
                   <a.icon className="h-4 w-4" />
                   {t(a.key)}
@@ -194,6 +201,31 @@ function TireFilePage() {
       )}
 
       {editing && <EditOdoDialog op={editing} onClose={() => setEditing(null)} />}
+      {confirmScrap && (
+        <Dialog open onOpenChange={(o) => !o && setConfirmScrap(null)}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>{t("tires.scrapTitle")}</DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-muted-foreground">{t("tires.scrapBody")}</p>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setConfirmScrap(null)}>
+                {t("common.cancel")}
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={transition.isPending}
+                onClick={() => {
+                  transition.mutate(confirmScrap);
+                  setConfirmScrap(null);
+                }}
+              >
+                {t("common.confirm")}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </PageShell>
   );
 }

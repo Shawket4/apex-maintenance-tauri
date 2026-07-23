@@ -22,6 +22,7 @@ pub use error::{AppError, AppResult};
 
 
 /// Application-wide state held by Tauri's runtime.
+#[derive(Clone)]
 pub struct AppState {
     pub config: Arc<AppConfig>,
     pub db: Arc<db::DbPool>,
@@ -78,8 +79,13 @@ fn specta_builder() -> tauri_specta::Builder {
         // Owned domain — writes (local + outbox)
         commands::domain::wo_open,
         commands::domain::wo_close,
+        commands::domain::wo_reopen,
+        commands::domain::wo_set_odometer,
         commands::domain::wo_add_task,
         commands::domain::wo_delete_task,
+        commands::domain::wo_task_set_done,
+        commands::domain::record_baseline,
+        commands::domain::chassis_delete,
         commands::domain::oil_add,
         commands::domain::override_set,
         commands::domain::class_assign,
@@ -95,6 +101,7 @@ fn specta_builder() -> tauri_specta::Builder {
         commands::online::reference_refresh,
         commands::online::stock_refresh,
         commands::online::plan_upsert,
+        commands::online::class_create,
         commands::online::ai_query,
         commands::online::service_events,
     ])
@@ -150,7 +157,7 @@ pub fn run() {
                     http: http.clone(),
                     data_dir: app_data_dir,
                 };
-                app.manage(state);
+                app.manage(state.clone());
 
                 // The sync engine is host-driven: writes kick it, the UI can
                 // call sync_now, and a modest heartbeat drains stragglers whose
@@ -163,10 +170,17 @@ pub fn run() {
                 ));
                 app.manage(commands::sync::EngineState(engine.clone()));
                 let heartbeat = config.sync.heartbeat_interval;
+                let boot_state = state.clone();
                 tauri::async_runtime::spawn(async move {
                     // First run: recover inflight strandings, then push+pull.
                     let _ = engine.drain().await;
                     let _ = engine.pull().await;
+                    // With a live session, refresh every mirror best-effort —
+                    // a fresh install / second PC must not show an empty app
+                    // until someone finds the Settings refresh button.
+                    if session_store::read_jwt(&boot_state.data_dir).ok().flatten().is_some() {
+                        commands::online::refresh_all_mirrors(&boot_state).await;
+                    }
                     loop {
                         tokio::time::sleep(heartbeat).await;
                         let Ok(s) = engine.status() else { continue };

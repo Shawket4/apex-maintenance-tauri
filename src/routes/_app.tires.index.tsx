@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { PackagePlus, Plus, Trash2 } from "lucide-react";
@@ -6,6 +6,7 @@ import { PackagePlus, Plus, Trash2 } from "lucide-react";
 import { commands, unwrap, type LegacyTireInput } from "@/shared/api/client";
 import { useDomainMutation, useStock, useTires } from "@/shared/api/queries";
 import { notifyError, notifySuccess } from "@/shared/lib/notify";
+import { fmtAgo } from "@/shared/lib/time";
 import { fmtNumber } from "@/shared/lib/numbers";
 import { TIRE_BADGE } from "@/shared/lib/status";
 import { cn } from "@/shared/lib/cn";
@@ -50,10 +51,32 @@ function TiresPage() {
   const stock = useStock();
   const tires = useTires(status === "all" ? undefined : status, q || undefined);
 
+  // A shipment credited on the dashboard was invisible until someone found
+  // the Settings refresh. Refresh opportunistically when the snapshot is
+  // over an hour old (best-effort; offline just keeps the local numbers).
+  const fetchedAt = stock.data?.tires[0]?.fetched_at ?? stock.data?.oil[0]?.fetched_at ?? null;
+  const stale =
+    fetchedAt == null || Date.now() - new Date(fetchedAt).getTime() > 60 * 60 * 1000;
+  const refreshStock = useDomainMutation(() => unwrap(commands.stockRefresh()), {});
+  const shouldAutoRefresh = stale && !stock.isLoading && !refreshStock.isPending && !refreshStock.isError;
+  useEffect(() => {
+    if (shouldAutoRefresh) refreshStock.mutate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shouldAutoRefresh]);
+
   return (
     <PageShell title={t("tires.title")} actions={<LegacyIntakeDialog />}>
       {/* Fungible stock — projected on-hand with pending debits visible. */}
-      <Section title={t("tires.stock.title")}>
+      <Section
+        title={t("tires.stock.title")}
+        action={
+          fetchedAt ? (
+            <span className="text-xs text-muted-foreground">
+              {t("tires.stock.updatedAgo", { ago: fmtAgo(fetchedAt, i18n.language) })}
+            </span>
+          ) : undefined
+        }
+      >
         {stock.isLoading ? (
           <Skeleton className="h-16" />
         ) : (stock.data?.tires ?? []).length === 0 ? (

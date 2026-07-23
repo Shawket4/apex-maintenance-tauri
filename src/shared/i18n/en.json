@@ -102,7 +102,9 @@
       "empty": "No service history",
       "invoiceItems": "Invoice items"
     },
-    "chassisMissing": "This truck's chassis isn't defined yet — define it to use the diagram"
+    "chassisMissing": "This truck's chassis isn't defined yet — define it to use the diagram",
+    "overrideCurrent": "Current: {{km}} ({{source}})",
+    "overrideDownWarn": "This is below the current reading — the correction discards earlier readings and pins until the truck genuinely passes it."
   },
   "wo": {
     "title": "Work order",
@@ -124,7 +126,9 @@
       "liters": "Liters",
       "record": "Record oil change",
       "flagged": "Amount outside the usual range (34–36 L) — saved anyway",
-      "flaggedBadge": "Unusual amount"
+      "flaggedBadge": "Unusual amount",
+      "freeTypePlaceholder": "Type the oil type",
+      "noStockHint": "No oil stock on record — type it manually, it still counts."
     },
     "tires": {
       "title": "Tire work",
@@ -142,7 +146,12 @@
     "closeTitle": "Close work order",
     "closeBody": "The order will be closed with all its items. Are you sure?",
     "notFound": "Work order not found",
-    "vehicle": "Vehicle"
+    "vehicle": "Vehicle",
+    "reopen": "Reopen",
+    "taskDone": "Done",
+    "closeUndone": "{{n}} tasks are not checked off — they will NOT count toward maintenance due.",
+    "editOdo": "Edit opening odometer",
+    "editOdoHint": "This reading is the due baseline for everything in this work order — correct it if it was mistyped."
   },
   "due": {
     "title": "Due",
@@ -156,7 +165,12 @@
     "nextDueAt": "Due on {{date}}",
     "lastDone": "Last done",
     "openWo": "Open work order",
-    "empty": "No active service plans — classify trucks and set plans in Settings"
+    "empty": "No active service plans — classify trucks and set plans in Settings",
+    "baseline": "Record last service",
+    "baselineHint": "Log when this maintenance was really last done, with its real date and odometer — no fake work order dated today.",
+    "baselineDate": "Date last done",
+    "baselineKm": "Odometer then (optional)",
+    "unclassified": "Unclassified: {{n}}"
   },
   "tires": {
     "title": "Tires & Stock",
@@ -165,7 +179,8 @@
       "pending": "Pending debits",
       "projected": "Available",
       "usedPool": "Used tires available",
-      "empty": "No stock — refresh"
+      "empty": "No stock — refresh",
+      "updatedAgo": "Updated {{ago}}"
     },
     "assets": {
       "title": "Individual tires",
@@ -220,7 +235,9 @@
       "replacement": "Replacement",
       "repair_return": "Back from repair",
       "onboard": "Initial onboarding"
-    }
+    },
+    "scrapTitle": "Scrap this tire?",
+    "scrapBody": "Scrapping is final — there is no way back from this state."
   },
   "diagram": {
     "title": "Tire diagram",
@@ -234,7 +251,11 @@
       "noUsed": "No used tires available",
       "dotPrompt": "DOT code (on the sidewall)",
       "odometer": "Odometer reading",
-      "submit": "Mount"
+      "submit": "Mount",
+      "customBrand": "Brand not in stock",
+      "pickFromStock": "Pick from stock",
+      "model": "Model",
+      "reason": "Mount reason"
     },
     "dismount": {
       "title": "Dismount",
@@ -298,7 +319,10 @@
       "intervalKm": "Every N km",
       "intervalDays": "Every N days",
       "save": "Save plan",
-      "onlineNote": "Editing plans requires a connection (supervisor permission)"
+      "onlineNote": "Editing plans requires a connection (supervisor permission)",
+      "active": "Active",
+      "paused": "Paused",
+      "noPermission": "Editing plans and classes requires supervisor permission."
     },
     "sync": {
       "title": "Sync & diagnostics",
@@ -309,7 +333,28 @@
       "deadRows": "Need attention",
       "queueEmpty": "Nothing waiting — all synced",
       "attempts": "Attempts",
-      "serverRow": "Server row attached"
+      "serverRow": "Server row attached",
+      "authExpiredHint": "The session expired — writes are parked until you log in again.",
+      "discardTitle": "Discard permanently?",
+      "discardBody": "This write will be thrown away and never reach the server.",
+      "ops": {
+        "insert": "Add",
+        "update": "Update",
+        "delete": "Delete"
+      },
+      "entityNames": {
+        "work_orders": "Work orders",
+        "work_order_tasks": "Work order tasks",
+        "oil_changes": "Oil changes",
+        "tires": "Tires",
+        "tire_assignments": "Tire mounts",
+        "tire_status_events": "Tire status events",
+        "chassis_layouts": "Chassis",
+        "chassis_axles": "Chassis axles",
+        "chassis_positions": "Chassis positions",
+        "vehicle_class_assignments": "Vehicle classes",
+        "vehicle_odometer_overrides": "Odometer overrides"
+      }
     },
     "appearance": {
       "title": "Appearance & language",
@@ -320,6 +365,12 @@
       "light": "Light",
       "dark": "Dark",
       "system": "System"
+    },
+    "classes": {
+      "addTitle": "Add class",
+      "idPlaceholder": "code-en",
+      "namePlaceholder": "Class name",
+      "add": "Add"
     }
   },
   "sync": {
@@ -327,7 +378,8 @@
     "offline": "Offline — work is saved locally",
     "pending": "{{n}} on the way",
     "dead": "{{count}} need attention",
-    "synced": "Synced"
+    "synced": "Synced",
+    "authExpired": "Log in again"
   },
   "errors": {
     "offline": "No connection — try again when back online",

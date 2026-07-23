@@ -301,6 +301,22 @@ async woClose(id: string) : Promise<Result<null, CmdError>> {
     else return { status: "error", error: e  as any };
 }
 },
+async woReopen(id: string) : Promise<Result<null, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("wo_reopen", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async woSetOdometer(id: string, odometerAtOpen: number | null) : Promise<Result<null, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("wo_set_odometer", { id, odometerAtOpen }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async woAddTask(workOrderId: string, categoryId: string | null, descriptionAr: string) : Promise<Result<string, CmdError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("wo_add_task", { workOrderId, categoryId, descriptionAr }) };
@@ -312,6 +328,30 @@ async woAddTask(workOrderId: string, categoryId: string | null, descriptionAr: s
 async woDeleteTask(taskId: string) : Promise<Result<null, CmdError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("wo_delete_task", { taskId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async woTaskSetDone(taskId: string, done: boolean) : Promise<Result<null, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("wo_task_set_done", { taskId, done }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async recordBaseline(vehicleId: number, categoryId: string, performedAt: string, odometer: number | null) : Promise<Result<string, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("record_baseline", { vehicleId, categoryId, performedAt, odometer }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async chassisDelete(vehicleId: number) : Promise<Result<null, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("chassis_delete", { vehicleId }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -406,8 +446,8 @@ async chassisCreate(vehicleId: number, config: ChassisConfig) : Promise<Result<s
 }
 },
 /**
- * Refresh categories + classes + plans mirrors. Called on login and from
- * Settings; safe to call any time online.
+ * Refresh categories + classes + plans mirrors. Called on login/startup
+ * (refresh_all_mirrors) and from Settings; safe to call any time online.
  */
 async referenceRefresh() : Promise<Result<null, CmdError>> {
     try {
@@ -433,9 +473,21 @@ async stockRefresh() : Promise<Result<null, CmdError>> {
  * Upsert a fleet-wide service plan (server-authoritative, perm ≥3), then
  * refresh the local mirror so the due board recomputes immediately.
  */
-async planUpsert(classId: string, categoryId: string, triggerType: string, intervalKm: number | null, intervalDays: number | null) : Promise<Result<null, CmdError>> {
+async planUpsert(classId: string, categoryId: string, triggerType: string, intervalKm: number | null, intervalDays: number | null, isActive: boolean | null) : Promise<Result<null, CmdError>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("plan_upsert", { classId, categoryId, triggerType, intervalKm, intervalDays }) };
+    return { status: "ok", data: await TAURI_INVOKE("plan_upsert", { classId, categoryId, triggerType, intervalKm, intervalDays, isActive }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Create/rename a vehicle class (server-authoritative, perm ≥3), then
+ * refresh the reference mirror so the Settings selects update immediately.
+ */
+async classCreate(id: string, nameAr: string) : Promise<Result<null, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("class_create", { id, nameAr }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -591,7 +643,11 @@ export type StockView = { tires: StockTireLine[]; oil: StockOilLine[];
  */
 used_pool_count: number }
 export type SyncStatus = { online: boolean; auth_paused: boolean; pending: number; inflight: number; dead: number; last_push_at: string | null; last_pull_at: string | null; last_error: string | null }
-export type TaskRow = { id: string; kind: string; category_id: string | null; category_name_ar: string | null; description_ar: string | null; created_at: string; pending: boolean }
+export type TaskRow = { id: string; kind: string; category_id: string | null; category_name_ar: string | null; description_ar: string | null; 
+/**
+ * Done-ness is what resets the due clock (0017) — the checkbox state.
+ */
+is_done: boolean; created_at: string; pending: boolean }
 export type TireEventRow = { id: string; event_type: string; from_status: string | null; to_status: string | null; notes: string | null; occurred_at: string }
 export type TireFile = { tire: TireRow; mounts: TireOpRow[]; events: TireEventRow[] }
 export type TireOpRow = { assignment_id: string; tire_id: string; dot_code: string | null; brand: string | null; position_code: string | null; mounted_at: string | null; mounted_odometer: number | null; mount_reason: string | null; dismounted_at: string | null; dismounted_odometer: number | null; dismount_reason: string | null; pending: boolean }

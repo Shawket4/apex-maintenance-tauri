@@ -36,8 +36,20 @@ export function MountForm({
   const [usedId, setUsedId] = useState<string | null>(null);
   const [dot, setDot] = useState("");
   const [odometer, setOdometer] = useState(defaultOdometer != null ? String(defaultOdometer) : "");
+  // Free-brand path: an empty/stale stock mirror must never block a mount —
+  // the copy always promised "continue and the balance goes negative".
+  const [customBrand, setCustomBrand] = useState(false);
+  const [brand, setBrand] = useState("");
+  const [model, setModel] = useState("");
+  const [size, setSize] = useState("");
+  // The USED mount's real reason (recording rotation as "replacement" lied
+  // to the history).
+  const [usedReason, setUsedReason] = useState("replacement");
 
-  const line = (stock.data?.tires ?? []).find((l) => l.id === stockId);
+  const stockLines = stock.data?.tires ?? [];
+  const line = stockLines.find((l) => l.id === stockId);
+  const useCustom = customBrand || stockLines.length === 0;
+  const newReady = useCustom ? !!brand.trim() : !!line;
 
   const mountNew = useDomainMutation(
     () =>
@@ -46,9 +58,9 @@ export function MountForm({
           position_id: position.id,
           vehicle_id: vehicleId,
           work_order_id: workOrderId,
-          brand: line!.brand,
-          model: line!.model,
-          size: line!.size,
+          brand: useCustom ? brand.trim() : line!.brand,
+          model: useCustom ? model.trim() || null : line!.model,
+          size: useCustom ? size.trim() || null : line!.size,
           dot_code: dot || null,
           odometer: odometer ? Number(odometer) : null,
         }),
@@ -65,7 +77,7 @@ export function MountForm({
           vehicle_id: vehicleId,
           work_order_id: workOrderId,
           odometer: odometer ? Number(odometer) : null,
-          reason: "replacement",
+          reason: usedReason,
         }),
       ),
     { onSuccess: onClose, onError: notifyError },
@@ -83,11 +95,11 @@ export function MountForm({
         </TabsList>
 
         <TabsContent value="new" className="space-y-3 pt-3">
-          {(stock.data?.tires ?? []).length === 0 ? (
+          {stockLines.length === 0 ? (
             <p className="text-xs text-status-due_soon">{t("diagram.mount.noStock")}</p>
-          ) : (
+          ) : !useCustom ? (
             <div className="max-h-40 space-y-1.5 overflow-y-auto">
-              {(stock.data?.tires ?? []).map((l) => (
+              {stockLines.map((l) => (
                 <button
                   key={l.id}
                   onClick={() => setStockId(l.id)}
@@ -114,6 +126,46 @@ export function MountForm({
                 </button>
               ))}
             </div>
+          ) : null}
+          {useCustom && (
+            <div className="grid grid-cols-2 gap-2">
+              <div className="col-span-2 space-y-1.5">
+                <Label htmlFor="mount-brand" className="text-xs text-muted-foreground">
+                  {t("tires.brand")}
+                </Label>
+                <Input
+                  id="mount-brand"
+                  dir="ltr"
+                  className="h-9"
+                  value={brand}
+                  onChange={(e) => setBrand(e.target.value)}
+                />
+              </div>
+              <Input
+                aria-label={t("tires.size")}
+                placeholder={t("tires.size")}
+                dir="ltr"
+                className="h-9"
+                value={size}
+                onChange={(e) => setSize(e.target.value)}
+              />
+              <Input
+                aria-label={t("diagram.mount.model")}
+                placeholder={t("diagram.mount.model")}
+                dir="ltr"
+                className="h-9"
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+              />
+            </div>
+          )}
+          {stockLines.length > 0 && (
+            <button
+              onClick={() => setCustomBrand((v) => !v)}
+              className="text-xs text-primary hover:underline"
+            >
+              {customBrand ? t("diagram.mount.pickFromStock") : t("diagram.mount.customBrand")}
+            </button>
           )}
           <div className="space-y-1.5">
             <Label htmlFor="mount-dot" className="text-xs text-muted-foreground">
@@ -124,7 +176,7 @@ export function MountForm({
           <OdometerField value={odometer} onChange={setOdometer} />
           <Button
             className="w-full"
-            disabled={!line || mountNew.isPending}
+            disabled={!newReady || mountNew.isPending}
             onClick={() => mountNew.mutate()}
           >
             {t("diagram.mount.submit")}
@@ -157,6 +209,25 @@ export function MountForm({
               ))}
             </div>
           )}
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">{t("diagram.mount.reason")}</Label>
+            <div className="flex flex-wrap gap-1.5">
+              {["replacement", "rotation", "repair_return"].map((r) => (
+                <button
+                  key={r}
+                  onClick={() => setUsedReason(r)}
+                  className={cn(
+                    "rounded-lg border px-2 py-1 text-xs transition",
+                    usedReason === r
+                      ? "border-primary bg-primary/5 font-semibold text-primary"
+                      : "hover:bg-accent",
+                  )}
+                >
+                  {t(`tires.mountReason.${r}`)}
+                </button>
+              ))}
+            </div>
+          </div>
           <OdometerField value={odometer} onChange={setOdometer} />
           <Button
             className="w-full"

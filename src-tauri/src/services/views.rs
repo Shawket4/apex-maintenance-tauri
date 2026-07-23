@@ -352,6 +352,8 @@ pub struct TaskRow {
     pub category_id: Option<String>,
     pub category_name_ar: Option<String>,
     pub description_ar: Option<String>,
+    /// Done-ness is what resets the due clock (0017) — the checkbox state.
+    pub is_done: bool,
     pub created_at: String,
     pub pending: bool,
 }
@@ -413,7 +415,7 @@ pub fn wo_detail(pool: &DbPool, id: &str) -> AppResult<Option<WoDetail>> {
 
     let pending_tasks = pending_ids(&conn, "work_order_tasks")?;
     let mut stmt = conn.prepare(
-        "SELECT t.id, t.kind, t.category_id, c.name_ar, t.description_ar, t.created_at
+        "SELECT t.id, t.kind, t.category_id, c.name_ar, t.description_ar, t.is_done, t.created_at
            FROM work_order_tasks t
            LEFT JOIN maintenance_categories c ON c.id = t.category_id
           WHERE t.work_order_id = ?1 AND t.deleted_at IS NULL
@@ -427,7 +429,8 @@ pub fn wo_detail(pool: &DbPool, id: &str) -> AppResult<Option<WoDetail>> {
                 category_id: r.get(2)?,
                 category_name_ar: r.get(3)?,
                 description_ar: r.get(4)?,
-                created_at: r.get(5)?,
+                is_done: r.get::<_, i64>(5)? != 0,
+                created_at: r.get(6)?,
                 pending: false,
             })
         })?
