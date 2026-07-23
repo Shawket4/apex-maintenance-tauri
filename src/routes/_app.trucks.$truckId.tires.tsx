@@ -1,6 +1,19 @@
+import { useState } from "react";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { ArrowLeft } from "lucide-react";
+
+import { commands, unwrap } from "@/shared/api/client";
+import { useDomainMutation } from "@/shared/api/queries";
+import { notifyError } from "@/shared/lib/notify";
+import { Button } from "@/shared/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/shared/ui/dialog";
 
 import type { PositionRow } from "@/shared/api/client";
 import { useChassis, useTruck } from "@/shared/api/queries";
@@ -43,7 +56,10 @@ function TruckTires() {
   const select = (p: PositionRow | null) =>
     void navigate({ search: p ? { pos: p.id } : {}, replace: true });
 
+  const mountedCount = data.positions.filter((p) => p.tire_id).length;
+
   return (
+    <>
     <DiagramLayout
       hint={t("diagram.selectHint")}
       canvas={
@@ -94,5 +110,48 @@ function TruckTires() {
         ) : null
       }
     />
+    {/* Escape hatch: a wrong axle count at onboarding used to be permanent.
+      * Guarded — refused while anything is mounted. */}
+    {mountedCount === 0 && (
+      <div className="mt-2 text-end">
+        <RebuildChassisButton vehicleId={vid} />
+      </div>
+    )}
+    </>
+  );
+}
+
+function RebuildChassisButton({ vehicleId }: { vehicleId: number }) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const del = useDomainMutation(() => unwrap(commands.chassisDelete(vehicleId)), {
+    onSuccess: () => setOpen(false),
+    onError: notifyError,
+  });
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        className="text-xs text-muted-foreground underline-offset-2 hover:text-destructive hover:underline"
+      >
+        {t("chassis.rebuild")}
+      </button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t("chassis.rebuildTitle")}</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">{t("chassis.rebuildBody")}</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              {t("common.cancel")}
+            </Button>
+            <Button variant="destructive" disabled={del.isPending} onClick={() => del.mutate()}>
+              {t("common.confirm")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

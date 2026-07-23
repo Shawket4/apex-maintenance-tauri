@@ -388,6 +388,9 @@
   },
   "chassis": {
     "decrement": "Decrease {{label}}",
-    "increment": "Increase {{label}}"
+    "increment": "Increase {{label}}",
+    "rebuild": "Delete & rebuild chassis",
+    "rebuildTitle": "Rebuild the chassis?",
+    "rebuildBody": "The current chassis and all its positions will be deleted so you can build it again. Not possible while tires are mounted."
   }
 }
