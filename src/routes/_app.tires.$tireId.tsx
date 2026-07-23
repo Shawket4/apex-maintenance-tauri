@@ -9,7 +9,7 @@ import { notifyError } from "@/shared/lib/notify";
 import { fmtNumber } from "@/shared/lib/numbers";
 import { fmtCairo } from "@/shared/lib/time";
 import { TIRE_BADGE } from "@/shared/lib/status";
-import { cn } from "@/shared/lib/cn";
+import { StatusChip } from "@/shared/ui/status-chip";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
 import {
@@ -93,9 +93,9 @@ function TireFilePage() {
               <span className="text-xl font-bold" dir="ltr">
                 {d.tire.dot_code ?? `${d.tire.brand} ${d.tire.model ?? ""}`}
               </span>
-              <span className={cn("rounded-full px-2.5 py-1 text-xs", TIRE_BADGE[d.tire.status])}>
+              <StatusChip tone={TIRE_BADGE[d.tire.status]} size="md">
                 {t(`tires.status.${d.tire.status}`)}
-              </span>
+              </StatusChip>
               {d.tire.pending && <Badge variant="outline">{t("wo.pending")}</Badge>}
             </div>
             <div className="mt-2 flex flex-wrap gap-4 text-sm text-muted-foreground">

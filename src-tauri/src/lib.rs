@@ -40,6 +40,7 @@ fn specta_builder() -> tauri_specta::Builder {
         commands::health::ping,
         commands::health::get_app_version,
         commands::health::db_health,
+        commands::health::server_version_check,
         // Auth
         commands::auth::auth_login,
         commands::auth::auth_logout,

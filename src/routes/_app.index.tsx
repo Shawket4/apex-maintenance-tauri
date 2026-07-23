@@ -7,6 +7,7 @@ import { fmtNumber } from "@/shared/lib/numbers";
 import { dayjs, fmtAgo } from "@/shared/lib/time";
 import { DUE_BADGE, DUE_DOT } from "@/shared/lib/status";
 import { cn } from "@/shared/lib/cn";
+import { StatusChip } from "@/shared/ui/status-chip";
 import { Badge } from "@/shared/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
 import { Skeleton } from "@/shared/ui/skeleton";
@@ -123,14 +124,9 @@ function HomePage() {
                   <span className="truncate text-sm text-muted-foreground">
                     {i18n.language.startsWith("ar") ? d.category_name_ar : d.category_name_en}
                   </span>
-                  <span
-                    className={cn(
-                      "rounded-full px-2.5 py-0.5 text-xs font-semibold",
-                      DUE_BADGE[d.status],
-                    )}
-                  >
+                  <StatusChip tone={DUE_BADGE[d.status]} className="px-2.5">
                     {t(`due.status.${d.status}`)}
-                  </span>
+                  </StatusChip>
                 </div>
                 <span className="flex-none text-xs text-muted-foreground tabular">
                   {d.next_due_km != null

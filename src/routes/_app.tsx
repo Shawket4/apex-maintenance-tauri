@@ -15,6 +15,7 @@ import { useHome } from "@/shared/api/queries";
 import { fmtNumber } from "@/shared/lib/numbers";
 import { Omnisearch } from "@/widgets/shell/Omnisearch";
 import { SyncIndicator } from "@/widgets/shell/SyncIndicator";
+import { UpdateBanner } from "@/widgets/shell/UpdateBanner";
 
 export const Route = createFileRoute("/_app")({
   beforeLoad: async () => {
@@ -131,6 +132,7 @@ function AppShell() {
       </aside>
 
       <main className="min-w-0 flex-1 overflow-auto">
+        <UpdateBanner />
         <Outlet />
       </main>
     </div>

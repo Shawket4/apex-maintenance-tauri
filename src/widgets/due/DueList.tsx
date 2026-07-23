@@ -3,6 +3,7 @@ import { EmptyState } from "@/widgets/layout/PageShell";
 
 import type { DueRow } from "@/shared/api/client";
 import { cn } from "@/shared/lib/cn";
+import { StatusChip } from "@/shared/ui/status-chip";
 import { fmtNumber } from "@/shared/lib/numbers";
 import { fmtCairo } from "@/shared/lib/time";
 import { DUE_BADGE, DUE_DOT } from "@/shared/lib/status";
@@ -42,9 +43,9 @@ export function DueList({
                 <span className={cn(showPlate ? "text-sm text-muted-foreground" : "font-semibold")}>
                   {ar ? d.category_name_ar : d.category_name_en}
                 </span>
-                <span className={cn("rounded-full px-2 py-0.5 text-[11px]", DUE_BADGE[d.status])}>
+                <StatusChip tone={DUE_BADGE[d.status]} className="text-[11px] font-normal">
                   {t(`due.status.${d.status}`)}
-                </span>
+                </StatusChip>
               </div>
               <div className="mt-0.5 text-xs text-muted-foreground tabular">
                 {d.next_due_km != null &&

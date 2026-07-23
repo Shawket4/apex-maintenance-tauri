@@ -17,7 +17,7 @@ import { Input } from "@/shared/ui/input";
 import { Label } from "@/shared/ui/label";
 import { fmtNumber } from "@/shared/lib/numbers";
 import { DUE_BADGE } from "@/shared/lib/status";
-import { cn } from "@/shared/lib/cn";
+import { StatusChip } from "@/shared/ui/status-chip";
 import { DueList } from "@/widgets/due/DueList";
 import { Button } from "@/shared/ui/button";
 import { Skeleton } from "@/shared/ui/skeleton";
@@ -60,9 +60,9 @@ function DueBoard() {
       actions={
         <>
           {(["overdue", "never_done", "due_soon"] as const).map((s) => (
-            <span key={s} className={cn("rounded-full px-2.5 py-1 text-xs tabular", DUE_BADGE[s])}>
+            <StatusChip key={s} tone={DUE_BADGE[s]} size="md" className="tabular">
               {fmtNumber(counts[s], i18n.language)} {t(`due.status.${s}`)}
-            </span>
+            </StatusChip>
           ))}
           {unclassified > 0 && (
             <Link

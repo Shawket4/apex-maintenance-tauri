@@ -10,6 +10,7 @@ import { fmtAgo } from "@/shared/lib/time";
 import { fmtNumber } from "@/shared/lib/numbers";
 import { TIRE_BADGE } from "@/shared/lib/status";
 import { cn } from "@/shared/lib/cn";
+import { StatusChip } from "@/shared/ui/status-chip";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
 import {
@@ -196,9 +197,9 @@ function TiresPage() {
                       )}
                     </td>
                     <td className="px-3 py-2">
-                      <span className={cn("rounded-full px-2 py-0.5 text-xs", TIRE_BADGE[tire.status])}>
+                      <StatusChip tone={TIRE_BADGE[tire.status]}>
                         {t(`tires.status.${tire.status}`)}
-                      </span>
+                      </StatusChip>
                       {tire.pending && (
                         <Badge variant="outline" className="ms-1 text-[10px]">
                           {t("wo.pending")}

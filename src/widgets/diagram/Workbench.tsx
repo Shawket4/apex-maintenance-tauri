@@ -3,6 +3,7 @@ import { X } from "lucide-react";
 
 import type { PositionRow } from "@/shared/api/client";
 import { cn } from "@/shared/lib/cn";
+import { StatusChip } from "@/shared/ui/status-chip";
 import { fmtNumber } from "@/shared/lib/numbers";
 import { TIRE_BADGE } from "@/shared/lib/status";
 
@@ -116,9 +117,9 @@ export function TireFacts({
     <div>
       <div className="mb-3 flex flex-wrap items-center gap-1.5">
         {p.tire_status && (
-          <span className={cn("rounded-full px-2 py-0.5 text-xs font-semibold", TIRE_BADGE[p.tire_status])}>
+          <StatusChip tone={TIRE_BADGE[p.tire_status]}>
             {t(`tires.status.${p.tire_status}`)}
-          </span>
+          </StatusChip>
         )}
         {p.is_spare && (
           <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground">

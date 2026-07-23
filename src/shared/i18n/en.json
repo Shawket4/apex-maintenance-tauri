@@ -1,7 +1,8 @@
 {
   "app": {
     "name": "Apex",
-    "tagline": "Petroleum transport"
+    "tagline": "Petroleum transport",
+    "updateRequired": "This build is outdated — update the app (minimum {{version}}) before sync can continue safely."
   },
   "common": {
     "save": "Save",

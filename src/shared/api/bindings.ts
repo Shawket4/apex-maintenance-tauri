@@ -21,6 +21,19 @@ async dbHealth() : Promise<Result<DbHealth, CmdError>> {
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * Compare this build against the server's declared minimum client version.
+ * Unauthenticated (an expired session must still learn it needs an update);
+ * returns None when the server is unreachable — never blocks startup.
+ */
+async serverVersionCheck() : Promise<Result<ServerVersionInfo | null, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("server_version_check") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async authLogin(email: string, password: string) : Promise<Result<UserInfo, CmdError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("auth_login", { email, password }) };
@@ -630,6 +643,12 @@ pending: boolean }
 export type RefreshResult = { upserted: number; fetched_at: string }
 export type SearchResults = { trucks: TruckRow[]; tires: TireRow[]; work_orders: WoListRow[] }
 export type SearchSource = "online" | "offline"
+export type ServerVersionInfo = { server_version: string; min_client_version: string; 
+/**
+ * True when this build is older than the server's declared minimum —
+ * the UI shows an update banner instead of syncing into a broken contract.
+ */
+update_required: boolean }
 export type StockOilLine = { id: string; oil_type: string; snapshot_liters: number; pending_liters: number; projected_liters: number; low_stock: boolean; fetched_at: string | null }
 export type StockTireLine = { id: string; brand: string; model: string | null; size: string | null; snapshot_qty: number; pending_debits: number; projected_qty: number; 
 /**
