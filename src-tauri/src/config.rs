@@ -32,10 +32,13 @@ pub struct CacheConfig {
     pub invoices_page_size: u32,
 }
 
+/// Every field here is READ — dead config that parses env vars nobody uses
+/// is the pre-rebuild antipattern this file must never repeat.
 #[derive(Debug, Clone)]
 pub struct SyncConfig {
-    pub push_interval: Duration,
-    pub pull_interval: Duration,
+    /// Heartbeat period: how often the host checks for stragglers whose
+    /// backoff gate has passed (drain only fires when there is work).
+    pub heartbeat_interval: Duration,
     pub push_batch_size: u32,
     pub pull_limit: u32,
 }
@@ -81,8 +84,7 @@ impl AppConfig {
                 invoices_page_size: env_u32("APEX_CACHE_INVOICES_PAGE_SIZE", 100),
             },
             sync: SyncConfig {
-                push_interval: Duration::from_secs(env_u64("APEX_SYNC_PUSH_INTERVAL_SECS", 30)),
-                pull_interval: Duration::from_secs(env_u64("APEX_SYNC_PULL_INTERVAL_SECS", 60)),
+                heartbeat_interval: Duration::from_secs(env_u64("APEX_SYNC_HEARTBEAT_SECS", 30)),
                 push_batch_size: env_u32("APEX_SYNC_PUSH_BATCH_SIZE", 50),
                 pull_limit: env_u32("APEX_SYNC_PULL_LIMIT", 200),
             },

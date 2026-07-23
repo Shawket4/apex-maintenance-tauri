@@ -155,20 +155,29 @@ pub fn run() {
                 // The sync engine is host-driven: writes kick it, the UI can
                 // call sync_now, and a modest heartbeat drains stragglers whose
                 // backoff gate has passed. No blind fire-into-the-void loops.
-                let engine = Arc::new(services::engine::SyncEngine::new(db, http));
+                let engine = Arc::new(services::engine::SyncEngine::new(
+                    db,
+                    http,
+                    config.sync.push_batch_size,
+                    config.sync.pull_limit,
+                ));
                 app.manage(commands::sync::EngineState(engine.clone()));
+                let heartbeat = config.sync.heartbeat_interval;
                 tauri::async_runtime::spawn(async move {
                     // First run: recover inflight strandings, then push+pull.
                     let _ = engine.drain().await;
                     let _ = engine.pull().await;
                     loop {
-                        tokio::time::sleep(std::time::Duration::from_secs(30)).await;
-                        let has_work = engine
-                            .status()
-                            .map(|s| s.pending > 0 || s.inflight > 0 || !s.online)
-                            .unwrap_or(false);
-                        if has_work {
+                        tokio::time::sleep(heartbeat).await;
+                        let Ok(s) = engine.status() else { continue };
+                        if s.pending > 0 || s.inflight > 0 {
                             let _ = engine.drain().await;
+                        } else if !s.online && !s.auth_paused {
+                            // Empty queue + offline flag: a drain makes no
+                            // network call, so the flag would stick forever.
+                            // A pull both probes AND refreshes — success
+                            // marks the engine online again.
+                            let _ = engine.pull().await;
                         }
                     }
                 });

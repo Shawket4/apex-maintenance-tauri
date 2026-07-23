@@ -29,10 +29,14 @@ pub fn now_iso() -> String {
     chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
 }
 
-/// The one place the 34–36 L rule lives client-side; the server recomputes it
-/// authoritatively on apply (side_effects::oil_flagged).
+/// The 34–36 L band, client copy. MUST match maint-rust
+/// side_effects::{OIL_FLAG_MIN, OIL_FLAG_MAX} — the server recomputes the
+/// flag authoritatively on apply; this copy exists for immediate local UX.
+pub const OIL_FLAG_MIN: f64 = 34.0;
+pub const OIL_FLAG_MAX: f64 = 36.0;
+
 pub fn oil_flagged(liters: f64) -> bool {
-    !(34.0..=36.0).contains(&liters)
+    !(OIL_FLAG_MIN..=OIL_FLAG_MAX).contains(&liters)
 }
 
 /// Dismount reason → tire status. MUST match maint-rust side_effects::dismount_status.
@@ -47,7 +51,7 @@ pub fn dismount_status(reason: &str) -> &'static str {
 
 /// Read a full row back as JSON (the outbox payload is always the row snapshot).
 fn row_snapshot(conn: &Connection, table: &str, pk: &str, id: &str) -> AppResult<Value> {
-    let cols = crate::services::engine::columns_for_public(table);
+    let cols = crate::services::schema::columns_for(table);
     let sql = format!("SELECT {} FROM {table} WHERE {pk} = ?1", cols.join(", "));
     let mut stmt = conn.prepare(&sql)?;
     let v = stmt
@@ -72,15 +76,11 @@ fn row_snapshot(conn: &Connection, table: &str, pk: &str, id: &str) -> AppResult
 }
 
 /// Booleans arrive as SQLite 0/1 integers in snapshots; the server expects real
-/// JSON booleans for boolean-typed columns.
+/// JSON booleans for boolean-typed columns. The column lists live in the
+/// schema registry — one edit per new boolean column, not four.
 fn fix_bools(entity: &str, mut row: Value) -> Value {
-    let bool_cols: &[&str] = match entity {
-        "work_order_tasks" => &["is_done"],
-        "oil_changes" => &["flagged"],
-        "chassis_axles" => &["is_steering", "is_lifted"],
-        "chassis_positions" => &["is_spare"],
-        _ => &[],
-    };
+    let bool_cols: &[&str] =
+        crate::services::schema::meta(entity).map(|m| m.bool_cols).unwrap_or(&[]);
     if let Value::Object(map) = &mut row {
         for c in bool_cols {
             if let Some(Value::Number(n)) = map.get(*c) {
@@ -95,11 +95,7 @@ fn fix_bools(entity: &str, mut row: Value) -> Value {
 /// The shared write path: local write already executed on `tx`; snapshot the
 /// row and enqueue it.
 fn enqueue_row(tx: &Connection, entity: &str, id: &str, op: &str, user_id: i64) -> AppResult<()> {
-    let pk = if entity == "vehicle_odometer_overrides" || entity == "vehicle_class_assignments" {
-        "vehicle_id"
-    } else {
-        "id"
-    };
+    let pk = crate::services::schema::pk_for(entity);
     let snapshot = fix_bools(entity, row_snapshot(tx, entity, pk, id)?);
     let base_sv = snapshot.get("sync_version").and_then(|v| v.as_i64()).unwrap_or(1);
     // For inserts the server accepts any version; for updates the base is the
@@ -404,6 +400,13 @@ pub fn mount_used(pool: &DbPool, inp: &MountUsedInput, user_id: i64) -> AppResul
 }
 
 #[allow(clippy::too_many_arguments)]
+/// Reasons the server's Postgres enums accept (maint-rust 0003). An
+/// unvalidated string mounts/dismounts locally and then dead-letters on the
+/// enum cast — local state the server never accepted.
+const MOUNT_REASONS: &[&str] = &["new", "rotation", "replacement", "repair_return", "onboard"];
+const DISMOUNT_REASONS: &[&str] = &["worn", "damaged", "rotation", "puncture", "retread", "other"];
+
+#[allow(clippy::too_many_arguments)] // internal helper: one row's full column set
 fn insert_assignment(
     tx: &Connection,
     id: &str,
@@ -416,7 +419,11 @@ fn insert_assignment(
     now: &str,
     user_id: i64,
 ) -> AppResult<()> {
-    // Local guard mirroring the server's partial unique indexes.
+    if !MOUNT_REASONS.contains(&reason) {
+        return Err(AppError::Internal(format!("invalid mount reason: {reason}")));
+    }
+    // Local guards mirroring the server's TWO partial unique indexes: one
+    // active assignment per position AND one per tire.
     let occupied: Option<String> = tx
         .query_row(
             "SELECT id FROM tire_assignments
@@ -427,6 +434,17 @@ fn insert_assignment(
         .optional()?;
     if occupied.is_some() {
         return Err(AppError::Internal("position already has an active tire".into()));
+    }
+    let riding: Option<String> = tx
+        .query_row(
+            "SELECT id FROM tire_assignments
+              WHERE tire_id=?1 AND dismounted_at IS NULL AND deleted_at IS NULL",
+            params![tire_id],
+            |r| r.get(0),
+        )
+        .optional()?;
+    if riding.is_some() {
+        return Err(AppError::Internal("tire already has an active assignment".into()));
     }
     tx.execute(
         "INSERT INTO tire_assignments
@@ -456,6 +474,9 @@ pub fn dismount(pool: &DbPool, inp: &DismountInput, user_id: i64) -> AppResult<S
     let tx = conn.transaction()?;
     let now = now_iso();
 
+    if !DISMOUNT_REASONS.contains(&inp.reason.as_str()) {
+        return Err(AppError::Internal(format!("invalid dismount reason: {}", inp.reason)));
+    }
     let row: Option<String> = tx
         .query_row(
             "SELECT ta.tire_id FROM tire_assignments ta
@@ -611,8 +632,14 @@ pub fn intake_legacy(pool: &DbPool, tires: &[LegacyTireInput], user_id: i64) -> 
 
 /// Explicit lifecycle transition from the tire file (repair out/in, retread
 /// send, restock, scrap). Mount/dismount is NOT done here — assignments carry
-/// those. This is a client-authored change, so it IS enqueued (the server only
-/// derives status from assignment ops, so there is no version race).
+/// those.
+///
+/// Only the EVENT is enqueued; the server derives tires.status from it
+/// (side_effects, TireStatusEvents insert) and the local status flip below is
+/// the same projection, applied for immediate UX. Enqueueing a `tires` update
+/// here was a guaranteed offline dead-letter: every assignment side effect
+/// bumps tires.sync_version server-side, so a queued tires update carried a
+/// structurally stale base whenever a mount/dismount preceded it in the batch.
 pub fn tire_set_status(
     pool: &DbPool,
     tire_id: &str,
@@ -645,11 +672,11 @@ pub fn tire_set_status(
         return Err(AppError::Internal("dismount the tire first".into()));
     }
 
+    // Local projection of the server's event-driven derivation — never enqueued.
     tx.execute(
         "UPDATE tires SET status=?2, updated_at=?3, updated_by_user_id=?4 WHERE id=?1",
         params![tire_id, to_status, now, user_id],
     )?;
-    enqueue_row(&tx, "tires", tire_id, "update", user_id)?;
 
     let event_id = Uuid::new_v4().to_string();
     tx.execute(

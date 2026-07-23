@@ -40,6 +40,19 @@ fn pending_ids(conn: &Connection, entity: &str) -> AppResult<HashSet<String>> {
     Ok(ids)
 }
 
+/// Like pending_ids, but INSERT ops only. Stock projection needs this: a later
+/// status update queued for a long-acked shipment tire is not a stock debit.
+fn pending_insert_ids(conn: &Connection, entity: &str) -> AppResult<HashSet<String>> {
+    let mut stmt = conn.prepare(
+        "SELECT DISTINCT entity_id FROM outbox
+          WHERE entity_type = ?1 AND op = 'insert' AND status IN ('pending','inflight','dead')",
+    )?;
+    let ids = stmt
+        .query_map(params![entity], |r| r.get::<_, String>(0))?
+        .collect::<Result<HashSet<_>, _>>()?;
+    Ok(ids)
+}
+
 // ═════════════════════════════ odometer truth ════════════════════════════════
 
 /// Mirrors maint-rust v_current_odometer (0014). A manual override is an
@@ -113,13 +126,22 @@ pub fn odometer_truth(pool: &DbPool, vehicle_id: i64) -> AppResult<Option<OdoTru
 /// across the two lies.
 const DUE_TAIL: &str = "
 last_done AS (
-    SELECT wo.vehicle_id, t.category_id,
-           MAX(wo.opened_at)        AS last_at,
-           MAX(wo.odometer_at_open) AS last_km
-      FROM work_order_tasks t
-      JOIN work_orders wo ON wo.id = t.work_order_id
-     WHERE t.deleted_at IS NULL AND wo.deleted_at IS NULL AND t.category_id IS NOT NULL
-     GROUP BY wo.vehicle_id, t.category_id
+    -- Mirror of maint-rust 0017: only DONE tasks reset the due clock, and
+    -- last_at/last_km come from the SAME (latest) work order — independent
+    -- MAXes could pair one WO's date with another WO's odometer.
+    SELECT vehicle_id, category_id, last_at, last_km FROM (
+        SELECT wo.vehicle_id, t.category_id,
+               wo.opened_at        AS last_at,
+               wo.odometer_at_open AS last_km,
+               ROW_NUMBER() OVER (
+                   PARTITION BY wo.vehicle_id, t.category_id
+                   ORDER BY wo.opened_at DESC
+               ) AS rn
+          FROM work_order_tasks t
+          JOIN work_orders wo ON wo.id = t.work_order_id
+         WHERE t.deleted_at IS NULL AND wo.deleted_at IS NULL
+           AND t.category_id IS NOT NULL AND t.is_done = 1
+    ) WHERE rn = 1
 )
 SELECT
     vca.vehicle_id,
@@ -143,6 +165,9 @@ SELECT
         WHEN ld.last_at IS NULL THEN 'never_done'
         WHEN sp.trigger_type = 'mileage' THEN
             CASE
+                -- 0017: no km on the latest record = no usable baseline for a
+                -- mileage plan — surface it instead of silently 'ok' forever.
+                WHEN ld.last_km IS NULL THEN 'never_done'
                 WHEN odo.current_odometer IS NULL THEN 'ok'
                 WHEN odo.current_odometer >= ld.last_km + sp.interval_km THEN 'overdue'
                 WHEN odo.current_odometer >= ld.last_km + sp.interval_km - COALESCE(sp.lead_warn_km,500) THEN 'due_soon'
@@ -211,7 +236,7 @@ pub fn due_board(pool: &DbPool, vehicle_id: Option<i64>) -> AppResult<Vec<DueRow
     let conn = pool.get()?;
     let order = " ORDER BY CASE status WHEN 'overdue' THEN 0 WHEN 'never_done' THEN 1 WHEN 'due_soon' THEN 2 ELSE 3 END, plate";
     let due_sql = format!("WITH {ODO_CTE}, {DUE_TAIL}");
-    let mut rows = match vehicle_id {
+    let rows = match vehicle_id {
         Some(vid) => {
             let sql = format!("SELECT * FROM ({due_sql}) WHERE vehicle_id = ?1 {order}");
             let mut stmt = conn.prepare(&sql)?;
@@ -225,16 +250,6 @@ pub fn due_board(pool: &DbPool, vehicle_id: Option<i64>) -> AppResult<Vec<DueRow
             v
         }
     };
-    // Deterministic secondary ordering for identical (status, plate).
-    rows.sort_by(|a, b| {
-        let rank = |s: &str| match s {
-            "overdue" => 0,
-            "never_done" => 1,
-            "due_soon" => 2,
-            _ => 3,
-        };
-        rank(&a.status).cmp(&rank(&b.status)).then_with(|| a.plate.cmp(&b.plate))
-    });
     Ok(rows)
 }
 
@@ -305,9 +320,28 @@ pub fn wo_list(
         (None, None) => stmt.query_map([], map_wo_list)?.collect::<Result<Vec<_>, _>>()?,
     };
     let pending_wos = pending_ids(&conn, "work_orders")?;
+    // "Any part of this WO still queued" includes its children — a WO whose
+    // tasks/oil/tire ops are unacked is still pending work even after the WO
+    // row itself acked.
+    let mut child_stmt = conn.prepare(
+        "SELECT 1 FROM outbox o
+          WHERE o.status IN ('pending','inflight','dead')
+            AND (
+                 (o.entity_type = 'work_order_tasks'
+                    AND o.entity_id IN (SELECT id FROM work_order_tasks WHERE work_order_id = ?1))
+              OR (o.entity_type = 'oil_changes'
+                    AND o.entity_id IN (SELECT id FROM oil_changes WHERE work_order_id = ?1))
+              OR (o.entity_type = 'tire_assignments'
+                    AND o.entity_id IN (SELECT id FROM tire_assignments
+                                         WHERE work_order_id = ?1 OR dismount_work_order_id = ?1))
+            )
+          LIMIT 1",
+    )?;
     for w in &mut rows {
-        w.pending = pending_wos.contains(&w.id);
+        w.pending = pending_wos.contains(&w.id)
+            || child_stmt.exists(params![w.id])?;
     }
+    drop(child_stmt);
     Ok(rows)
 }
 
@@ -605,8 +639,8 @@ pub struct StockView {
 /// queued tire debits = shipment-origin tire inserts not yet acked.
 pub fn stock_view(pool: &DbPool) -> AppResult<StockView> {
     let conn = pool.get()?;
-    let pending_oil = pending_ids(&conn, "oil_changes")?;
-    let pending_tires = pending_ids(&conn, "tires")?;
+    let pending_oil = pending_insert_ids(&conn, "oil_changes")?;
+    let pending_tires = pending_insert_ids(&conn, "tires")?;
 
     let mut stmt = conn.prepare(
         "SELECT id, brand, model, size, on_hand_qty, fetched_at FROM tire_stock_cache ORDER BY brand, model, size",
@@ -722,7 +756,7 @@ pub fn home_summary(pool: &DbPool) -> AppResult<HomeSummary> {
     };
     let attention: Vec<DueRow> = due
         .iter()
-        .filter(|d| d.status == "overdue" || d.status == "due_soon")
+        .filter(|d| d.status == "overdue" || d.status == "never_done" || d.status == "due_soon")
         .take(8)
         .cloned()
         .collect();
@@ -1547,5 +1581,227 @@ mod tests {
         assert_eq!(h.open_wos[0].plate, "ف ى ر 8427");
         assert!(h.open_wos[0].pending, "unacked WO is marked pending");
         assert!(h.sync_pending >= 1, "queue is honest");
+    }
+
+    // ── 2026-07-23 review regressions ────────────────────────────────────────
+
+    /// tire_set_status must enqueue ONLY the event — the server derives
+    /// tires.status from it. A queued `tires` update carried a base
+    /// sync_version made stale by every assignment side effect, guaranteeing
+    /// an offline dismount→restock day dead-lettered the restock.
+    #[test]
+    fn tire_set_status_enqueues_only_the_event() {
+        let p = pool();
+        seed_vehicle(&p, 41, "ن م ر 100", 100_000);
+        let tires = domain::intake_legacy(
+            &p,
+            &[domain::LegacyTireInput {
+                brand: "GT".into(),
+                model: None,
+                size: None,
+                dot_code: None,
+                estimated_km: Some(1_000),
+            }],
+            9,
+        )
+        .unwrap();
+        let tire_id = tires[0].clone();
+        {
+            // Flush the intake's outbox rows so the assertion below sees only
+            // what tire_set_status itself enqueues.
+            let conn = p.get().unwrap();
+            conn.execute("UPDATE outbox SET status = 'acked', synced_at = 1", []).unwrap();
+        }
+
+        domain::tire_set_status(&p, &tire_id, "retreading", "retread", None, 9).unwrap();
+
+        let conn = p.get().unwrap();
+        let queued: Vec<(String, String)> = conn
+            .prepare(
+                "SELECT entity_type, op FROM outbox WHERE status = 'pending' ORDER BY seq",
+            )
+            .unwrap()
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert_eq!(
+            queued,
+            vec![("tire_status_events".to_string(), "insert".to_string())],
+            "no competing tires update may be enqueued"
+        );
+        // The local projection still applied.
+        let status: String = conn
+            .query_row("SELECT status FROM tires WHERE id = ?1", params![tire_id], |r| r.get(0))
+            .unwrap();
+        assert_eq!(status, "retreading");
+    }
+
+    /// Reasons are validated against the server's Postgres enums BEFORE the
+    /// local write — an invalid string used to mount locally and then
+    /// dead-letter on the server's enum cast.
+    #[test]
+    fn invalid_reasons_are_rejected_before_any_write() {
+        let p = pool();
+        seed_vehicle(&p, 42, "ن م ر 200", 100_000);
+        seed_stock(&p);
+        domain::chassis_create(
+            &p,
+            42,
+            &ChassisConfig { drive_axles: 1, trailer_axles: 2, spares: 0, single_trailer_axles: None },
+            9,
+        )
+        .unwrap();
+        let wo = domain::wo_open(&p, 42, Some(100_000), 9).unwrap();
+        let ch = chassis_get(&p, 42).unwrap().unwrap();
+        let pos = ch.positions.iter().find(|x| !x.is_spare).unwrap().id.clone();
+        let (tire_id, asg) = domain::mount_from_stock(
+            &p,
+            &MountFromStockInput {
+                position_id: pos,
+                vehicle_id: 42,
+                work_order_id: wo.clone(),
+                brand: "Pirelli".into(),
+                model: Some("FR01".into()),
+                size: Some("315/80R22.5".into()),
+                dot_code: None,
+                odometer: Some(100_000),
+            },
+            9,
+        )
+        .unwrap();
+
+        let bad = domain::dismount(
+            &p,
+            &DismountInput {
+                assignment_id: asg.clone(),
+                odometer: Some(110_000),
+                reason: "exploded".into(),
+                work_order_id: Some(wo),
+            },
+            9,
+        );
+        assert!(bad.is_err(), "unknown dismount reason must be rejected");
+        // Nothing changed: the assignment is still open, the tire mounted.
+        let t = tire_file(&p, &tire_id).unwrap().unwrap();
+        assert_eq!(t.tire.status, "mounted");
+    }
+
+    /// requeue_dead rebases the op onto the local row's current sync_version —
+    /// a conflict dead letter already applied the server row locally, so
+    /// re-pushing the old base conflicted again forever.
+    #[test]
+    fn requeue_dead_rebases_onto_the_local_row_version() {
+        let p = pool();
+        seed_vehicle(&p, 43, "ن م ر 300", 100_000);
+        let tires = domain::intake_legacy(
+            &p,
+            &[domain::LegacyTireInput {
+                brand: "GT".into(),
+                model: None,
+                size: None,
+                dot_code: None,
+                estimated_km: None,
+            }],
+            9,
+        )
+        .unwrap();
+        let tire_id = tires[0].clone();
+        let conn = p.get().unwrap();
+        // Simulate: the op died as a conflict, and the conflict's server row
+        // (sync_version 7) was applied to the local table.
+        let seq: i64 = conn
+            .query_row("SELECT seq FROM outbox WHERE entity_id = ?1", params![tire_id], |r| r.get(0))
+            .unwrap();
+        conn.execute(
+            "UPDATE outbox SET status = 'dead', op = 'update', last_error = 'conflict' WHERE seq = ?1",
+            params![seq],
+        )
+        .unwrap();
+        conn.execute("UPDATE tires SET sync_version = 7 WHERE id = ?1", params![tire_id]).unwrap();
+
+        crate::services::outbox::requeue_dead(&conn, seq).unwrap();
+        let (status, base): (String, i64) = conn
+            .query_row(
+                "SELECT status, base_sync_version FROM outbox WHERE seq = ?1",
+                params![seq],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(status, "pending");
+        assert_eq!(base, 7, "retry must carry the CURRENT local version, not the stale base");
+    }
+
+    /// Stock projection debits count only queued INSERTS — a status update
+    /// queued for a long-acked shipment tire is not a stock debit.
+    #[test]
+    fn stock_projection_ignores_non_insert_outbox_rows() {
+        let p = pool();
+        seed_vehicle(&p, 44, "ن م ر 400", 100_000);
+        seed_stock(&p);
+        domain::chassis_create(
+            &p,
+            44,
+            &ChassisConfig { drive_axles: 1, trailer_axles: 2, spares: 0, single_trailer_axles: None },
+            9,
+        )
+        .unwrap();
+        let wo = domain::wo_open(&p, 44, Some(100_000), 9).unwrap();
+        let ch = chassis_get(&p, 44).unwrap().unwrap();
+        let pos = ch.positions.iter().find(|x| !x.is_spare).unwrap().id.clone();
+        let (tire_id, asg) = domain::mount_from_stock(
+            &p,
+            &MountFromStockInput {
+                position_id: pos,
+                vehicle_id: 44,
+                work_order_id: wo.clone(),
+                brand: "Pirelli".into(),
+                model: Some("FR01".into()),
+                size: Some("315/80R22.5".into()),
+                dot_code: None,
+                odometer: Some(100_000),
+            },
+            9,
+        )
+        .unwrap();
+        // The shipment insert is queued: projected = 5 − 1.
+        assert_eq!(stock_view(&p).unwrap().tires[0].projected_qty, 4);
+
+        // Everything acks (server snapshot now includes the debit: 4 on hand).
+        {
+            let conn = p.get().unwrap();
+            conn.execute("UPDATE outbox SET status = 'acked', synced_at = 1", []).unwrap();
+            conn.execute("UPDATE tire_stock_cache SET on_hand_qty = 4 WHERE id = 's1'", []).unwrap();
+        }
+        assert_eq!(stock_view(&p).unwrap().tires[0].projected_qty, 4);
+
+        // A later dismount (queued update on the SAME shipment tire) must NOT
+        // debit stock again.
+        domain::dismount(
+            &p,
+            &DismountInput {
+                assignment_id: asg,
+                odometer: Some(120_000),
+                reason: "worn".into(),
+                work_order_id: Some(wo),
+            },
+            9,
+        )
+        .unwrap();
+        let _ = tire_id;
+        assert_eq!(
+            stock_view(&p).unwrap().tires[0].projected_qty,
+            4,
+            "a queued update is not a debit"
+        );
+    }
+
+    /// The client's oil band mirrors the server constants exactly.
+    #[test]
+    fn oil_band_matches_the_server_rule() {
+        assert!(domain::oil_flagged(33.9));
+        assert!(!domain::oil_flagged(34.0));
+        assert!(!domain::oil_flagged(36.0));
+        assert!(domain::oil_flagged(36.1));
     }
 }

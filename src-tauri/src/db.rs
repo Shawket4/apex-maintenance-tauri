@@ -62,6 +62,11 @@ const MIGRATIONS: &[Migration] = &[
         name: "0008_override_semantics",
         sql: include_str!("migrations/0008_override_semantics.sql"),
     },
+    Migration {
+        version: 9,
+        name: "0009_integrity",
+        sql: include_str!("migrations/0009_integrity.sql"),
+    },
 ];
 
 #[derive(Clone)]

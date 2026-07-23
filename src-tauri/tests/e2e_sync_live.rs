@@ -71,7 +71,7 @@ fn device(env: &Env) -> Client {
 
     let config = Arc::new(AppConfig::load());
     let http = Arc::new(HttpClient::new(config, dir.path().to_path_buf()).expect("http client"));
-    let engine = SyncEngine::new(pool.clone(), http);
+    let engine = SyncEngine::new(pool.clone(), http, 50, 200);
     Client { pool, engine, _dir: dir }
 }
 

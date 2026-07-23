@@ -267,7 +267,10 @@ pub async fn invoices_search(
 
             Ok(InvoiceSearchResult { rows, source: SearchSource::Online, total, query: trimmed })
         }
-        Err(AppError::Http(msg)) => {
+        // Being ACTUALLY offline is the whole reason the FTS5 fallback exists
+        // — transport failures arrive as AppError::Offline (minted in
+        // From<reqwest::Error>), not Http, so both arms must fall back.
+        Err(AppError::Http(msg)) | Err(AppError::Offline(msg)) => {
             tracing::warn!(error = %msg, "online invoice search failed — falling back to FTS5");
             offline_search(&state, trimmed, args.car_id, limit).await
         }

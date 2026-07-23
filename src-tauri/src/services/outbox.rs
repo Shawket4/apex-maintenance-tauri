@@ -246,12 +246,73 @@ pub fn clear_network_backoff(conn: &Connection) -> rusqlite::Result<()> {
     Ok(())
 }
 
+/// Requeue a dead letter — REBASED onto the local row's current sync_version.
+/// A conflict dead letter already applied the server row locally (bumping the
+/// local version); re-pushing the old base would conflict again forever, which
+/// made the Diagnostics retry button structurally useless for conflicts.
+/// The payload is untouched: it is the preserved intent.
 pub fn requeue_dead(conn: &Connection, seq: i64) -> rusqlite::Result<()> {
+    let row: Option<(String, String, String)> = conn
+        .query_row(
+            "SELECT entity_type, entity_id, op FROM outbox WHERE seq = ?1 AND status = 'dead'",
+            params![seq],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+        )
+        .optional()?;
+    let Some((etype, eid, op)) = row else { return Ok(()) };
+
+    let mut base: Option<i64> = None;
+    if op != "insert" {
+        let table = crate::services::schema::meta(&etype).map(|m| (m.entity, m.pk));
+        if let Some((table, pk)) = table {
+            base = conn
+                .query_row(
+                    &format!("SELECT sync_version FROM {table} WHERE {pk} = ?1"),
+                    params![eid],
+                    |r| r.get(0),
+                )
+                .optional()?;
+        }
+    }
+
+    match base {
+        Some(sv) => conn.execute(
+            "UPDATE outbox SET status = 'pending', attempts = 0, next_attempt_at = 0,
+                               last_error = NULL, server_row = NULL, base_sync_version = ?2
+              WHERE seq = ?1 AND status = 'dead'",
+            params![seq, sv],
+        )?,
+        None => conn.execute(
+            "UPDATE outbox SET status = 'pending', attempts = 0, next_attempt_at = 0,
+                               last_error = NULL, server_row = NULL
+              WHERE seq = ?1 AND status = 'dead'",
+            params![seq],
+        )?,
+    };
+    Ok(())
+}
+
+/// Entity ids that currently have a dead op — the dependency-gating input.
+pub fn dead_entity_ids(conn: &Connection) -> rusqlite::Result<std::collections::HashSet<String>> {
+    let mut stmt = conn.prepare("SELECT DISTINCT entity_id FROM outbox WHERE status = 'dead'")?;
+    let rows = stmt
+        .query_map([], |r| r.get::<_, String>(0))?
+        .collect::<Result<std::collections::HashSet<_>, _>>()?;
+    Ok(rows)
+}
+
+/// Rebase every PENDING row for an entity onto a server version (used when a
+/// conflict resolves while a successor write is still queued).
+pub fn rebase_pending(
+    conn: &Connection,
+    entity_type: &str,
+    entity_id: &str,
+    new_sync_version: i64,
+) -> rusqlite::Result<()> {
     conn.execute(
-        "UPDATE outbox SET status = 'pending', attempts = 0, next_attempt_at = 0,
-                           last_error = NULL, server_row = NULL
-          WHERE seq = ?1 AND status = 'dead'",
-        params![seq],
+        "UPDATE outbox SET base_sync_version = ?3
+          WHERE entity_type = ?1 AND entity_id = ?2 AND status = 'pending'",
+        params![entity_type, entity_id, new_sync_version],
     )?;
     Ok(())
 }

@@ -150,8 +150,20 @@ async fn consume_response(url: &str, resp: Response) -> AppResult<RawResponse> {
 
     if status == StatusCode::UNAUTHORIZED {
         let body = resp.text().await.unwrap_or_default();
-        tracing::warn!(%url, %status, body = %truncate(&body, 500), "401 unauthorized");
-        return Err(AppError::Unauthorized);
+        // Portal guard: only OUR backend's 401 carries the {"error": …}
+        // envelope. A captive portal / middlebox answering 401 must classify
+        // as Offline — mapping it to auth failure falsely parks the queue and
+        // forces a needless re-login on a blip.
+        let is_ours = serde_json::from_str::<serde_json::Value>(&body)
+            .ok()
+            .map(|v| v.get("error").is_some())
+            .unwrap_or(false);
+        if is_ours {
+            tracing::warn!(%url, %status, body = %truncate(&body, 500), "401 unauthorized");
+            return Err(AppError::Unauthorized);
+        }
+        tracing::warn!(%url, %status, "401 without error envelope (captive portal?)");
+        return Err(AppError::Offline("401 without error envelope (captive portal?)".into()));
     }
 
     let body = resp.text().await.unwrap_or_default();
