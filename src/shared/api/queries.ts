@@ -4,6 +4,7 @@
 // sync engine).
 import React from "react";
 import {
+  useInfiniteQuery,
   useMutation,
   useQuery,
   useQueryClient,
@@ -79,11 +80,17 @@ export const useStock = () =>
 
 // The stock in/out ledger is an ONLINE read (movements live server-side, not
 // in the offline mirror) — no retry so an offline load fails fast to the
-// "connection needed" state.
-export const useStockMovements = (kind?: "tire" | "oil") =>
-  useQuery({
-    queryKey: ["stock-movements", kind ?? "all"],
-    queryFn: () => unwrap(commands.stockMovements(kind ?? null)),
+// "connection needed" state. Paginated: each page is MOVEMENTS_PAGE rows;
+// `from` (YYYY-MM-DD) is the time-range lower bound.
+export const MOVEMENTS_PAGE = 50;
+export const useStockMovements = (kind?: "tire" | "oil", from?: string) =>
+  useInfiniteQuery({
+    queryKey: ["stock-movements", kind ?? "all", from ?? "all"],
+    queryFn: ({ pageParam }) =>
+      unwrap(commands.stockMovements(kind ?? null, from ?? null, MOVEMENTS_PAGE, pageParam)),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) =>
+      lastPage.length === MOVEMENTS_PAGE ? allPages.length * MOVEMENTS_PAGE : undefined,
     retry: false,
   });
 

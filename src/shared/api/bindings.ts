@@ -533,11 +533,13 @@ async serviceEvents(vehicleId: number) : Promise<Result<JsonValue, CmdError>> {
 },
 /**
  * The stock movements ledger — an ONLINE read (movements live server-side,
- * not in the offline mirror). `kind` filters to "tire" | "oil"; None = all.
+ * not in the offline mirror). `kind` filters to "tire" | "oil"; `from` is an
+ * inclusive date/timestamp lower bound (the time range); `limit`/`offset`
+ * page through, newest first.
  */
-async stockMovements(kind: string | null) : Promise<Result<StockMovementRow[], CmdError>> {
+async stockMovements(kind: string | null, from: string | null, limit: number | null, offset: number | null) : Promise<Result<StockMovementRow[], CmdError>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("stock_movements", { kind }) };
+    return { status: "ok", data: await TAURI_INVOKE("stock_movements", { kind, from, limit, offset }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };

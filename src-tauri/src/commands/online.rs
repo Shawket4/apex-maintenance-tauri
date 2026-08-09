@@ -150,17 +150,30 @@ pub struct StockMovementRow {
 }
 
 /// The stock movements ledger — an ONLINE read (movements live server-side,
-/// not in the offline mirror). `kind` filters to "tire" | "oil"; None = all.
+/// not in the offline mirror). `kind` filters to "tire" | "oil"; `from` is an
+/// inclusive date/timestamp lower bound (the time range); `limit`/`offset`
+/// page through, newest first.
 #[tauri::command]
 #[specta::specta]
 pub async fn stock_movements(
     state: State<'_, AppState>,
     kind: Option<String>,
+    from: Option<String>,
+    limit: Option<i64>,
+    offset: Option<i64>,
 ) -> CmdResult<Vec<StockMovementRow>> {
-    let mut path = String::from("/stock/movements?limit=200");
+    let limit = limit.unwrap_or(50).clamp(1, 200);
+    let offset = offset.unwrap_or(0).max(0);
+    let mut path = format!("/stock/movements?limit={limit}&offset={offset}");
     if let Some(k) = kind.as_deref() {
         if k == "tire" || k == "oil" {
             path.push_str(&format!("&kind={k}"));
+        }
+    }
+    // `from` is a plain YYYY-MM-DD from the client — no special chars to encode.
+    if let Some(f) = from.as_deref() {
+        if !f.is_empty() {
+            path.push_str(&format!("&from={f}"));
         }
     }
     let raw = state.http.maint_get_raw(&path).await?;

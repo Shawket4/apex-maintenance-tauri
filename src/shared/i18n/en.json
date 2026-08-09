@@ -28,7 +28,8 @@
     "tires": "Tires",
     "ai": "AI Search",
     "settings": "Settings",
-    "logout": "Log out"
+    "logout": "Log out",
+    "movements": "Stock movements"
   },
   "login": {
     "title": "Sign in",
@@ -181,8 +182,7 @@
       "projected": "Available",
       "usedPool": "Used tires available",
       "empty": "No stock — refresh",
-      "updatedAgo": "Updated {{ago}}",
-      "movementsLink": "Movements"
+      "updatedAgo": "Updated {{ago}}"
     },
     "assets": {
       "title": "Individual tires",
@@ -406,6 +406,14 @@
       "all": "All",
       "tire": "Tires",
       "oil": "Oil"
+    },
+    "subtitle": "Tires and oil coming in and going out",
+    "loadMore": "Load more",
+    "range": {
+      "7": "Last week",
+      "30": "Last month",
+      "90": "Last 3 months",
+      "all": "All"
     }
   }
 }

@@ -1,54 +1,67 @@
-import { Link, createFileRoute, useCanGoBack, useRouter } from "@tanstack/react-router";
+import { Link, createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { ArrowDownLeft, ArrowRight, ArrowUpRight, CloudOff } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, CloudOff } from "lucide-react";
 
 import type { StockMovementRow } from "@/shared/api/client";
 import { useStockMovements } from "@/shared/api/queries";
 import { fmtNumber } from "@/shared/lib/numbers";
-import { fmtCairo } from "@/shared/lib/time";
+import { dayjs, fmtCairo } from "@/shared/lib/time";
 import { cn } from "@/shared/lib/cn";
+import { Button } from "@/shared/ui/button";
 import { EmptyState, ListCard, PageShell } from "@/widgets/layout/PageShell";
 import { Skeleton } from "@/shared/ui/skeleton";
 
+const KINDS = ["all", "tire", "oil"] as const;
+const RANGES = ["7", "30", "90", "all"] as const;
+
 export const Route = createFileRoute("/_app/stock/movements")({
-  // Filter lives in the URL so back-navigation restores it.
-  validateSearch: (s: Record<string, unknown>): { kind?: "tire" | "oil" } =>
-    s.kind === "tire" || s.kind === "oil" ? { kind: s.kind } : {},
+  // Filter + range live in the URL so back-navigation restores them.
+  validateSearch: (s: Record<string, unknown>): { kind?: "tire" | "oil"; range?: string } => ({
+    ...(s.kind === "tire" || s.kind === "oil" ? { kind: s.kind } : {}),
+    ...(typeof s.range === "string" && (RANGES as readonly string[]).includes(s.range) && s.range !== "30"
+      ? { range: s.range }
+      : {}),
+  }),
   component: StockMovements,
 });
 
-const FILTERS = ["all", "tire", "oil"] as const;
-
-/** The stock in/out ledger for oil and tires. Online read — movements live
- * server-side, so this shows a "connection needed" state when offline. */
+/** The stock in/out ledger for oil and tires — a top-level Stock screen.
+ * Online read (movements live server-side), so it shows a "connection needed"
+ * state when offline. Filter by type, pick a time range, page through. */
 function StockMovements() {
   const { t } = useTranslation();
-  const { kind } = Route.useSearch();
+  const { kind, range = "30" } = Route.useSearch();
   const navigate = Route.useNavigate();
-  const movements = useStockMovements(kind);
 
-  const setFilter = (f: (typeof FILTERS)[number]) =>
-    void navigate({ search: f === "all" ? {} : { kind: f }, replace: true });
+  // The time range → an inclusive `from` date (YYYY-MM-DD); "all" = no bound.
+  const from =
+    range === "all" ? undefined : dayjs().subtract(Number(range), "day").format("YYYY-MM-DD");
+  const movements = useStockMovements(kind, from);
+  const rows = movements.data?.pages.flat() ?? [];
+
+  const setKind = (k: (typeof KINDS)[number]) =>
+    void navigate({ search: (p) => ({ ...p, kind: k === "all" ? undefined : k }), replace: true });
+  const setRange = (r: (typeof RANGES)[number]) =>
+    void navigate({ search: (p) => ({ ...p, range: r === "30" ? undefined : r }), replace: true });
 
   return (
-    <PageShell title={t("movements.title")}>
-      <BackLink />
-
-      <div className="flex flex-wrap gap-1.5">
-        {FILTERS.map((f) => (
-          <button
-            key={f}
-            onClick={() => setFilter(f)}
-            className={cn(
-              "rounded-full border px-3.5 py-1.5 text-sm transition",
-              (kind ?? "all") === f
-                ? "border-primary bg-primary text-primary-foreground"
-                : "bg-card hover:bg-accent",
-            )}
-          >
-            {t(`movements.filter.${f}`)}
-          </button>
-        ))}
+    <PageShell title={t("movements.title")} subtitle={t("movements.subtitle")}>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <ChipRow>
+          {KINDS.map((k) => (
+            <Chip key={k} active={(kind ?? "all") === k} onClick={() => setKind(k)}>
+              {t(`movements.filter.${k}`)}
+            </Chip>
+          ))}
+        </ChipRow>
+        <span className="h-5 w-px bg-border" />
+        <ChipRow>
+          {RANGES.map((r) => (
+            <Chip key={r} active={range === r} onClick={() => setRange(r)}>
+              {t(`movements.range.${r}`)}
+            </Chip>
+          ))}
+        </ChipRow>
       </div>
 
       {movements.isLoading ? (
@@ -62,16 +75,55 @@ function StockMovements() {
           <CloudOff className="h-6 w-6 text-muted-foreground" />
           {t("movements.offline")}
         </EmptyState>
-      ) : (movements.data ?? []).length === 0 ? (
+      ) : rows.length === 0 ? (
         <EmptyState className="p-10">{t("movements.empty")}</EmptyState>
       ) : (
-        <ListCard>
-          {(movements.data ?? []).map((m) => (
-            <MovementRow key={m.id} m={m} />
-          ))}
-        </ListCard>
+        <>
+          <ListCard>
+            {rows.map((m) => (
+              <MovementRow key={m.id} m={m} />
+            ))}
+          </ListCard>
+          {movements.hasNextPage && (
+            <div className="flex justify-center">
+              <Button
+                variant="outline"
+                disabled={movements.isFetchingNextPage}
+                onClick={() => void movements.fetchNextPage()}
+              >
+                {t("movements.loadMore")}
+              </Button>
+            </div>
+          )}
+        </>
       )}
     </PageShell>
+  );
+}
+
+function ChipRow({ children }: { children: React.ReactNode }) {
+  return <div className="flex flex-wrap gap-1.5">{children}</div>;
+}
+
+function Chip({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "rounded-full border px-3.5 py-1.5 text-sm transition",
+        active ? "border-primary bg-primary text-primary-foreground" : "bg-card hover:bg-accent",
+      )}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -145,26 +197,5 @@ function MovementRow({ m }: { m: StockMovementRow }) {
         {amount}
       </span>
     </div>
-  );
-}
-
-/** History-aware back to wherever this was opened from (usually the Tires
- * screen); falls back there on a cold entry. */
-function BackLink() {
-  const { t } = useTranslation();
-  const router = useRouter();
-  const canGoBack = useCanGoBack();
-  const cls = "flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground";
-  if (canGoBack) {
-    return (
-      <button onClick={() => router.history.back()} className={cls}>
-        <ArrowRight className="h-4 w-4 ltr:rotate-180" /> {t("common.back")}
-      </button>
-    );
-  }
-  return (
-    <Link to="/tires" className={cls}>
-      <ArrowRight className="h-4 w-4 ltr:rotate-180" /> {t("tires.title")}
-    </Link>
   );
 }

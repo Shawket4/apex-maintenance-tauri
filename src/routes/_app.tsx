@@ -1,6 +1,7 @@
 import { Link, Outlet, createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import {
+  ArrowLeftRight,
   CalendarClock,
   CircleDot,
   LogOut,
@@ -31,6 +32,7 @@ const NAV_MAIN = [
   { to: "/trucks", key: "nav.trucks", icon: Truck, exact: false },
   { to: "/due", key: "nav.due", icon: CalendarClock, exact: false },
   { to: "/tires", key: "nav.tires", icon: CircleDot, exact: false },
+  { to: "/stock/movements", key: "nav.movements", icon: ArrowLeftRight, exact: false },
 ] as const;
 
 const NAV_TOOLS = [
