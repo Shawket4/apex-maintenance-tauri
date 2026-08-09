@@ -1,9 +1,10 @@
+import { useEffect } from "react";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { ArrowDownLeft, ArrowUpRight, CloudOff } from "lucide-react";
 
 import type { StockMovementRow } from "@/shared/api/client";
-import { useStockMovements } from "@/shared/api/queries";
+import { useStockMovements, useStockMovementsRefresh } from "@/shared/api/queries";
 import { fmtNumber } from "@/shared/lib/numbers";
 import { dayjs, fmtCairo } from "@/shared/lib/time";
 import { cn } from "@/shared/lib/cn";
@@ -39,6 +40,17 @@ function StockMovements() {
   const movements = useStockMovements(kind, from);
   const rows = movements.data?.pages.flat() ?? [];
 
+  // Reads are LOCAL (offline-safe); refresh the mirror opportunistically on
+  // open. Offline it fails silently and the last-synced data stays.
+  const refresh = useStockMovementsRefresh();
+  useEffect(() => {
+    refresh.mutate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // Honest "this is local data, not fresh" hint when the refresh couldn't reach
+  // the server but we still have something to show.
+  const stale = refresh.isError && rows.length > 0;
+
   const setKind = (k: (typeof KINDS)[number]) =>
     void navigate({ search: (p) => ({ ...p, kind: k === "all" ? undefined : k }), replace: true });
   const setRange = (r: (typeof RANGES)[number]) =>
@@ -62,6 +74,12 @@ function StockMovements() {
             </Chip>
           ))}
         </ChipRow>
+        {stale && (
+          <span className="ms-auto flex items-center gap-1.5 text-xs text-muted-foreground">
+            <CloudOff className="h-3.5 w-3.5" />
+            {t("movements.localData")}
+          </span>
+        )}
       </div>
 
       {movements.isLoading ? (
@@ -70,13 +88,11 @@ function StockMovements() {
             <Skeleton key={i} className="h-16 rounded-xl" />
           ))}
         </div>
-      ) : movements.isError ? (
-        <EmptyState className="flex flex-col items-center gap-2 p-10">
-          <CloudOff className="h-6 w-6 text-muted-foreground" />
-          {t("movements.offline")}
-        </EmptyState>
       ) : rows.length === 0 ? (
-        <EmptyState className="p-10">{t("movements.empty")}</EmptyState>
+        <EmptyState className="flex flex-col items-center gap-2 p-10">
+          {refresh.isError && <CloudOff className="h-6 w-6 text-muted-foreground" />}
+          {refresh.isError ? t("movements.offlineEmpty") : t("movements.empty")}
+        </EmptyState>
       ) : (
         <>
           <ListCard>

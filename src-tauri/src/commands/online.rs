@@ -4,12 +4,12 @@
 //!
 //! Everything else in the app reads local and writes through the outbox.
 
-use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tauri::State;
 
 use crate::error::CmdResult;
 use crate::services::refdata;
+use crate::services::stock_movements::{self, StockMovementRow};
 use crate::{AppError, AppResult, AppState};
 
 async fn get_json(state: &AppState, path: &str) -> AppResult<Value> {
@@ -71,6 +71,17 @@ pub(crate) async fn refresh_all_mirrors(state: &AppState) {
     if let Err(e) = crate::commands::cache::invoices_refresh_inner(state).await {
         tracing::warn!(error = ?e, "bootstrap: invoices refresh failed");
     }
+    // Mirror the recent movements window so the ledger is browsable offline.
+    if let Ok(v) = get_json(state, "/stock/movements?limit=200&offset=0").await {
+        let rows: Vec<Value> = v.as_array().cloned().unwrap_or_default();
+        let db = state.db.clone();
+        let _ = tokio::task::spawn_blocking(move || {
+            if let Ok(mut conn) = db.get() {
+                let _ = stock_movements::upsert(&mut conn, &rows);
+            }
+        })
+        .await;
+    }
 }
 
 /// Upsert a fleet-wide service plan (server-authoritative, perm ≥3), then
@@ -130,29 +141,11 @@ pub async fn service_events(state: State<'_, AppState>, vehicle_id: i64) -> CmdR
     Ok(get_json(&state, &format!("/vehicles/{vehicle_id}/service-events")).await?)
 }
 
-/// One row of the stock in/out ledger. `kind` is tire_debit | oil_debit |
-/// tire_credit | oil_credit | adjustment; tires carry qty, oil carries liters;
-/// a debit resolves the consuming work order's plate.
-#[derive(Debug, Serialize, Deserialize, specta::Type)]
-pub struct StockMovementRow {
-    pub id: String,
-    pub kind: String,
-    pub brand: Option<String>,
-    pub model: Option<String>,
-    pub size: Option<String>,
-    pub oil_type: Option<String>,
-    pub qty: Option<i64>,
-    pub liters: Option<f64>,
-    pub work_order_id: Option<String>,
-    pub plate: Option<String>,
-    pub created_at: String,
-    pub mirrored: bool,
-}
-
-/// The stock movements ledger — an ONLINE read (movements live server-side,
-/// not in the offline mirror). `kind` filters to "tire" | "oil"; `from` is an
-/// inclusive date/timestamp lower bound (the time range); `limit`/`offset`
-/// page through, newest first.
+/// The stock movements ledger — a LOCAL read over the offline mirror
+/// (services::stock_movements), so filter / time-range / pagination work
+/// offline. `stock_movements_refresh` keeps the mirror current when online.
+/// `kind` filters to "tire" | "oil"; `from` is an inclusive YYYY-MM-DD lower
+/// bound (the time range); `limit`/`offset` page through, newest first.
 #[tauri::command]
 #[specta::specta]
 pub async fn stock_movements(
@@ -164,18 +157,30 @@ pub async fn stock_movements(
 ) -> CmdResult<Vec<StockMovementRow>> {
     let limit = limit.unwrap_or(50).clamp(1, 200);
     let offset = offset.unwrap_or(0).max(0);
-    let mut path = format!("/stock/movements?limit={limit}&offset={offset}");
-    if let Some(k) = kind.as_deref() {
-        if k == "tire" || k == "oil" {
-            path.push_str(&format!("&kind={k}"));
-        }
-    }
-    // `from` is a plain YYYY-MM-DD from the client — no special chars to encode.
-    if let Some(f) = from.as_deref() {
-        if !f.is_empty() {
-            path.push_str(&format!("&from={f}"));
-        }
-    }
-    let raw = state.http.maint_get_raw(&path).await?;
-    Ok(serde_json::from_str(&raw.body).map_err(AppError::from)?)
+    let db = state.db.clone();
+    Ok(tokio::task::spawn_blocking(move || -> AppResult<Vec<StockMovementRow>> {
+        let conn = db.get()?;
+        stock_movements::list(&conn, kind.as_deref(), from.as_deref(), limit, offset)
+    })
+    .await
+    .map_err(|e| AppError::Internal(format!("join error: {e}")))??)
+}
+
+/// Pull the latest window of movements from maint-rust and upsert the local
+/// mirror. Online; best-effort (the view still works offline on the last
+/// mirror). Server clamps the page at 200 — a generous recent horizon for
+/// this fleet.
+#[tauri::command]
+#[specta::specta]
+pub async fn stock_movements_refresh(state: State<'_, AppState>) -> CmdResult<u32> {
+    let v = get_json(&state, "/stock/movements?limit=200&offset=0").await?;
+    let rows: Vec<Value> = v.as_array().cloned().unwrap_or_default();
+    let db = state.db.clone();
+    let n = tokio::task::spawn_blocking(move || -> AppResult<usize> {
+        let mut conn = db.get()?;
+        stock_movements::upsert(&mut conn, &rows)
+    })
+    .await
+    .map_err(|e| AppError::Internal(format!("join error: {e}")))??;
+    Ok(n as u32)
 }

@@ -398,7 +398,6 @@
   "movements": {
     "title": "Stock movements",
     "empty": "No stock movements yet",
-    "offline": "Connection needed to view stock movements",
     "stockIn": "Stock added",
     "stockOut": "Stock out",
     "usedOn": "Used on",
@@ -414,6 +413,8 @@
       "30": "Last month",
       "90": "Last 3 months",
       "all": "All"
-    }
+    },
+    "localData": "Local data — offline",
+    "offlineEmpty": "No saved movements — connect to load them"
   }
 }

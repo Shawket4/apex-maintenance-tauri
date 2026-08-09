@@ -532,14 +532,29 @@ async serviceEvents(vehicleId: number) : Promise<Result<JsonValue, CmdError>> {
 }
 },
 /**
- * The stock movements ledger — an ONLINE read (movements live server-side,
- * not in the offline mirror). `kind` filters to "tire" | "oil"; `from` is an
- * inclusive date/timestamp lower bound (the time range); `limit`/`offset`
- * page through, newest first.
+ * The stock movements ledger — a LOCAL read over the offline mirror
+ * (services::stock_movements), so filter / time-range / pagination work
+ * offline. `stock_movements_refresh` keeps the mirror current when online.
+ * `kind` filters to "tire" | "oil"; `from` is an inclusive YYYY-MM-DD lower
+ * bound (the time range); `limit`/`offset` page through, newest first.
  */
 async stockMovements(kind: string | null, from: string | null, limit: number | null, offset: number | null) : Promise<Result<StockMovementRow[], CmdError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("stock_movements", { kind, from, limit, offset }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Pull the latest window of movements from maint-rust and upsert the local
+ * mirror. Online; best-effort (the view still works offline on the last
+ * mirror). Server clamps the page at 200 — a generous recent horizon for
+ * this fleet.
+ */
+async stockMovementsRefresh() : Promise<Result<number, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("stock_movements_refresh") };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -664,9 +679,9 @@ export type ServerVersionInfo = { server_version: string; min_client_version: st
  */
 update_required: boolean }
 /**
- * One row of the stock in/out ledger. `kind` is tire_debit | oil_debit |
- * tire_credit | oil_credit | adjustment; tires carry qty, oil carries liters;
- * a debit resolves the consuming work order's plate.
+ * One row of the ledger. `kind` is tire_debit | oil_debit | tire_credit |
+ * oil_credit | adjustment; tires carry qty, oil carries liters; a debit
+ * resolves the consuming work order's plate.
  */
 export type StockMovementRow = { id: string; kind: string; brand: string | null; model: string | null; size: string | null; oil_type: string | null; qty: number | null; liters: number | null; work_order_id: string | null; plate: string | null; created_at: string; mirrored: boolean }
 export type StockOilLine = { id: string; oil_type: string; snapshot_liters: number; pending_liters: number; projected_liters: number; low_stock: boolean; fetched_at: string | null }

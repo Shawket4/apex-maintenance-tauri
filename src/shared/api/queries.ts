@@ -83,6 +83,8 @@ export const useStock = () =>
 // "connection needed" state. Paginated: each page is MOVEMENTS_PAGE rows;
 // `from` (YYYY-MM-DD) is the time-range lower bound.
 export const MOVEMENTS_PAGE = 50;
+// LOCAL read over the mirror — works offline. `stock_movements_refresh`
+// updates the mirror when online.
 export const useStockMovements = (kind?: "tire" | "oil", from?: string) =>
   useInfiniteQuery({
     queryKey: ["stock-movements", kind ?? "all", from ?? "all"],
@@ -91,8 +93,17 @@ export const useStockMovements = (kind?: "tire" | "oil", from?: string) =>
     initialPageParam: 0,
     getNextPageParam: (lastPage, allPages) =>
       lastPage.length === MOVEMENTS_PAGE ? allPages.length * MOVEMENTS_PAGE : undefined,
-    retry: false,
   });
+
+/** Pull the latest movements window into the local mirror. Best-effort —
+ * fails silently offline; the view keeps showing the last-synced data. */
+export const useStockMovementsRefresh = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => unwrap(commands.stockMovementsRefresh()),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["stock-movements"] }),
+  });
+};
 
 export const useChassis = (vehicleId: number) =>
   useQuery({

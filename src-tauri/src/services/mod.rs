@@ -5,6 +5,7 @@ pub mod excel;
 pub mod outbox;
 pub mod chassis_plan;
 pub mod schema;
+pub mod stock_movements;
 pub mod refdata;
 pub mod views;
 
