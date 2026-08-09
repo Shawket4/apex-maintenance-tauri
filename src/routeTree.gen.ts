@@ -15,6 +15,7 @@ import { Route as AppIndexRouteImport } from './routes/_app.index'
 import { Route as AppAiRouteImport } from './routes/_app.ai'
 import { Route as AppDueRouteImport } from './routes/_app.due'
 import { Route as AppSettingsRouteImport } from './routes/_app.settings'
+import { Route as AppStockMovementsRouteImport } from './routes/_app.stock.movements'
 import { Route as AppTiresIndexRouteImport } from './routes/_app.tires.index'
 import { Route as AppTiresTireIdRouteImport } from './routes/_app.tires.$tireId'
 import { Route as AppTrucksIndexRouteImport } from './routes/_app.trucks.index'
@@ -53,6 +54,11 @@ const AppDueRoute = AppDueRouteImport.update({
 const AppSettingsRoute = AppSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppStockMovementsRoute = AppStockMovementsRouteImport.update({
+  id: '/stock/movements',
+  path: '/stock/movements',
   getParentRoute: () => AppRoute,
 } as any)
 const AppTiresIndexRoute = AppTiresIndexRouteImport.update({
@@ -112,6 +118,7 @@ export interface FileRoutesByFullPath {
   '/ai': typeof AppAiRoute
   '/due': typeof AppDueRoute
   '/settings': typeof AppSettingsRoute
+  '/stock/movements': typeof AppStockMovementsRoute
   '/tires/$tireId': typeof AppTiresTireIdRoute
   '/trucks/$truckId': typeof AppTrucksTruckIdRouteWithChildren
   '/tires/': typeof AppTiresIndexRoute
@@ -129,6 +136,7 @@ export interface FileRoutesByTo {
   '/due': typeof AppDueRoute
   '/settings': typeof AppSettingsRoute
   '/': typeof AppIndexRoute
+  '/stock/movements': typeof AppStockMovementsRoute
   '/tires/$tireId': typeof AppTiresTireIdRoute
   '/tires': typeof AppTiresIndexRoute
   '/trucks': typeof AppTrucksIndexRoute
@@ -147,6 +155,7 @@ export interface FileRoutesById {
   '/_app/due': typeof AppDueRoute
   '/_app/settings': typeof AppSettingsRoute
   '/_app/': typeof AppIndexRoute
+  '/_app/stock/movements': typeof AppStockMovementsRoute
   '/_app/tires/$tireId': typeof AppTiresTireIdRoute
   '/_app/trucks/$truckId': typeof AppTrucksTruckIdRouteWithChildren
   '/_app/tires/': typeof AppTiresIndexRoute
@@ -166,6 +175,7 @@ export interface FileRouteTypes {
     | '/ai'
     | '/due'
     | '/settings'
+    | '/stock/movements'
     | '/tires/$tireId'
     | '/trucks/$truckId'
     | '/tires/'
@@ -183,6 +193,7 @@ export interface FileRouteTypes {
     | '/due'
     | '/settings'
     | '/'
+    | '/stock/movements'
     | '/tires/$tireId'
     | '/tires'
     | '/trucks'
@@ -200,6 +211,7 @@ export interface FileRouteTypes {
     | '/_app/due'
     | '/_app/settings'
     | '/_app/'
+    | '/_app/stock/movements'
     | '/_app/tires/$tireId'
     | '/_app/trucks/$truckId'
     | '/_app/tires/'
@@ -259,6 +271,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof AppSettingsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/stock/movements': {
+      id: '/_app/stock/movements'
+      path: '/stock/movements'
+      fullPath: '/stock/movements'
+      preLoaderRoute: typeof AppStockMovementsRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/tires/': {
@@ -356,6 +375,7 @@ interface AppRouteChildren {
   AppDueRoute: typeof AppDueRoute
   AppSettingsRoute: typeof AppSettingsRoute
   AppIndexRoute: typeof AppIndexRoute
+  AppStockMovementsRoute: typeof AppStockMovementsRoute
   AppTiresTireIdRoute: typeof AppTiresTireIdRoute
   AppTrucksTruckIdRoute: typeof AppTrucksTruckIdRouteWithChildren
   AppTiresIndexRoute: typeof AppTiresIndexRoute
@@ -369,6 +389,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppDueRoute: AppDueRoute,
   AppSettingsRoute: AppSettingsRoute,
   AppIndexRoute: AppIndexRoute,
+  AppStockMovementsRoute: AppStockMovementsRoute,
   AppTiresTireIdRoute: AppTiresTireIdRoute,
   AppTrucksTruckIdRoute: AppTrucksTruckIdRouteWithChildren,
   AppTiresIndexRoute: AppTiresIndexRoute,

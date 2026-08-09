@@ -77,6 +77,16 @@ export const useTire = (id: string) =>
 export const useStock = () =>
   useQuery({ queryKey: keys.stock, queryFn: () => unwrap(commands.stockView()) });
 
+// The stock in/out ledger is an ONLINE read (movements live server-side, not
+// in the offline mirror) — no retry so an offline load fails fast to the
+// "connection needed" state.
+export const useStockMovements = (kind?: "tire" | "oil") =>
+  useQuery({
+    queryKey: ["stock-movements", kind ?? "all"],
+    queryFn: () => unwrap(commands.stockMovements(kind ?? null)),
+    retry: false,
+  });
+
 export const useChassis = (vehicleId: number) =>
   useQuery({
     queryKey: keys.chassis(vehicleId),

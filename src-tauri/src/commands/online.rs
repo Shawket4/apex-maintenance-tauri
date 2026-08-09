@@ -4,12 +4,13 @@
 //!
 //! Everything else in the app reads local and writes through the outbox.
 
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tauri::State;
 
 use crate::error::CmdResult;
 use crate::services::refdata;
-use crate::{AppResult, AppState};
+use crate::{AppError, AppResult, AppState};
 
 async fn get_json(state: &AppState, path: &str) -> AppResult<Value> {
     let raw = state.http.maint_get_raw(path).await?;
@@ -127,4 +128,41 @@ pub async fn ai_query(state: State<'_, AppState>, query: String) -> CmdResult<Va
 #[specta::specta]
 pub async fn service_events(state: State<'_, AppState>, vehicle_id: i64) -> CmdResult<Value> {
     Ok(get_json(&state, &format!("/vehicles/{vehicle_id}/service-events")).await?)
+}
+
+/// One row of the stock in/out ledger. `kind` is tire_debit | oil_debit |
+/// tire_credit | oil_credit | adjustment; tires carry qty, oil carries liters;
+/// a debit resolves the consuming work order's plate.
+#[derive(Debug, Serialize, Deserialize, specta::Type)]
+pub struct StockMovementRow {
+    pub id: String,
+    pub kind: String,
+    pub brand: Option<String>,
+    pub model: Option<String>,
+    pub size: Option<String>,
+    pub oil_type: Option<String>,
+    pub qty: Option<i64>,
+    pub liters: Option<f64>,
+    pub work_order_id: Option<String>,
+    pub plate: Option<String>,
+    pub created_at: String,
+    pub mirrored: bool,
+}
+
+/// The stock movements ledger — an ONLINE read (movements live server-side,
+/// not in the offline mirror). `kind` filters to "tire" | "oil"; None = all.
+#[tauri::command]
+#[specta::specta]
+pub async fn stock_movements(
+    state: State<'_, AppState>,
+    kind: Option<String>,
+) -> CmdResult<Vec<StockMovementRow>> {
+    let mut path = String::from("/stock/movements?limit=200");
+    if let Some(k) = kind.as_deref() {
+        if k == "tire" || k == "oil" {
+            path.push_str(&format!("&kind={k}"));
+        }
+    }
+    let raw = state.http.maint_get_raw(&path).await?;
+    Ok(serde_json::from_str(&raw.body).map_err(AppError::from)?)
 }

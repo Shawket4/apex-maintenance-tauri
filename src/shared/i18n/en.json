@@ -181,7 +181,8 @@
       "projected": "Available",
       "usedPool": "Used tires available",
       "empty": "No stock — refresh",
-      "updatedAgo": "Updated {{ago}}"
+      "updatedAgo": "Updated {{ago}}",
+      "movementsLink": "Movements"
     },
     "assets": {
       "title": "Individual tires",
@@ -393,5 +394,18 @@
     "rebuild": "Delete & rebuild chassis",
     "rebuildTitle": "Rebuild the chassis?",
     "rebuildBody": "The current chassis and all its positions will be deleted so you can build it again. Not possible while tires are mounted."
+  },
+  "movements": {
+    "title": "Stock movements",
+    "empty": "No stock movements yet",
+    "offline": "Connection needed to view stock movements",
+    "stockIn": "Stock added",
+    "stockOut": "Stock out",
+    "usedOn": "Used on",
+    "filter": {
+      "all": "All",
+      "tire": "Tires",
+      "oil": "Oil"
+    }
   }
 }

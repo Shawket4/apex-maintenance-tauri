@@ -530,6 +530,18 @@ async serviceEvents(vehicleId: number) : Promise<Result<JsonValue, CmdError>> {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+/**
+ * The stock movements ledger — an ONLINE read (movements live server-side,
+ * not in the offline mirror). `kind` filters to "tire" | "oil"; None = all.
+ */
+async stockMovements(kind: string | null) : Promise<Result<StockMovementRow[], CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("stock_movements", { kind }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -649,6 +661,12 @@ export type ServerVersionInfo = { server_version: string; min_client_version: st
  * the UI shows an update banner instead of syncing into a broken contract.
  */
 update_required: boolean }
+/**
+ * One row of the stock in/out ledger. `kind` is tire_debit | oil_debit |
+ * tire_credit | oil_credit | adjustment; tires carry qty, oil carries liters;
+ * a debit resolves the consuming work order's plate.
+ */
+export type StockMovementRow = { id: string; kind: string; brand: string | null; model: string | null; size: string | null; oil_type: string | null; qty: number | null; liters: number | null; work_order_id: string | null; plate: string | null; created_at: string; mirrored: boolean }
 export type StockOilLine = { id: string; oil_type: string; snapshot_liters: number; pending_liters: number; projected_liters: number; low_stock: boolean; fetched_at: string | null }
 export type StockTireLine = { id: string; brand: string; model: string | null; size: string | null; snapshot_qty: number; pending_debits: number; projected_qty: number; 
 /**

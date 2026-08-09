@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { PackagePlus, Plus, Trash2 } from "lucide-react";
+import { ArrowLeftRight, PackagePlus, Plus, Trash2 } from "lucide-react";
 
 import { commands, unwrap, type LegacyTireInput } from "@/shared/api/client";
 import { useDomainMutation, useStock, useTires } from "@/shared/api/queries";
@@ -71,11 +71,20 @@ function TiresPage() {
       <Section
         title={t("tires.stock.title")}
         action={
-          fetchedAt ? (
-            <span className="text-xs text-muted-foreground">
-              {t("tires.stock.updatedAgo", { ago: fmtAgo(fetchedAt, i18n.language) })}
-            </span>
-          ) : undefined
+          <div className="flex items-center gap-3">
+            {fetchedAt && (
+              <span className="text-xs text-muted-foreground">
+                {t("tires.stock.updatedAgo", { ago: fmtAgo(fetchedAt, i18n.language) })}
+              </span>
+            )}
+            <Link
+              to="/stock/movements"
+              className="flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+            >
+              <ArrowLeftRight className="h-4 w-4" />
+              {t("tires.stock.movementsLink")}
+            </Link>
+          </div>
         }
       >
         {stock.isLoading ? (

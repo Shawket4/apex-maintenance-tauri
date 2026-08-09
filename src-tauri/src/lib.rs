@@ -107,6 +107,7 @@ fn specta_builder() -> tauri_specta::Builder {
         commands::online::class_create,
         commands::online::ai_query,
         commands::online::service_events,
+        commands::online::stock_movements,
     ])
 }
 
