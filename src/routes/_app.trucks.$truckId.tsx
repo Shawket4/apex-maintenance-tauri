@@ -49,7 +49,7 @@ function TruckLayout() {
         <div className="rounded-xl border bg-card p-6 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <div className="text-2xl font-bold tracking-wide">{truck.data.plate}</div>
+              <div className="text-2xl font-bold [word-spacing:0.12em]">{truck.data.plate}</div>
               <div className="mt-2 flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
                 <span className="rounded bg-muted px-2 py-0.5">
                   {truck.data.class_name_ar ?? t("trucks.unclassified")}

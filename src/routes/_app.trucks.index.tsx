@@ -92,7 +92,7 @@ function TruckCard({ truck: tr }: { truck: TruckRow }) {
     >
       <div className="flex-1 px-4 pb-3 pt-3.5">
         <div className="flex items-center justify-between gap-2">
-          <span className="whitespace-nowrap text-[16.5px] font-bold tracking-wide">
+          <span className="whitespace-nowrap text-[16.5px] font-bold">
             {tr.plate}
           </span>
           <div className="flex flex-none gap-1">

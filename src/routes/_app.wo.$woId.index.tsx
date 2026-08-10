@@ -81,7 +81,7 @@ function WoCockpit() {
       <div className="flex flex-wrap items-center justify-between gap-5 rounded-xl border bg-card px-6 py-5 shadow-sm">
         <div>
           <div className="flex flex-wrap items-center gap-2.5">
-            <span className="whitespace-nowrap text-2xl font-bold tracking-wide">{d.wo.plate}</span>
+            <span className="whitespace-nowrap text-2xl font-bold [word-spacing:0.12em]">{d.wo.plate}</span>
             <Badge
               className={
                 isOpen

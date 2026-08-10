@@ -54,7 +54,7 @@ function LoginPage() {
   return (
     <div className="grid min-h-screen md:grid-cols-[5fr_6fr]">
       <aside className="hidden flex-col justify-between bg-primary p-12 text-primary-foreground md:flex">
-        <div className="text-[15px] font-bold tracking-wide">
+        <div className="text-[15px] font-bold">
           {t("app.name")} · {t("app.tagline")}
         </div>
         <div className="max-w-[20ch] text-[28px] font-bold leading-relaxed [text-wrap:balance]">

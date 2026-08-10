@@ -6,14 +6,15 @@ import { ArrowDownLeft, ArrowUpRight, CloudOff } from "lucide-react";
 import type { StockMovementRow } from "@/shared/api/client";
 import { useStockMovements, useStockMovementsRefresh } from "@/shared/api/queries";
 import { fmtNumber } from "@/shared/lib/numbers";
-import { dayjs, fmtCairo } from "@/shared/lib/time";
+import { fmtCairo } from "@/shared/lib/time";
 import { cn } from "@/shared/lib/cn";
+import { MOVEMENT_RANGES, classifyMovement, movementItemLabel, rangeToFrom } from "@/shared/lib/movements";
 import { Button } from "@/shared/ui/button";
 import { EmptyState, ListCard, PageShell } from "@/widgets/layout/PageShell";
 import { Skeleton } from "@/shared/ui/skeleton";
 
 const KINDS = ["all", "tire", "oil"] as const;
-const RANGES = ["7", "30", "90", "all"] as const;
+const RANGES = MOVEMENT_RANGES;
 
 export const Route = createFileRoute("/_app/stock/movements")({
   // Filter + range live in the URL so back-navigation restores them.
@@ -35,8 +36,7 @@ function StockMovements() {
   const navigate = Route.useNavigate();
 
   // The time range → an inclusive `from` date (YYYY-MM-DD); "all" = no bound.
-  const from =
-    range === "all" ? undefined : dayjs().subtract(Number(range), "day").format("YYYY-MM-DD");
+  const from = rangeToFrom(range);
   const movements = useStockMovements(kind, from);
   const rows = movements.data?.pages.flat() ?? [];
 
@@ -145,12 +145,9 @@ function Chip({
 
 function MovementRow({ m }: { m: StockMovementRow }) {
   const { t, i18n } = useTranslation();
-  const isIn = m.kind.endsWith("_credit");
-  const isOil = m.kind.startsWith("oil");
+  const { isIn, isOil } = classifyMovement(m.kind);
 
-  const item = isOil
-    ? m.oil_type ?? "—"
-    : [m.brand, m.model, m.size].filter(Boolean).join(" ") || "—";
+  const item = movementItemLabel(m);
   const amount = isOil
     ? `${fmtNumber(m.liters ?? 0, i18n.language)} ${t("common.liters")}`
     : `${isIn ? "+" : "−"}${fmtNumber(m.qty ?? 0, i18n.language)}`;
