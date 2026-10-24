@@ -23,6 +23,9 @@ jobs:
       - run: npx eslint .
       - run: npm test
       - uses: dtolnay/rust-toolchain@stable
+      # tauri::generate_context!() refuses to compile unless frontendDist
+      # (../dist) exists, so build the frontend before cargo test.
+      - run: npm run build
       - name: cargo test (unit + bindings codegen)
         working-directory: src-tauri
         run: cargo test
