@@ -327,6 +327,33 @@
         assert_eq!(o.source, "work_order");
     }
 
+    /// Client twin of maint-rust `falcon_mileage_counts_as_a_reading_in_the_view`
+    /// (0019): an oil change recorded in Falcon lifts cars.mileage past the
+    /// fuel reading, and the odometer must follow it.
+    #[test]
+    fn falcon_mileage_counts_as_a_reading() {
+        let p = pool();
+        seed_vehicle(&p, 11, "ف ر ع 1200", 200_000);
+        let set_mileage = |km: i64| {
+            p.get()
+                .unwrap()
+                .execute("UPDATE vehicles_cache SET mileage = ?1 WHERE id = 11", params![km])
+                .unwrap();
+        };
+        set_mileage(204_500);
+        let o = odometer_truth(&p, 11).unwrap().unwrap();
+        assert_eq!((o.km, o.source.as_str()), (204_500, "falcon_mileage"));
+
+        // A downward correction supersedes the mileage too, not just fuel.
+        domain::override_set(&p, 11, 150_000, None, 9).unwrap();
+        let o = odometer_truth(&p, 11).unwrap().unwrap();
+        assert_eq!((o.km, o.source.as_str()), (150_000, "manual_override"));
+
+        set_mileage(205_000);
+        let o = odometer_truth(&p, 11).unwrap().unwrap();
+        assert_eq!((o.km, o.source.as_str()), (205_000, "falcon_mileage"));
+    }
+
     #[test]
     fn mounted_tire_km_is_live_with_the_odometer() {
         let p = pool();

@@ -1,5 +1,5 @@
 //! Odometer truth — the client mirror of maint-rust v_current_odometer
-//! (0014 + 0017). ODO_CTE is the one home of the arbitration SQL.
+//! (0014 + 0017 + 0019). ODO_CTE is the one home of the arbitration SQL.
 
 
 use rusqlite::{params, OptionalExtension};
@@ -26,6 +26,15 @@ readings(vehicle_id, km, src, observed_at) AS (
      WHERE v.last_fuel_odometer IS NOT NULL AND v.last_fuel_odometer > 0
        AND (ovf.vehicle_id IS NULL OR v.last_fuel_odometer > COALESCE(ovf.superseded_km, -1))
     UNION ALL
+    -- Falcon's cars.mileage = MAX(fuel, Falcon oil change, service invoice)
+    -- readings (server 0019); same override rule as the fuel reading.
+    SELECT v.id, v.mileage, 'falcon_mileage', v.fetched_at
+      FROM vehicles_cache v
+      LEFT JOIN vehicle_odometer_overrides ovm
+             ON ovm.vehicle_id = v.id AND ovm.odometer IS NOT NULL
+     WHERE v.mileage IS NOT NULL AND v.mileage > 0
+       AND (ovm.vehicle_id IS NULL OR v.mileage > COALESCE(ovm.superseded_km, -1))
+    UNION ALL
     SELECT o.vehicle_id, o.odometer, 'oil_change', o.performed_at
       FROM oil_changes o
       LEFT JOIN vehicle_odometer_overrides ovo
@@ -46,7 +55,8 @@ readings(vehicle_id, km, src, observed_at) AS (
 odo AS (
     SELECT vehicle_id, km AS current_odometer, src AS odometer_source,
            observed_at AS odometer_observed_at
-      FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY vehicle_id ORDER BY km DESC) rn
+      FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY vehicle_id
+                                        ORDER BY km DESC, (src = 'falcon_mileage')) rn
               FROM readings)
      WHERE rn = 1
 )";

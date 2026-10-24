@@ -91,6 +91,7 @@
     "odometer": "Odometer",
     "odometerSource": {
       "falcon_fuel": "fuel reading",
+      "falcon_mileage": "Falcon mileage",
       "manual_override": "manual reading",
       "oil_change": "last oil change",
       "work_order": "last work order"

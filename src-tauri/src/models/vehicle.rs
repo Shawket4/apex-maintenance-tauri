@@ -62,7 +62,7 @@ pub struct CachedVehicle {
     pub speed: Option<i32>,
     #[serde(default, deserialize_with = "serde_de::opt_i32")]
     pub last_fuel_odometer: Option<i32>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "serde_de::opt_i32")]
     pub mileage: Option<i32>,
     #[serde(default, deserialize_with = "serde_de::opt_i64")]
     pub last_oil_change_id: Option<i64>,

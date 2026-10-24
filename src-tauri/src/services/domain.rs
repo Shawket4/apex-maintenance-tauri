@@ -361,11 +361,13 @@ pub fn override_set(
             |r| r.get(0),
         )
         .optional()?;
-    // Record the Falcon reading being corrected: the arbitration discards it
-    // until the truck genuinely drives past it (mirrors server 0014).
+    // Record the Falcon reading being corrected — the larger of the fuel
+    // reading and mileage, both of which compete (server 0014 + 0019). The
+    // arbitration discards them until the truck genuinely drives past it.
     let superseded: Option<i64> = tx
         .query_row(
-            "SELECT last_fuel_odometer FROM vehicles_cache WHERE id = ?1",
+            "SELECT NULLIF(MAX(COALESCE(last_fuel_odometer, 0), COALESCE(mileage, 0)), 0)
+               FROM vehicles_cache WHERE id = ?1",
             params![vehicle_id],
             |r| r.get(0),
         )

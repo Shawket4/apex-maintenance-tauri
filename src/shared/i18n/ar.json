@@ -91,6 +91,7 @@
     "odometer": "العداد",
     "odometerSource": {
       "falcon_fuel": "قراءة الوقود",
+      "falcon_mileage": "عداد فالكون",
       "manual_override": "إدخال يدوي",
       "oil_change": "آخر تغيير زيت",
       "work_order": "آخر أمر شغل"
