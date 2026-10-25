@@ -1,6 +1,7 @@
 //! Online-only commands: things that inherently need the server — AI search
-//! over Falcon's history, plans administration (perm ≥3, rare), and the
-//! refresh calls that replace the local reference/stock mirrors.
+//! over Falcon's history (apex-rust advisor, maint-rust /ai/query fallback),
+//! plans administration (perm ≥3, rare), and the refresh calls that replace
+//! the local reference/stock mirrors.
 //!
 //! Everything else in the app reads local and writes through the outbox.
 
@@ -8,6 +9,7 @@ use serde_json::{json, Value};
 use tauri::State;
 
 use crate::error::CmdResult;
+use crate::services::history_search::{self, AiSearchResult};
 use crate::services::refdata;
 use crate::services::stock_movements::{self, StockMovementRow};
 use crate::{AppError, AppResult, AppState};
@@ -123,14 +125,35 @@ pub async fn class_create(
     reference_refresh_inner(&state).await
 }
 
-/// Natural-language search over Falcon's service history (Claude tool-use
-/// loop server-side; needs ANTHROPIC_API_KEY on maint-rust).
+/// The AI search box. Service-history lookups go to apex-rust's advisor
+/// search (Claude-expanded hybrid search, permission 1+); aggregate fleet
+/// questions — and any advisor failure or empty result — go to maint-rust's
+/// `/ai/query` (Claude tool-use SQL loop; needs ANTHROPIC_API_KEY there).
+/// Routing + fallback policy: services::history_search::search.
 #[tauri::command]
 #[specta::specta]
-pub async fn ai_query(state: State<'_, AppState>, query: String) -> CmdResult<Value> {
-    let raw = state.http.maint_post_raw("/ai/query", &json!({ "query": query })).await?;
-    Ok(serde_json::from_str::<Value>(&raw.body).map_err(crate::AppError::from)?)
+pub async fn ai_search(state: State<'_, AppState>, query: String) -> CmdResult<AiSearchResult> {
+    let http = &state.http;
+    let q = query.trim();
+    Ok(history_search::search(
+        q,
+        || async {
+            let body = history_search::advisor_request(q);
+            let raw = http
+                .rust_post_raw(history_search::ADVISOR_SEARCH_PATH, &body, ADVISOR_TIMEOUT)
+                .await?;
+            Ok(raw.body)
+        },
+        || async {
+            let raw = http.maint_post_raw("/ai/query", &json!({ "query": q })).await?;
+            Ok(raw.body)
+        },
+    )
+    .await?)
 }
+
+/// apex-react's advisor search uses the same budget; past it, fall back.
+const ADVISOR_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(20);
 
 /// Live service events straight from Falcon's DB via maint-rust (fresher than
 /// the local invoice cache; the truck history tab uses the local cache first

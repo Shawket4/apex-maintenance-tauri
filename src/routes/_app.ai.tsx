@@ -5,34 +5,27 @@ import { useTranslation } from "react-i18next";
 import { Sparkles, Loader2 } from "lucide-react";
 
 import { commands, unwrap, isApiError } from "@/shared/api/client";
+import type { AiSearchResult } from "@/shared/api/client";
+import { fallbackNoticeKey } from "@/shared/lib/aiSearch";
 import { notifyError } from "@/shared/lib/notify";
 import { Button } from "@/shared/ui/button";
 import { Input } from "@/shared/ui/input";
-import { Card, CardContent } from "@/shared/ui/card";
 import { EmptyState, PageShell } from "@/widgets/layout/PageShell";
+import { AdvisorHits, AiAnswer } from "@/widgets/AiSearch/AiResults";
 
 export const Route = createFileRoute("/_app/ai")({
   component: AiSearchPage,
 });
 
-interface AiResult {
-  answer: string;
-  rows: Record<string, unknown>[];
-}
-
-function cell(v: unknown): string {
-  if (v == null) return "—";
-  if (typeof v === "object") return JSON.stringify(v);
-  return typeof v === "string" ? v : JSON.stringify(v);
-}
-
 function AiSearchPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [q, setQ] = useState("");
   const [keyMissing, setKeyMissing] = useState(false);
 
   const ask = useMutation({
-    mutationFn: (query: string) => unwrap(commands.aiQuery(query)) as unknown as Promise<AiResult>,
+    // Service-history lookups → apex-rust advisor search; aggregate questions,
+    // and any advisor failure / empty result → maint-rust /ai/query (Rust side).
+    mutationFn: (query: string): Promise<AiSearchResult> => unwrap(commands.aiSearch(query)),
     onError: (e) => {
       if (isApiError(e) && e.message.includes("ANTHROPIC")) {
         setKeyMissing(true);
@@ -50,8 +43,8 @@ function AiSearchPage() {
     ask.mutate(query);
   };
 
-  const rows = ask.data?.rows ?? [];
-  const cols = rows.length > 0 ? Object.keys(rows[0]) : [];
+  const result = ask.data;
+  const notice = result ? fallbackNoticeKey(result) : null;
 
   return (
     <PageShell
@@ -87,38 +80,19 @@ function AiSearchPage() {
         <p className="text-sm text-muted-foreground">{t("ai.thinking")}</p>
       )}
 
-      {ask.data && (
-        <Card>
-          <CardContent className="space-y-4 pt-6">
-            <p className="whitespace-pre-wrap text-sm leading-7">{ask.data.answer}</p>
-            {rows.length > 0 && (
-              <div className="overflow-x-auto rounded-lg border">
-                <table className="w-full text-sm">
-                  <thead className="bg-muted/50">
-                    <tr>
-                      {cols.map((c) => (
-                        <th key={c} className="px-3 py-2 text-start font-medium" dir="ltr">
-                          {c}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.map((r, i) => (
-                      <tr key={i} className="border-t">
-                        {cols.map((c) => (
-                          <td key={c} className="px-3 py-2" dir="auto">
-                            {cell(r[c])}
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+      {result?.source === "advisor" && (
+        <AdvisorHits
+          variants={result.variants}
+          hits={result.hits}
+          locale={i18n.language}
+        />
+      )}
+
+      {result?.source === "ai_query" && (
+        <>
+          {notice && <p className="text-xs text-muted-foreground">{t(notice)}</p>}
+          <AiAnswer answer={result.answer} rows={result.rows as Record<string, unknown>[]} />
+        </>
       )}
 
       {!ask.data && !ask.isPending && (
@@ -140,3 +114,4 @@ function AiSearchPage() {
     </PageShell>
   );
 }
+

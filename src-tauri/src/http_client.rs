@@ -50,6 +50,36 @@ impl HttpClient {
         )
     }
 
+    fn rust_url(&self, path: &str) -> String {
+        format!(
+            "{}{}{}",
+            self.config.backend.base_url, self.config.backend.rust_prefix, path
+        )
+    }
+
+    /// Authenticated POST to apex-rust (same JWT as maint-rust: apex-rust's
+    /// JwtAuth accepts the admin_user HS256 token maint-rust mints), with its
+    /// own timeout so a slow optional call can't eat the whole request budget.
+    pub async fn rust_post_raw<B: Serialize>(
+        &self,
+        path: &str,
+        body: &B,
+        timeout: std::time::Duration,
+    ) -> AppResult<RawResponse> {
+        let jwt = self.require_jwt()?;
+        let url = self.rust_url(path);
+        tracing::debug!(%url, "rust POST");
+        let resp = self
+            .inner
+            .post(&url)
+            .timeout(timeout)
+            .header(header::AUTHORIZATION, format!("Bearer {jwt}"))
+            .json(body)
+            .send()
+            .await?;
+        consume_response(&url, resp).await
+    }
+
     pub async fn falcon_login_raw<B: Serialize>(
         &self,
         path: &str,
