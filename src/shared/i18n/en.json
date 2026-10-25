@@ -303,6 +303,13 @@
     "thinking": "Searching…",
     "keyNeeded": "AI search needs ANTHROPIC_API_KEY on the server",
     "empty": "Ask anything about the service history — it understands synonyms",
+    "searchedFor": "Searched for:",
+    "hitsCount": "{{n}} service lines",
+    "noHits": "No matching service lines — try other words",
+    "advisorDown": "History search is unavailable right now — this is the older AI answer",
+    "noHitsFellBack": "No matching service lines, so the question was answered another way",
+    "invoice": "Invoice #{{id}}",
+    "openTruck": "Open truck history",
     "examples": {
       "one": "When was the last oil change for truck 5139?",
       "two": "Which truck changed the most tires this year?",

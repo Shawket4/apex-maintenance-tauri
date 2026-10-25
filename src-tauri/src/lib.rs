@@ -105,7 +105,7 @@ fn specta_builder() -> tauri_specta::Builder {
         commands::online::stock_refresh,
         commands::online::plan_upsert,
         commands::online::class_create,
-        commands::online::ai_query,
+        commands::online::ai_search,
         commands::online::service_events,
         commands::online::stock_movements,
         commands::online::stock_movements_refresh,

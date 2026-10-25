@@ -507,12 +507,15 @@ async classCreate(id: string, nameAr: string) : Promise<Result<null, CmdError>> 
 }
 },
 /**
- * Natural-language search over Falcon's service history (Claude tool-use
- * loop server-side; needs ANTHROPIC_API_KEY on maint-rust).
+ * The AI search box. Service-history lookups go to apex-rust's advisor
+ * search (Claude-expanded hybrid search, permission 1+); aggregate fleet
+ * questions — and any advisor failure or empty result — go to maint-rust's
+ * `/ai/query` (Claude tool-use SQL loop; needs ANTHROPIC_API_KEY there).
+ * Routing + fallback policy: services::history_search::search.
  */
-async aiQuery(query: string) : Promise<Result<JsonValue, CmdError>> {
+async aiSearch(query: string) : Promise<Result<AiSearchResult, CmdError>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("ai_query", { query }) };
+    return { status: "ok", data: await TAURI_INVOKE("ai_search", { query }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -572,6 +575,10 @@ async stockMovementsRefresh() : Promise<Result<number, CmdError>> {
 
 /** user-defined types **/
 
+/**
+ * What the search box renders.
+ */
+export type AiSearchResult = { source: "advisor"; variants: string[]; plate_number: string | null; hits: HistoryHit[] } | { source: "ai_query"; answer: string; rows: JsonValue[]; fallback: FallbackReason | null }
 export type AppVersion = { name: string; version: string; tauri_version: string }
 export type AxleRow = { id: string; section: string; section_index: number; axle_type: string; is_steering: boolean; is_lifted: boolean }
 export type CacheFreshnessRow = { cache_name: string; fetched_at: string; ttl_seconds: number; is_stale: boolean }
@@ -607,6 +614,34 @@ export type ExcelColumn = { key: string; header: string; type: string | null; wi
 export type ExcelExportConfig = { filename: string; sheets: ExcelSheetConfig[]; meta: string | null; creator: string | null }
 export type ExcelSheetConfig = { name: string; title: string; subtitle: string | null; isRtl: boolean; columns: ExcelColumn[]; rows: JsonValue[]; stats: ExcelStat[] | null; totals: boolean | null }
 export type ExcelStat = { label: string; value: JsonValue; color: string | null; type: string | null }
+/**
+ * Why the `/ai/query` answer is shown instead of the advisor's.
+ */
+export type FallbackReason = 
+/**
+ * Advisor unreachable, refused, or replied with something unparseable.
+ */
+"advisor_error" | 
+/**
+ * Advisor answered but found nothing.
+ */
+"no_hits"
+/**
+ * One service line the advisor found.
+ */
+export type HistoryHit = { invoice_id: number; item_id: number | null; car_id: number | null; plate_number: string | null; 
+/**
+ * RFC 3339 (apex-rust serialises a UTC `DateTime`).
+ */
+date: string | null; 
+/**
+ * Odometer (km) on the invoice.
+ */
+meter_reading: number | null; service: string; notes: string | null; score: number | null; 
+/**
+ * Which variants found it, and how ("… (vector)" / "… (keyword)").
+ */
+matched: string[] }
 export type HomeSummary = { open_wos: WoListRow[]; 
 /**
  * Most urgent due rows (overdue + never_done), capped for the strip.
