@@ -59,6 +59,9 @@ neither Vite nor Cargo watches it.
     may be empty initially); response logged on every call for diagnostics
 - Frontend:
   - Vite + React 19 + TypeScript strict, Tailwind 3 with `tailwindcss-rtl`
+  - Type-checks run on TypeScript 7's `tsc` (`@typescript/native` in package.json);
+    the `typescript` package stays the 6.0 API (`@typescript/typescript6`, with `tsc6`)
+    for type-aware ESLint, since 7.0 ships no API
   - shadcn/ui primitives (Button, Input, Label, Card)
   - TanStack Query, TanStack Router (memory-history), Zustand,
     react-i18next, dayjs (Africa/Cairo + relativeTime)
