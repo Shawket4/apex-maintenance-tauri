@@ -27,9 +27,6 @@ export const Route = createFileRoute("/_app/trucks/$truckId/history")({
 });
 
 const PAGE = 50;
-/** The Excel writer runs on the computer's file system; the Android save
- * dialog hands back a document link it cannot write to. */
-const CAN_EXPORT = typeof navigator !== "undefined" && !/Android/i.test(navigator.userAgent);
 
 type TimelineItem =
   | { kind: "wo"; key: string; date: string | null; wo: WoListRow; text: string }
@@ -187,7 +184,10 @@ function Timeline({ vid, truckId }: { vid: number; truckId: string }) {
           },
         ],
       };
-      await unwrap(commands.exportToExcel(config));
+      return await unwrap(commands.exportToExcel(config));
+    },
+    onSuccess: (saved) => {
+      if (saved) notifySuccess(t("truck.history.exportSaved"));
     },
     onError: notifyError,
   });
@@ -225,16 +225,14 @@ function Timeline({ vid, truckId }: { vid: number; truckId: string }) {
           <RefreshCw className={refresh.isPending ? "animate-spin" : undefined} />
           {refresh.isPending ? t("truck.history.refreshing") : t("truck.history.refresh")}
         </Button>
-        {CAN_EXPORT && (
-          <Button
-            variant="outline"
-            onClick={() => exportExcel.mutate()}
-            disabled={exportExcel.isPending || wos.isPending || invoices.isPending}
-          >
-            {exportExcel.isPending ? <Loader2 className="animate-spin" /> : <FileSpreadsheet />}
-            {t("truck.history.export")}
-          </Button>
-        )}
+        <Button
+          variant="outline"
+          onClick={() => exportExcel.mutate()}
+          disabled={exportExcel.isPending || wos.isPending || invoices.isPending}
+        >
+          {exportExcel.isPending ? <Loader2 className="animate-spin" /> : <FileSpreadsheet />}
+          {t("truck.history.export")}
+        </Button>
       </div>
     </div>
   );

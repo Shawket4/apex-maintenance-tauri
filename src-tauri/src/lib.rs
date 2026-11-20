@@ -143,7 +143,9 @@ pub fn run() {
     let config = Arc::new(AppConfig::load());
 
     let specta = specta_builder();
-    #[cfg(debug_assertions)]
+    // Developer builds on a computer refresh the generated TypeScript. A
+    // phone has no source tree to write to (a debug APK used to crash here).
+    #[cfg(all(debug_assertions, desktop))]
     specta
         .export(
             specta_typescript::Typescript::default()
@@ -157,6 +159,8 @@ pub fn run() {
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_print_sheet::init())
         .setup({
             let config = config.clone();
             move |app| {

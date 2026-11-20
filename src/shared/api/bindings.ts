@@ -134,7 +134,15 @@ async printPdf(bytes: number[]) : Promise<Result<null, CmdError>> {
     else return { status: "error", error: e  as any };
 }
 },
-async exportToExcel(config: ExcelExportConfig) : Promise<Result<null, CmdError>> {
+/**
+ * Ask where to save, then write the workbook there. Returns false when the
+ * person closed the save dialog without choosing.
+ * 
+ * The destination goes through the file-system plugin, not `std::fs`: on
+ * Android the system picker answers with a content:// address, which is not
+ * a path, and only the plugin can open it.
+ */
+async exportToExcel(config: ExcelExportConfig) : Promise<Result<boolean, CmdError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("export_to_excel", { config }) };
 } catch (e) {

@@ -81,6 +81,7 @@
     "refreshed": "History refreshed",
     "export": "Export to Excel",
     "exportFile": "maintenance-history",
+    "exportSaved": "The Excel file was saved",
     "exportTitle": "Maintenance history — truck {{plate}}",
     "exportFiltered": "Search: {{q}}",
     "colDate": "Date",

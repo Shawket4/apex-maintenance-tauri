@@ -38,5 +38,6 @@
   "notMirrored": "Not recorded in the fleet system",
   "notMirroredWhy": "(press for the reason)",
   "notMirroredHelp": "This movement is recorded here only; the stock numbers in the fleet system do not include it. Give these details to whoever looks after the system:",
-  "by": "By:"
+  "by": "By:",
+  "countsNote": "Stock counts in this period (not in received / used above): tires {{tires}} · oil {{oil}} L"
 }

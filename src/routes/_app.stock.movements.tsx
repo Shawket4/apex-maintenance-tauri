@@ -244,6 +244,11 @@ function Ledger({
           <Total label={t("movements.totals.oilIn")} value={fmtNumber(totals.oilIn, lang)} tone="in" />
           <Total label={t("movements.totals.oilOut")} value={fmtNumber(totals.oilOut, lang)} tone="out" />
         </dl>
+        {(totals.tiresCounted !== 0 || totals.oilCounted !== 0) && (
+          <p className="mt-2 text-sm text-muted-foreground">
+            {t("movements.countsNote", { tires: signed(totals.tiresCounted, lang), oil: signed(totals.oilCounted, lang) })}
+          </p>
+        )}
         {unmirrored > 0 && (
           <p className="mt-2 flex items-start gap-1.5 text-sm text-status-due_soon">
             <AlertTriangle className="mt-0.5 h-4 w-4 flex-none" />
@@ -418,4 +423,10 @@ function MovementRow({ m }: { m: StockMovementRow }) {
       </div>
     </li>
   );
+}
+
+/** "+3" / "−2" / "0", in the language's digits, read left to right. */
+function signed(n: number, lang: string): string {
+  const body = fmtNumber(Math.abs(n), lang);
+  return n > 0 ? `\u2066+${body}\u2069` : n < 0 ? `\u2066−${body}\u2069` : body;
 }

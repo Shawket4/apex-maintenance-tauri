@@ -115,7 +115,7 @@ describe("describeMovement", () => {
 });
 
 describe("movementTotals", () => {
-  it("adds tires and liters per direction, adjustments included", () => {
+  it("adds received and used, and keeps stock counts apart", () => {
     expect(
       movementTotals([
         row("tire_credit", { qty: 20 }),
@@ -126,12 +126,14 @@ describe("movementTotals", () => {
         row("oil_debit", { liters: 35.1 }),
         row("oil_debit", { liters: 35.2 }),
         row("adjustment", { liters: 5, oil_type: "15W40" }),
+        { ...row("tire_debit", { qty: 2 }), is_count: true },
+        { ...row("oil_credit", { liters: 1.5 }), is_count: true },
       ]),
-    ).toEqual({ tiresIn: 20, tiresOut: 5, oilIn: 205, oilOut: 70.3 });
+    ).toEqual({ tiresIn: 20, tiresOut: 2, oilIn: 200, oilOut: 70.3, tiresCounted: -5, oilCounted: 6.5 });
   });
 
   it("is all zeros for no rows", () => {
-    expect(movementTotals([])).toEqual({ tiresIn: 0, tiresOut: 0, oilIn: 0, oilOut: 0 });
+    expect(movementTotals([])).toEqual({ tiresIn: 0, tiresOut: 0, oilIn: 0, oilOut: 0, tiresCounted: 0, oilCounted: 0 });
   });
 });
 
