@@ -91,7 +91,8 @@ pub fn stock_view(pool: &DbPool) -> AppResult<StockView> {
             line.pending_debits = shipment_tires
                 .iter()
                 .filter(|(b, m, s, id)| {
-                    *b == line.brand && *m == lm && *s == ls && pending_tires.contains(id)
+                    // Same product the way the server matches it, not the same bytes.
+                    tire_key(b, m, s) == tire_key(&line.brand, &lm, &ls) && pending_tires.contains(id)
                 })
                 .count() as i64;
         }
@@ -127,7 +128,7 @@ pub fn stock_view(pool: &DbPool) -> AppResult<StockView> {
         for line in &mut oil {
             line.pending_liters = ocs
                 .iter()
-                .filter(|(t, _, id)| *t == line.oil_type && pending_oil.contains(id))
+                .filter(|(t, _, id)| norm(t) == norm(&line.oil_type) && pending_oil.contains(id))
                 .map(|(_, l, _)| *l)
                 .sum();
         }

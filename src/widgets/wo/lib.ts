@@ -25,6 +25,13 @@ export function odometerDoubt(
   return null;
 }
 
+/** Printing works in the desktop app's window; in the Android app
+ * `window.print` does nothing, so the Print button is not offered there. */
+export function canPrint(): boolean {
+  if (typeof window === "undefined" || typeof window.print !== "function") return false;
+  return !/android/i.test(window.navigator.userAgent);
+}
+
 /** Category name in the UI language (the task row only carries the Arabic one). */
 export function useCategoryName() {
   const { i18n } = useTranslation();

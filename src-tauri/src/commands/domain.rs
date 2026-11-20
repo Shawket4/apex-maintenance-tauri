@@ -26,7 +26,7 @@ use crate::services::domain::{
     OnboardPositionInput, TireEditInput,
 };
 use crate::services::views::{
-    self, CategoryRow, ChassisPayload, ClassRow, DueRow, HomeSummary, PlanRow, SearchResults,
+    self, CatalogView, CategoryRow, ChassisPayload, ClassRow, DueRow, HomeSummary, PlanRow, SearchResults,
     StockView, TireFile, TireRow, TruckRow, WoDetail, WoListRow,
 };
 use crate::{session_store, AppError, AppResult, AppState};
@@ -138,6 +138,13 @@ pub async fn classes_list(state: State<'_, AppState>) -> CmdResult<Vec<ClassRow>
 #[specta::specta]
 pub async fn plans_list(state: State<'_, AppState>) -> CmdResult<Vec<PlanRow>> {
     Ok(views::plans_list(&state.db)?)
+}
+
+/// Options for the tire / oil / job pickers.
+#[tauri::command]
+#[specta::specta]
+pub async fn catalog_get(state: State<'_, AppState>) -> CmdResult<CatalogView> {
+    Ok(views::catalog(&state.db)?)
 }
 
 #[tauri::command]

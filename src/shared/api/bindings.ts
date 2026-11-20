@@ -320,6 +320,17 @@ async searchAll(q: string) : Promise<Result<SearchResults, CmdError>> {
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * Options for the tire / oil / job pickers.
+ */
+async catalogGet() : Promise<Result<CatalogView, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("catalog_get") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async woOpen(vehicleId: number, odometerAtOpen: number | null) : Promise<Result<string, CmdError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("wo_open", { vehicleId, odometerAtOpen }) };
@@ -625,6 +636,86 @@ async planDelete(id: string) : Promise<Result<null, CmdError>> {
 }
 },
 /**
+ * "We counted N new tires of this type" (perm ≥4): the book figure becomes N.
+ */
+async stockCountTires(brand: string, model: string | null, size: string | null, counted: number, refId: string, note: string | null) : Promise<Result<CountResult, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("stock_count_tires", { brand, model, size, counted, refId, note }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * "We measured N liters of this oil" (perm ≥4).
+ */
+async stockCountOil(oilType: string, countedLiters: number, refId: string, note: string | null) : Promise<Result<CountResult, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("stock_count_oil", { oilType, countedLiters, refId, note }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Correct a tire product's spelling everywhere (perm ≥3). If the corrected
+ * spelling is already a product, the two are merged.
+ */
+async catalogRenameTireProduct(id: string, brand: string, model: string | null, size: string | null) : Promise<Result<null, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("catalog_rename_tire_product", { id, brand, model, size }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * "These two are the same tire": fold `id` into `into` (perm ≥3).
+ */
+async catalogMergeTireProduct(id: string, into: string) : Promise<Result<null, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("catalog_merge_tire_product", { id, into }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async catalogRenameOilProduct(id: string, name: string) : Promise<Result<null, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("catalog_rename_oil_product", { id, name }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async catalogMergeOilProduct(id: string, into: string) : Promise<Result<null, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("catalog_merge_oil_product", { id, into }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Add a standard job to the list (or edit one when `id` is given, perm ≥3).
+ */
+async catalogSaveJob(id: string | null, nameAr: string, nameEn: string | null, categoryId: string | null) : Promise<Result<null, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("catalog_save_job", { id, nameAr, nameEn, categoryId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async catalogRemoveJob(id: string) : Promise<Result<null, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("catalog_remove_job", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
  * Receive new tires into stock (perm ≥4). `ref_id` is minted by the caller
  * once per form submission, so a retry or a double click credits once.
  */
@@ -733,6 +824,7 @@ export type AiSearchResult = { source: "advisor"; variants: string[]; plate_numb
 export type AppVersion = { name: string; version: string; tauri_version: string }
 export type AxleRow = { id: string; section: string; section_index: number; axle_type: string; is_steering: boolean; is_lifted: boolean }
 export type CacheFreshnessRow = { cache_name: string; fetched_at: string; ttl_seconds: number; is_stale: boolean }
+export type CatalogView = { tire_products: TireProductOption[]; oil_products: OilProductOption[]; standard_jobs: JobOption[] }
 export type CategoryRow = { id: string; name_ar: string; name_en: string; icon: string | null; color: string | null; sort_order: number }
 export type ChassisConfig = { 
 /**
@@ -747,6 +839,14 @@ export type ClassRow = { id: string; name_ar: string; name_en: string; sort_orde
  * frontend sees is byte-identical to AppError's own serialization.
  */
 export type CmdError = { kind: string; code: string | null; message: string }
+/**
+ * What a stock count changed.
+ */
+export type CountResult = { before: number; after: number; 
+/**
+ * after − before: negative when the shelf had fewer than the book.
+ */
+change: number }
 export type DbHealth = { ok: boolean; migrations_applied: number; outbox_pending: number; seeded_categories: number }
 export type DismountInput = { assignment_id: string; odometer: number | null; 
 /**
@@ -841,6 +941,7 @@ export type InvoicesListArgs = { page?: number; limit?: number;
  */
 car_id?: number | null }
 export type InvoicesSearchArgs = { query: string; car_id?: number | null; limit?: number }
+export type JobOption = { id: string; name_ar: string; name_en: string | null; category_id: string | null; uses: number }
 export type JsonValue = null | boolean | number | string | JsonValue[] | Partial<{ [key in string]: JsonValue }>
 export type LegacyTireInput = { brand: string; model: string | null; size: string | null; dot_code: string | null; estimated_km: number | null }
 export type MountFromStockInput = { position_id: string; vehicle_id: number; work_order_id: string; 
@@ -856,6 +957,7 @@ export type MountUsedInput = { tire_id: string; position_id: string; vehicle_id:
 reason: string }
 export type OdoTruth = { km: number; source: string; observed_at: string | null }
 export type OilAddResult = { oil_id: string; flagged: boolean }
+export type OilProductOption = { id: string | null; name: string; on_hand: number | null; uses: number }
 export type OilRow = { id: string; oil_type: string; liters: number; odometer: number | null; flagged: boolean; performed_at: string; pending: boolean }
 export type OnboardPositionInput = { position_id: string; vehicle_id: number; brand: string; model: string | null; size: string | null; dot_code: string | null; 
 /**
@@ -896,7 +998,15 @@ export type StockMovementRow = { id: string; kind: string; brand: string | null;
 /**
  * Set when the fleet system refused this movement (its counts do not include it).
  */
-mirror_error: string | null }
+mirror_error: string | null; 
+/**
+ * A count correction ("we counted N"), not a delivery or a use.
+ */
+is_count: boolean; 
+/**
+ * Who recorded it, when the server knows the name.
+ */
+user_name: string | null }
 export type StockOilLine = { id: string; oil_type: string; snapshot_liters: number; pending_liters: number; projected_liters: number; low_stock: boolean; fetched_at: string | null }
 export type StockTireLine = { id: string; brand: string; model: string | null; size: string | null; snapshot_qty: number; pending_debits: number; projected_qty: number; 
 /**
@@ -952,6 +1062,15 @@ export type TireOpRow = { assignment_id: string; tire_id: string; dot_code: stri
  * Km run on this mount (None when an odometer is missing or it is a spare).
  */
 km_run: number | null; pending: boolean }
+export type TireProductOption = { 
+/**
+ * None = used on this device, not confirmed by the server yet.
+ */
+id: string | null; brand: string; model: string; size: string; 
+/**
+ * New tires in stock (server count minus fittings still queued here).
+ */
+on_hand: number | null; tires: number }
 export type TireRow = { id: string; dot_code: string | null; brand: string; model: string | null; size: string | null; status: string; origin: string; total_km: number; retread_count: number; mounted_vehicle_id: number | null; mounted_plate: string | null; mounted_position_code: string | null; mounted_at: string | null; 
 /**
  * Km the tire had before it was registered here (editable).

@@ -161,6 +161,22 @@ impl HttpClient {
         consume_response(&url, resp).await
     }
 
+    /// PUT/PATCH with a JSON body.
+    pub async fn maint_send_raw<B: Serialize>(&self, method: &str, path: &str, body: &B) -> AppResult<RawResponse> {
+        let jwt = self.require_jwt()?;
+        let url = self.maint_url(path);
+        tracing::debug!(%url, %method, "maint request");
+        let m = reqwest::Method::from_bytes(method.as_bytes()).map_err(|e| AppError::Internal(e.to_string()))?;
+        let resp = self
+            .inner
+            .request(m, &url)
+            .header(header::AUTHORIZATION, format!("Bearer {jwt}"))
+            .json(body)
+            .send()
+            .await?;
+        consume_response(&url, resp).await
+    }
+
     pub async fn maint_delete_raw(&self, path: &str) -> AppResult<RawResponse> {
         let jwt = self.require_jwt()?;
         let url = self.maint_url(path);

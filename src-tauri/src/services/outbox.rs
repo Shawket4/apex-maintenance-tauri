@@ -419,6 +419,8 @@ pub(crate) fn test_db() -> Connection {
         include_str!("../migrations/0009_integrity.sql"),
         include_str!("../migrations/0010_stock_movements_cache.sql"),
         include_str!("../migrations/0011_sync_v2.sql"),
+        include_str!("../migrations/0012_catalogs.sql"),
+        include_str!("../migrations/0013_stock_counts.sql"),
     ] {
         conn.execute_batch(sql).unwrap();
     }

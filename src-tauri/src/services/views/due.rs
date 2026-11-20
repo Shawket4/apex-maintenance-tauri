@@ -32,6 +32,10 @@ done AS (
       JOIN work_orders wo ON wo.id = t.work_order_id
      WHERE t.deleted_at IS NULL AND wo.deleted_at IS NULL
        AND t.category_id IS NOT NULL AND t.is_done = 1
+    UNION ALL
+    -- Old service-invoice lines the server recognised as this type.
+    SELECT l.vehicle_id, l.category_id, 'legacy-' || l.id, l.done_at, l.km
+      FROM legacy_events l
 ),
 last_at AS (
     SELECT vehicle_id, category_id, done_at FROM (

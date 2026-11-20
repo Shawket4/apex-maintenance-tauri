@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { PageShell } from "@/widgets/layout/PageShell";
 import { AboutSection } from "@/widgets/settings/AboutSection";
 import { AppearanceSection } from "@/widgets/settings/AppearanceSection";
+import { CatalogSection } from "@/widgets/settings/CatalogSection";
 import { ClassesSection } from "@/widgets/settings/ClassesSection";
 import { DataSection } from "@/widgets/settings/DataSection";
 import { PlansSection } from "@/widgets/settings/PlansSection";
@@ -17,9 +18,10 @@ export const Route = createFileRoute("/_app/settings")({
 });
 
 /** Settings, in the order a garage needs them: what is left to set up, what
- * is happening to my work, the fleet rules (classes → trucks → plans), then
- * the rest. Each block has an anchor: `#setup`, `#sync`, `#classes`,
- * `#truck-classes`, `#plans`, `#data`, `#appearance`, `#about`. */
+ * is happening to my work, the fleet rules (classes → trucks → plans), the
+ * lists behind the dropdowns, then the rest. Each block has an anchor:
+ * `#setup`, `#sync`, `#classes`, `#truck-classes`, `#plans`, `#catalog`,
+ * `#data`, `#appearance`, `#about`. */
 function SettingsPage() {
   const { t } = useTranslation();
   const hash = useRouterState({ select: (s) => s.location.hash });
@@ -41,6 +43,7 @@ function SettingsPage() {
       <ClassesSection />
       <TruckClassesSection />
       <PlansSection />
+      <CatalogSection />
       <DataSection />
       <AppearanceSection />
       <AboutSection />

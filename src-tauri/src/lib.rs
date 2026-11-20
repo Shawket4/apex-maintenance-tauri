@@ -80,6 +80,7 @@ fn specta_builder() -> tauri_specta::Builder {
         commands::domain::classes_list,
         commands::domain::plans_list,
         commands::domain::search_all,
+        commands::domain::catalog_get,
         // Owned domain — writes (local + outbox)
         commands::domain::wo_open,
         commands::domain::wo_close,
@@ -117,6 +118,14 @@ fn specta_builder() -> tauri_specta::Builder {
         commands::online::stock_refresh,
         commands::online::plan_upsert,
         commands::online::plan_delete,
+        commands::online::stock_count_tires,
+        commands::online::stock_count_oil,
+        commands::online::catalog_rename_tire_product,
+        commands::online::catalog_merge_tire_product,
+        commands::online::catalog_rename_oil_product,
+        commands::online::catalog_merge_oil_product,
+        commands::online::catalog_save_job,
+        commands::online::catalog_remove_job,
         commands::online::stock_credit_tires,
         commands::online::stock_credit_oil,
         commands::online::class_create,
@@ -215,13 +224,21 @@ pub fn run() {
                         if s.auth_paused {
                             continue;
                         }
+                        let signed_in = session_store::read_jwt(&boot_state.data_dir).ok().flatten().is_some();
                         if s.pending > 0 {
-                            let _ = engine.drain().await;
+                            let sent = engine.drain().await.is_ok();
+                            // What was just sent may have added a tire or oil
+                            // type to the lists.
+                            if sent && signed_in {
+                                commands::online::catalog_refresh_inner(&boot_state).await;
+                            }
                         }
                         if !s.online || tick % pull_every == 0 {
                             // Offline: a pull is also the probe that brings
                             // the engine back online.
-                            let _ = engine.pull().await;
+                            if engine.pull().await.is_ok() && signed_in {
+                                commands::online::catalog_refresh_inner(&boot_state).await;
+                            }
                         }
                         if tick % mirrors_every == 0
                             && session_store::read_jwt(&boot_state.data_dir).ok().flatten().is_some()

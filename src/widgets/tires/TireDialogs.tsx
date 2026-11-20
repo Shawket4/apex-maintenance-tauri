@@ -21,6 +21,7 @@ import {
 import { Input } from "@/shared/ui/input";
 import { Label } from "@/shared/ui/label";
 import { NumberInput } from "@/shared/ui/number-input";
+import { TireProductPicker, type TireSpec } from "@/widgets/catalog/pickers";
 
 import { DISMOUNT_REASONS, MAX_ODOMETER, type LifeAction } from "./lib";
 
@@ -28,25 +29,27 @@ import { DISMOUNT_REASONS, MAX_ODOMETER, type LifeAction } from "./lib";
 export function TireEditDialog({ tire, onClose }: { tire: TireRow; onClose: () => void }) {
   const { t } = useTranslation();
   const uid = useId();
-  const [brand, setBrand] = useState(tire.brand);
-  const [model, setModel] = useState(tire.model ?? "");
-  const [size, setSize] = useState(tire.size ?? "");
+  const [spec, setSpec] = useState<TireSpec | null>({
+    brand: tire.brand,
+    model: tire.model ?? "",
+    size: tire.size ?? "",
+  });
   const [dot, setDot] = useState(tire.dot_code ?? "");
   const [baseKm, setBaseKm] = useState(String(tire.base_km));
   const [notes, setNotes] = useState(tire.notes ?? "");
   const [touched, setTouched] = useState(false);
 
   const km = baseKm.trim() ? parseIntInput(baseKm) : 0;
-  const brandErr = !brand.trim();
+  const typeErr = !spec?.brand.trim();
   const kmErr = km == null || km > MAX_ODOMETER;
 
   const save = useDomainMutation(
     () =>
       unwrap(
         commands.tireUpdate(tire.id, {
-          brand: brand.trim(),
-          model: model.trim() || null,
-          size: size.trim() || null,
+          brand: spec!.brand.trim(),
+          model: spec!.model.trim() || null,
+          size: spec!.size.trim() || null,
           dot_code: dot.trim() || null,
           base_km: km ?? 0,
           notes: notes.trim() || null,
@@ -76,40 +79,25 @@ export function TireEditDialog({ tire, onClose }: { tire: TireRow; onClose: () =
           onSubmit={(e) => {
             e.preventDefault();
             setTouched(true);
-            if (!brandErr && !kmErr) save.mutate();
+            if (!typeErr && !kmErr) save.mutate();
           }}
         >
           <div className="space-y-1.5">
-            <Label htmlFor={id("brand")}>{t("tires.intake.brand")}</Label>
-            <Input
-              id={id("brand")}
-              dir="auto"
-              value={brand}
-              onChange={(e) => setBrand(e.target.value)}
-              aria-invalid={touched && brandErr}
-              aria-describedby={id("brand-err")}
+            <Label id={id("type-label")} htmlFor={id("type")}>
+              {t("tires.intake.brand")}
+            </Label>
+            <TireProductPicker
+              id={id("type")}
+              aria-labelledby={id("type-label")}
+              disabled={save.isPending}
+              value={spec}
+              onChange={setSpec}
             />
-            {touched && brandErr && (
-              <p id={id("brand-err")} className="text-sm text-status-overdue">
+            {touched && typeErr && (
+              <p role="alert" className="text-sm text-status-overdue">
                 {t("tires.intake.brandRequired")}
               </p>
             )}
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor={id("model")}>{t("tires.form.model")}</Label>
-              <Input id={id("model")} dir="auto" value={model} onChange={(e) => setModel(e.target.value)} />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor={id("size")}>{t("tires.form.size")}</Label>
-              <Input
-                id={id("size")}
-                dir="ltr"
-                className="text-start"
-                value={size}
-                onChange={(e) => setSize(e.target.value)}
-              />
-            </div>
           </div>
           <div className="space-y-1.5">
             <Label htmlFor={id("dot")}>{t("tires.form.dot")}</Label>

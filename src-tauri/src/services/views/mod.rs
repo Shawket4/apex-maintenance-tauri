@@ -23,7 +23,9 @@ mod tires;
 mod chassis;
 mod reference;
 mod search;
+mod catalog;
 
+pub use catalog::*;
 pub use chassis::*;
 pub use common::*;
 pub use due::*;

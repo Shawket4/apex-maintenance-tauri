@@ -839,6 +839,28 @@
     }
 
     #[test]
+    fn work_from_old_office_invoices_counts_toward_the_plan() {
+        let p = pool();
+        seed_vehicle(&p, 8, "ف ل ص 8", 103_000);
+        seed_plan(&p, "tractor", "oil_change", 10_000);
+        domain::class_assign(&p, 8, "tractor", 9).unwrap();
+        assert_eq!(due_board(&p, Some(8)).unwrap()[0].status, "never_done");
+        // What the server sends: Postgres timestamps with an offset.
+        let rows = vec![
+            serde_json::json!({"id": 1, "vehicle_id": 8, "category_id": "oil_change", "done_at": "2026-01-05T10:00:00.123456+02:00", "km": 90_000}),
+            serde_json::json!({"id": 2, "vehicle_id": 8, "category_id": "oil_change", "done_at": "2026-09-05T10:00:00+03:00", "km": 99_000}),
+            serde_json::json!({"id": 3, "vehicle_id": 8, "category_id": null, "done_at": "2026-10-01T10:00:00+03:00", "km": 1}),
+        ];
+        crate::services::refdata::replace_legacy_events(&p, &rows).unwrap();
+        let d = &due_board(&p, Some(8)).unwrap()[0];
+        assert_eq!((d.last_km, d.km_remaining), (Some(99_000), Some(6_000)), "the newest recognised line is the baseline");
+        assert_ne!(d.status, "never_done");
+        // A refresh without them (the invoice was deleted) takes them away.
+        crate::services::refdata::replace_legacy_events(&p, &[]).unwrap();
+        assert_eq!(due_board(&p, Some(8)).unwrap()[0].status, "never_done");
+    }
+
+    #[test]
     fn truck_cards_tell_untracked_from_fine_and_agree_with_the_home_counts() {
         let p = pool();
         seed_vehicle(&p, 8, "ف ل ص 8", 10_000);

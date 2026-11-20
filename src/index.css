@@ -229,3 +229,91 @@
     font-variant-numeric: tabular-nums;
   }
 }
+
+/* ── Printing ──────────────────────────────────────────────────────────────
+   Convention: anything that must not reach paper carries Tailwind's
+   `print:hidden`; a printable sheet is `hidden print:block` and is marked
+   `data-print="sheet"`; a row that must not be cut across two pages is marked
+   `data-print="row"`. Paper is always black on white, whatever the theme. */
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm;
+  }
+
+  /* Ink on paper in both themes: every token the sheet could inherit. */
+  :root,
+  .dark {
+    --background: #fff;
+    --foreground: #000;
+    --card: #fff;
+    --card-foreground: #000;
+    --muted: #fff;
+    --muted-foreground: #000;
+    --border: #000;
+    --border-strong: #000;
+    color-scheme: light;
+  }
+
+  html,
+  body,
+  #root {
+    height: auto !important;
+    overflow: visible !important;
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  /* The app shell is a full-height flex box whose <main> scrolls; on paper it
+     has to flow, or only the first screenful would print. */
+  #root .h-dvh {
+    display: block !important;
+    height: auto !important;
+    background: #fff !important;
+  }
+  #root main {
+    overflow: visible !important;
+  }
+
+  /* Things that float above the page: dialogs, menus, toasts. */
+  [data-slot='dialog-overlay'],
+  [data-slot='dialog-content'],
+  [data-radix-popper-content-wrapper],
+  [data-sonner-toaster] {
+    display: none !important;
+  }
+
+  [data-print='sheet'] {
+    color: #000;
+    background: #fff;
+    font-size: 11pt;
+    line-height: 1.5;
+  }
+  [data-print='sheet'] table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    font-size: 10.5pt;
+  }
+  [data-print='sheet'] thead {
+    display: table-header-group; /* repeat the column titles on every page */
+  }
+  [data-print='sheet'] th,
+  [data-print='sheet'] td {
+    border: 1px solid #000;
+    padding: 4px 6px;
+    text-align: start;
+    vertical-align: top;
+  }
+  [data-print='sheet'] th {
+    font-weight: 700;
+  }
+  [data-print='sheet'] h2 {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+  [data-print='row'] {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}

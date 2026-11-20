@@ -496,5 +496,46 @@
     "title": "Sign out",
     "body": "You will need a connection to sign in again.",
     "unsent": "{{n}} changes have not been sent yet. They stay on this device and go out when you sign in again with the same account. You will need a connection to sign in."
+  },
+  "combo": {
+    "placeholder": "Choose…",
+    "search": "Type to search…",
+    "empty": "Nothing by that name",
+    "use": "Use “{{text}}”",
+    "more": "There are more — keep typing to narrow down",
+    "clear": "Clear the choice"
+  },
+  "catalog": {
+    "tire": {
+      "placeholder": "Choose the tire type",
+      "search": "Brand, model or size…",
+      "newTitle": "A tire type not on the list",
+      "brand": "Brand",
+      "model": "Model",
+      "size": "Size",
+      "useNew": "New type: “{{text}}”",
+      "onHand": "In stock: {{n}}",
+      "noStock": "Not in stock",
+      "useThis": "Use this type",
+      "back": "Back to the list",
+      "newHint": "Type the brand and size as written on the tire. The type is added to the list by itself.",
+      "brandPh": "e.g. Pirelli",
+      "modelPh": "e.g. FR01",
+      "sizePh": "e.g. 315/80R22.5",
+      "notListed": "Not on the list? Add a new type",
+      "unconfirmed": "Still being recorded"
+    },
+    "oil": {
+      "placeholder": "Choose the oil type",
+      "search": "Type the oil type…",
+      "useNew": "New oil type: “{{text}}”",
+      "onHand": "In stock: {{n}}"
+    },
+    "job": {
+      "placeholder": "Type the job or choose from the list",
+      "search": "Type the job…",
+      "useNew": "Use it as typed: “{{text}}”",
+      "resets": "Counts toward “{{name}}”"
+    }
   }
 }

@@ -280,5 +280,90 @@
     "whatToDo": "Ask the office for the new version and install it. Your work is kept on this device, but it may not be sent correctly until you update.",
     "yours": "Your version:",
     "needed": "Needed at least:"
+  },
+  "catalog": {
+    "title": "Tire, oil and job lists",
+    "intro": "These are the lists you pick from while recording work. A new type adds itself the first time someone types it. Here you correct a misspelled name, or join two entries that turned out to be the same thing.",
+    "gate": {
+      "noPermission": "Only a supervisor can correct or join types and edit standard jobs. You can read the lists.",
+      "offline": "No connection right now — changing the lists needs one. It unlocks when the connection is back."
+    },
+    "tabs": {
+      "tires": "Tires",
+      "oil": "Oil",
+      "jobs": "Standard jobs"
+    },
+    "searchPlaceholder": "Type to search…",
+    "noMatch": "Nothing matches:",
+    "showMore": "Show more ({{n}} left)",
+    "unconfirmed": "Still being recorded",
+    "notInStock": "Not in stock",
+    "rename": "Correct the name",
+    "sameAs": "Same as another type",
+    "renamed": "Name corrected",
+    "renameTwin": "This name is already on the list. If you save, the two become one type and cannot be separated again:",
+    "merge": {
+      "title": "Same as another type",
+      "next": "Continue",
+      "confirmTitle": "Are they really the same type?",
+      "confirm": "Yes, join them",
+      "done": "The two types are now one",
+      "noOther": "There is no other type on the list to join it with."
+    },
+    "tires": {
+      "intro": "Each tire type: brand · model · size.",
+      "search": "Search tire types",
+      "empty": "No tire types yet. A type appears here once a tire is registered or stock is received.",
+      "uses": "Tires of this type: {{n}}",
+      "onHand": "In stock: {{n}}",
+      "renameTitle": "Correct the tire type's name",
+      "renameBody": "Type the correct name. Every tire and every stock line recorded under this type changes with it.",
+      "mergeIntro": "If this type was entered twice with different spellings, choose the correct one to keep. The type shown above is the one that disappears.",
+      "mergePick": "Which type is it the same as?",
+      "mergePlaceholder": "Choose the type to keep",
+      "mergeBody": "All tires of type «{{a}}» (count: {{n}}) and its stock will move to «{{b}}», and «{{a}}» disappears from the list. This cannot be undone."
+    },
+    "oil": {
+      "intro": "The oil types recorded in oil changes and stock.",
+      "search": "Search oil types",
+      "empty": "No oil types yet. A type appears here once an oil change is recorded or stock is received.",
+      "uses": "Oil changes with this type: {{n}}",
+      "onHand": "In stock: {{liters}}",
+      "name": "Oil type name",
+      "renameTitle": "Correct the oil type's name",
+      "renameBody": "Type the correct name. Every oil change and every stock line recorded under this type changes with it.",
+      "mergeIntro": "If this type was entered twice with different spellings, choose the correct one to keep. The type shown above is the one that disappears.",
+      "mergePick": "Which type is it the same as?",
+      "mergePlaceholder": "Choose the type to keep",
+      "mergeBody": "All oil changes with type «{{a}}» (count: {{n}}) and its stock will move to «{{b}}», and «{{a}}» disappears from the list. This cannot be undone."
+    },
+    "jobs": {
+      "intro": "The jobs the garage does again and again. Picking one in a work order writes its name and sets its maintenance type.",
+      "search": "Search standard jobs",
+      "empty": "No standard jobs on the list yet.",
+      "add": "Add a job to the list",
+      "edit": "Edit",
+      "remove": "Remove from the list",
+      "countsToward": "Counts toward “{{name}}”",
+      "noType": "Not linked to a maintenance type",
+      "uses": "Times used: {{n}}",
+      "addTitle": "New job on the list",
+      "addBody": "It appears in the job list when adding a task to a work order.",
+      "editTitle": "Edit the job",
+      "editBody": "The change shows in the list from now on. Tasks already recorded in work orders stay as they are.",
+      "nameAr": "Job name in Arabic",
+      "nameArPh": "e.g. تغيير فلتر الهوا",
+      "nameEn": "English name (optional)",
+      "type": "Which maintenance type does it count toward?",
+      "typeNone": "Not linked to a maintenance type",
+      "typeUnknown": "A maintenance type not loaded on this device",
+      "typeHint": "If you choose a maintenance type, marking this task done in a work order restarts that maintenance's schedule.",
+      "duplicate": "A job with this name is already on the list.",
+      "added": "Job added to the list",
+      "saved": "Change saved",
+      "removed": "Job removed from the list",
+      "removeTitle": "Remove this job from the list?",
+      "removeBody": "It will no longer appear in the list. Tasks already recorded with it in work orders keep their text; nothing in them changes."
+    }
   }
 }

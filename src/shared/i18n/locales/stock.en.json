@@ -38,13 +38,6 @@
       "oil": "Oil"
     },
     "needsOnline": "No connection right now — a receipt can only be recorded when the connection is back.",
-    "pickTire": "Pick from the items already in stock:",
-    "pickOil": "Pick from the oil types already in stock:",
-    "pickHint": "Picking from here keeps the spelling the same as in stock, so the quantity is added to the same item.",
-    "brand": "Brand",
-    "model": "Model (if known)",
-    "size": "Size (if known)",
-    "sizeExample": "315/80R22.5",
     "qty": "How many arrived",
     "oilType": "Oil type",
     "liters": "Amount in liters",
@@ -53,7 +46,6 @@
     "review": "Review before recording",
     "reviewLead": "This will be added to stock:",
     "noteShown": "Note:",
-    "newItem": "This is a new item: nothing in stock has exactly this name. If it is an item you already have, go back and pick it from the list so it is not recorded twice under two names.",
     "noUndo": "Check the quantity carefully: a receipt cannot be taken back from here once recorded.",
     "retrySafe": "Press “Retry” — it will not be counted twice.",
     "backToEdit": "Go back and edit",
@@ -65,10 +57,48 @@
     "finish": "Done",
     "tiresCount": "{{n}} tires",
     "err": {
-      "brand": "Type the brand or pick it from the items",
+      "brand": "Choose the tire type",
       "qty": "Type how many: a number from 1 to {{max}}",
-      "oilType": "Type the oil type or pick it from the types",
-      "liters": "Type the amount in liters: more than zero, up to {{max}}"
+      "oilType": "Choose the oil type",
+      "liters": "Type the amount in liters: more than zero, up to {{max}}",
+      "tooLong": "The name is too long — {{max}} characters at most"
+    },
+    "tireType": "Tire type"
+  },
+  "count": {
+    "open": "Stock count",
+    "title": "Stock count",
+    "subtitle": "Count what is actually there and type the number — the recorded figure will be corrected to it. A connection is required.",
+    "bookFigure": "Recorded in stock:",
+    "unsentNotIncluded": "Some work recorded on this device has not been sent yet ({{n}}). It is not included in this recorded figure, and will be subtracted from it once sent.",
+    "notReceiving": "A count is only for fixing a difference between the recorded figure and what is there. If a new shipment arrived, do not record it here — use “Receive stock”.",
+    "needsOnline": "No connection right now — a count can only be recorded when the connection is back.",
+    "askTires": "How many tires are actually there?",
+    "askOil": "How many liters are actually there?",
+    "zeroHint": "If there is none at all, type zero.",
+    "note": "Note (optional)",
+    "notePlaceholder": "For example: the reason for the difference, or who counted",
+    "review": "Review before recording",
+    "youCounted": "You counted:",
+    "same": "Same as the recorded figure — nothing will change.",
+    "willRemove": "{{n}} will be taken off the recorded figure",
+    "willAdd": "{{n}} will be added to the recorded figure",
+    "willBecome": "The recorded figure will become {{n}}.",
+    "noteShown": "Note:",
+    "fixLater": "If the number turns out wrong after recording, do another count with the right number.",
+    "retrySafe": "Press “Retry” — it will not be counted twice.",
+    "backToEdit": "Go back and edit",
+    "confirm": "Record the count",
+    "doneTitle": "Count recorded",
+    "doneWas": "Was recorded:",
+    "doneNow": "Now:",
+    "doneRemoved": "{{n}} taken off",
+    "doneAdded": "{{n}} added",
+    "doneSame": "The figure is unchanged — nothing was changed",
+    "finish": "Done",
+    "err": {
+      "tires": "Type how many: zero or a whole number up to {{max}}",
+      "oil": "Type the amount in liters: zero or a number up to {{max}}"
     }
   }
 }
