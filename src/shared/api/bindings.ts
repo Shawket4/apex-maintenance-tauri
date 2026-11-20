@@ -162,6 +162,21 @@ async syncNow() : Promise<Result<SyncStatus, CmdError>> {
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * Start every pull stream from zero and drop local rows the server does
+ * not have. Queued changes are sent first and never dropped.
+ */
+async syncResync() : Promise<Result<PullSummary, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("sync_resync") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Changes still waiting to reach the server.
+ */
 async outboxList() : Promise<Result<OutboxItem[], CmdError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("outbox_list") };
@@ -170,17 +185,24 @@ async outboxList() : Promise<Result<OutboxItem[], CmdError>> {
     else return { status: "error", error: e  as any };
 }
 },
-async outboxRetry(seq: number) : Promise<Result<null, CmdError>> {
+/**
+ * Changes the server refused. Each was undone locally; `detail` holds what
+ * the user had entered.
+ */
+async syncIssues() : Promise<Result<SyncIssue[], CmdError>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("outbox_retry", { seq }) };
+    return { status: "ok", data: await TAURI_INVOKE("sync_issues") };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
 },
-async outboxDiscard(seq: number) : Promise<Result<null, CmdError>> {
+/**
+ * Mark one issue (or all of them) as read.
+ */
+async syncIssuesSeen(id: number | null) : Promise<Result<null, CmdError>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("outbox_discard", { seq }) };
+    return { status: "ok", data: await TAURI_INVOKE("sync_issues_seen", { id }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -298,6 +320,17 @@ async searchAll(q: string) : Promise<Result<SearchResults, CmdError>> {
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * Options for the tire / oil / job pickers.
+ */
+async catalogGet() : Promise<Result<CatalogView, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("catalog_get") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async woOpen(vehicleId: number, odometerAtOpen: number | null) : Promise<Result<string, CmdError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("wo_open", { vehicleId, odometerAtOpen }) };
@@ -370,9 +403,49 @@ async chassisDelete(vehicleId: number) : Promise<Result<null, CmdError>> {
     else return { status: "error", error: e  as any };
 }
 },
-async oilAdd(workOrderId: string, vehicleId: number, oilType: string, liters: number, odometer: number | null) : Promise<Result<OilAddResult, CmdError>> {
+async woDelete(id: string) : Promise<Result<null, CmdError>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("oil_add", { workOrderId, vehicleId, oilType, liters, odometer }) };
+    return { status: "ok", data: await TAURI_INVOKE("wo_delete", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async woSetNotes(id: string, title: string | null, notes: string | null) : Promise<Result<null, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("wo_set_notes", { id, title, notes }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async woTaskUpdate(taskId: string, categoryId: string | null, descriptionAr: string) : Promise<Result<null, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("wo_task_update", { taskId, categoryId, descriptionAr }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async oilAdd(workOrderId: string, oilType: string, liters: number, odometer: number | null) : Promise<Result<OilAddResult, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("oil_add", { workOrderId, oilType, liters, odometer }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async oilUpdate(id: string, oilType: string, liters: number, odometer: number | null) : Promise<Result<boolean, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("oil_update", { id, oilType, liters, odometer }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async oilDelete(id: string) : Promise<Result<null, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("oil_delete", { id }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -389,6 +462,63 @@ async overrideSet(vehicleId: number, odometer: number, notes: string | null) : P
 async classAssign(vehicleId: number, classId: string) : Promise<Result<null, CmdError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("class_assign", { vehicleId, classId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async classUnassign(vehicleId: number) : Promise<Result<null, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("class_unassign", { vehicleId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Undo a mount made by mistake (wrong tire or wrong wheel).
+ */
+async mountUndo(assignmentId: string) : Promise<Result<null, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("mount_undo", { assignmentId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Undo a dismount made by mistake: the tire goes back on its wheel.
+ */
+async dismountUndo(assignmentId: string) : Promise<Result<null, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("dismount_undo", { assignmentId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Correct why a tire came off (the tire's status follows the reason).
+ */
+async dismountSetReason(assignmentId: string, reason: string) : Promise<Result<null, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("dismount_set_reason", { assignmentId, reason }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async tireUpdate(tireId: string, input: TireEditInput) : Promise<Result<null, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("tire_update", { tireId, input }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async tireDelete(tireId: string) : Promise<Result<null, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("tire_delete", { tireId }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -486,9 +616,123 @@ async stockRefresh() : Promise<Result<null, CmdError>> {
  * Upsert a fleet-wide service plan (server-authoritative, perm ≥3), then
  * refresh the local mirror so the due board recomputes immediately.
  */
-async planUpsert(classId: string, categoryId: string, triggerType: string, intervalKm: number | null, intervalDays: number | null, isActive: boolean | null) : Promise<Result<null, CmdError>> {
+async planUpsert(classId: string, categoryId: string, intervalKm: number | null, intervalDays: number | null, leadWarnKm: number | null, leadWarnDays: number | null) : Promise<Result<null, CmdError>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("plan_upsert", { classId, categoryId, triggerType, intervalKm, intervalDays, isActive }) };
+    return { status: "ok", data: await TAURI_INVOKE("plan_upsert", { classId, categoryId, intervalKm, intervalDays, leadWarnKm, leadWarnDays }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Retire a plan (perm ≥3): it leaves the due board on every device.
+ */
+async planDelete(id: string) : Promise<Result<null, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("plan_delete", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * "We counted N new tires of this type" (perm ≥4): the book figure becomes N.
+ */
+async stockCountTires(brand: string, model: string | null, size: string | null, counted: number, refId: string, note: string | null) : Promise<Result<CountResult, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("stock_count_tires", { brand, model, size, counted, refId, note }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * "We measured N liters of this oil" (perm ≥4).
+ */
+async stockCountOil(oilType: string, countedLiters: number, refId: string, note: string | null) : Promise<Result<CountResult, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("stock_count_oil", { oilType, countedLiters, refId, note }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Correct a tire product's spelling everywhere (perm ≥3). If the corrected
+ * spelling is already a product, the two are merged.
+ */
+async catalogRenameTireProduct(id: string, brand: string, model: string | null, size: string | null) : Promise<Result<null, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("catalog_rename_tire_product", { id, brand, model, size }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * "These two are the same tire": fold `id` into `into` (perm ≥3).
+ */
+async catalogMergeTireProduct(id: string, into: string) : Promise<Result<null, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("catalog_merge_tire_product", { id, into }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async catalogRenameOilProduct(id: string, name: string) : Promise<Result<null, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("catalog_rename_oil_product", { id, name }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async catalogMergeOilProduct(id: string, into: string) : Promise<Result<null, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("catalog_merge_oil_product", { id, into }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Add a standard job to the list (or edit one when `id` is given, perm ≥3).
+ */
+async catalogSaveJob(id: string | null, nameAr: string, nameEn: string | null, categoryId: string | null) : Promise<Result<null, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("catalog_save_job", { id, nameAr, nameEn, categoryId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async catalogRemoveJob(id: string) : Promise<Result<null, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("catalog_remove_job", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Receive new tires into stock (perm ≥4). `ref_id` is minted by the caller
+ * once per form submission, so a retry or a double click credits once.
+ */
+async stockCreditTires(brand: string, model: string | null, size: string | null, qty: number, refId: string, note: string | null) : Promise<Result<null, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("stock_credit_tires", { brand, model, size, qty, refId, note }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Receive oil into stock (perm ≥4). See `stock_credit_tires` for `ref_id`.
+ */
+async stockCreditOil(oilType: string, liters: number, refId: string, note: string | null) : Promise<Result<null, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("stock_credit_oil", { oilType, liters, refId, note }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -507,12 +751,15 @@ async classCreate(id: string, nameAr: string) : Promise<Result<null, CmdError>> 
 }
 },
 /**
- * Natural-language search over Falcon's service history (Claude tool-use
- * loop server-side; needs ANTHROPIC_API_KEY on maint-rust).
+ * The AI search box. Service-history lookups go to apex-rust's advisor
+ * search (Claude-expanded hybrid search, permission 1+); aggregate fleet
+ * questions — and any advisor failure or empty result — go to maint-rust's
+ * `/ai/query` (Claude tool-use SQL loop; needs ANTHROPIC_API_KEY there).
+ * Routing + fallback policy: services::history_search::search.
  */
-async aiQuery(query: string) : Promise<Result<JsonValue, CmdError>> {
+async aiSearch(query: string) : Promise<Result<AiSearchResult, CmdError>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("ai_query", { query }) };
+    return { status: "ok", data: await TAURI_INVOKE("ai_search", { query }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -547,14 +794,12 @@ async stockMovements(kind: string | null, from: string | null, limit: number | n
 }
 },
 /**
- * Pull the latest window of movements from maint-rust and upsert the local
- * mirror. Online; best-effort (the view still works offline on the last
- * mirror). Server clamps the page at 200 — a generous recent horizon for
- * this fleet.
+ * Mirror the movements of the last `days` days (default 90) from the server.
+ * Online; the view keeps working offline on the last mirror.
  */
-async stockMovementsRefresh() : Promise<Result<number, CmdError>> {
+async stockMovementsRefresh(days: number | null) : Promise<Result<number, CmdError>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("stock_movements_refresh") };
+    return { status: "ok", data: await TAURI_INVOKE("stock_movements_refresh", { days }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -572,9 +817,14 @@ async stockMovementsRefresh() : Promise<Result<number, CmdError>> {
 
 /** user-defined types **/
 
+/**
+ * What the search box renders.
+ */
+export type AiSearchResult = { source: "advisor"; variants: string[]; plate_number: string | null; hits: HistoryHit[] } | { source: "ai_query"; answer: string; rows: JsonValue[]; fallback: FallbackReason | null }
 export type AppVersion = { name: string; version: string; tauri_version: string }
 export type AxleRow = { id: string; section: string; section_index: number; axle_type: string; is_steering: boolean; is_lifted: boolean }
 export type CacheFreshnessRow = { cache_name: string; fetched_at: string; ttl_seconds: number; is_stale: boolean }
+export type CatalogView = { tire_products: TireProductOption[]; oil_products: OilProductOption[]; standard_jobs: JobOption[] }
 export type CategoryRow = { id: string; name_ar: string; name_en: string; icon: string | null; color: string | null; sort_order: number }
 export type ChassisConfig = { 
 /**
@@ -588,7 +838,15 @@ export type ClassRow = { id: string; name_ar: string; name_en: string; sort_orde
  * `CmdResult<T>` so tauri-specta can type the error channel; the JSON the
  * frontend sees is byte-identical to AppError's own serialization.
  */
-export type CmdError = { kind: string; message: string }
+export type CmdError = { kind: string; code: string | null; message: string }
+/**
+ * What a stock count changed.
+ */
+export type CountResult = { before: number; after: number; 
+/**
+ * after − before: negative when the shelf had fewer than the book.
+ */
+change: number }
 export type DbHealth = { ok: boolean; migrations_applied: number; outbox_pending: number; seeded_categories: number }
 export type DismountInput = { assignment_id: string; odometer: number | null; 
 /**
@@ -596,22 +854,69 @@ export type DismountInput = { assignment_id: string; odometer: number | null;
  */
 reason: string; 
 /**
- * The WO this dismount happens under — NOT the assignment's own
- * work_order_id, which belongs to the mount.
+ * The work order this dismount happens under.
  */
 work_order_id: string | null }
 export type DriverRow = { id: number; name: string; mobile_number: string | null; transporter: string | null; id_license_expiration_date: string | null; driver_license_expiration_date: string | null; is_approved: boolean; fetched_at: string }
-export type DueCounts = { overdue: number; never_done: number; due_soon: number }
-export type DueRow = { vehicle_id: number; plate: string; plan_id: string; category_id: string; category_name_ar: string; category_name_en: string; trigger_type: string; interval_km: number | null; interval_days: number | null; last_at: string | null; last_km: number | null; next_due_km: number | null; next_due_at: string | null; current_odometer: number | null; odometer_source: string | null; odometer_observed_at: string | null; status: string }
+export type DueCounts = { overdue: number; never_done: number; due_soon: number; 
+/**
+ * Trucks with no maintenance class: no plan applies, nothing is tracked.
+ */
+unclassified_trucks: number }
+export type DueRow = { vehicle_id: number; plate: string; plan_id: string; category_id: string; category_name_ar: string; category_name_en: string; trigger_type: string; interval_km: number | null; interval_days: number | null; last_at: string | null; last_km: number | null; next_due_km: number | null; next_due_at: string | null; current_odometer: number | null; odometer_source: string | null; odometer_observed_at: string | null; 
+/**
+ * Km left before the plan is due (negative = km overdue).
+ */
+km_remaining: number | null; 
+/**
+ * Days left before the plan is due (negative = days overdue).
+ */
+days_remaining: number | null; 
+/**
+ * overdue | never_done | due_soon | unknown | ok
+ */
+status: string }
 export type ExcelColumn = { key: string; header: string; type: string | null; width: number | null; total: boolean | null }
 export type ExcelExportConfig = { filename: string; sheets: ExcelSheetConfig[]; meta: string | null; creator: string | null }
 export type ExcelSheetConfig = { name: string; title: string; subtitle: string | null; isRtl: boolean; columns: ExcelColumn[]; rows: JsonValue[]; stats: ExcelStat[] | null; totals: boolean | null }
 export type ExcelStat = { label: string; value: JsonValue; color: string | null; type: string | null }
+/**
+ * Why the `/ai/query` answer is shown instead of the advisor's.
+ */
+export type FallbackReason = 
+/**
+ * Advisor unreachable, refused, or replied with something unparseable.
+ */
+"advisor_error" | 
+/**
+ * Advisor answered but found nothing.
+ */
+"no_hits"
+/**
+ * One service line the advisor found.
+ */
+export type HistoryHit = { invoice_id: number; item_id: number | null; car_id: number | null; plate_number: string | null; 
+/**
+ * RFC 3339 (apex-rust serialises a UTC `DateTime`).
+ */
+date: string | null; 
+/**
+ * Odometer (km) on the invoice.
+ */
+meter_reading: number | null; service: string; notes: string | null; score: number | null; 
+/**
+ * Which variants found it, and how ("… (vector)" / "… (keyword)").
+ */
+matched: string[] }
 export type HomeSummary = { open_wos: WoListRow[]; 
 /**
  * Most urgent due rows (overdue + never_done), capped for the strip.
  */
-attention: DueRow[]; due_counts: DueCounts; low_stock_tires: StockTireLine[]; low_stock_oil: StockOilLine[]; sync_pending: number; sync_dead: number }
+attention: DueRow[]; due_counts: DueCounts; low_stock_tires: StockTireLine[]; low_stock_oil: StockOilLine[]; sync_pending: number; 
+/**
+ * Refused changes the user has not read yet.
+ */
+sync_issues: number }
 /**
  * Vehicle subset embedded in `InvoiceDetail`. Mirrors what the user's
  * reference detail UI reads off `invoice.car`.
@@ -636,39 +941,45 @@ export type InvoicesListArgs = { page?: number; limit?: number;
  */
 car_id?: number | null }
 export type InvoicesSearchArgs = { query: string; car_id?: number | null; limit?: number }
+export type JobOption = { id: string; name_ar: string; name_en: string | null; category_id: string | null; uses: number }
 export type JsonValue = null | boolean | number | string | JsonValue[] | Partial<{ [key in string]: JsonValue }>
 export type LegacyTireInput = { brand: string; model: string | null; size: string | null; dot_code: string | null; estimated_km: number | null }
 export type MountFromStockInput = { position_id: string; vehicle_id: number; work_order_id: string; 
 /**
- * The fungible stock line being consumed.
+ * The stock line being consumed.
  */
-brand: string; model: string | null; size: string | null; 
-/**
- * Identity captured at the only moment you hold the tire: optional but
- * this is the moment to fill it.
- */
-dot_code: string | null; odometer: number | null }
+brand: string; model: string | null; size: string | null; dot_code: string | null; odometer: number | null }
 export type MountResult = { tire_id: string; assignment_id: string }
 export type MountUsedInput = { tire_id: string; position_id: string; vehicle_id: number; work_order_id: string; odometer: number | null; 
 /**
- * new | rotation | replacement | repair_return | onboard
+ * rotation | replacement | repair_return
  */
 reason: string }
 export type OdoTruth = { km: number; source: string; observed_at: string | null }
 export type OilAddResult = { oil_id: string; flagged: boolean }
+export type OilProductOption = { id: string | null; name: string; on_hand: number | null; uses: number }
 export type OilRow = { id: string; oil_type: string; liters: number; odometer: number | null; flagged: boolean; performed_at: string; pending: boolean }
 export type OnboardPositionInput = { position_id: string; vehicle_id: number; brand: string; model: string | null; size: string | null; dot_code: string | null; 
 /**
- * Best-guess km already run (optional, becomes the asset's starting total).
+ * Best-guess km already run (becomes the tire's starting km).
  */
-estimated_km: number | null }
-export type OutboxItem = { seq: number; id: string; entity_type: string; entity_id: string; op: string; payload: string; base_sync_version: number; status: string; attempts: number; last_error: string | null; server_row: string | null; enqueued_at: string }
+estimated_km: number | null; 
+/**
+ * The truck's odometer now, so km run from here on can be counted.
+ */
+odometer: number | null }
+export type OutboxItem = { seq: number; id: string; entity_type: string; entity_id: string; op: string; payload: string; base_sync_version: number; status: string; attempts: number; last_error: string | null; enqueued_at: string; group_id: string | null; sent: boolean; next_attempt_at: number; user_id: number | null }
 export type PlanRow = { id: string; class_id: string; category_id: string; trigger_type: string; interval_km: number | null; interval_days: number | null; lead_warn_km: number | null; lead_warn_days: number | null; is_active: boolean }
 export type PositionRow = { id: string; axle_id: string | null; side: string | null; depth: string | null; is_spare: boolean; spare_index: number | null; position_code: string; assignment_id: string | null; tire_id: string | null; dot_code: string | null; brand: string | null; model: string | null; size: string | null; origin: string | null; retread_count: number | null; mount_reason: string | null; tire_status: string | null; mounted_at: string | null; mounted_odometer: number | null; total_km: number | null; 
 /**
  * The mount/dismount for this position is still queued/unacked.
  */
 pending: boolean }
+export type PullSummary = { applied: number; held_for_local_work: number; 
+/**
+ * Local rows removed by a full resync because the server has no such row.
+ */
+removed: number; errors: string[] }
 export type RefreshResult = { upserted: number; fetched_at: string }
 export type SearchResults = { trucks: TruckRow[]; tires: TireRow[]; work_orders: WoListRow[] }
 export type SearchSource = "online" | "offline"
@@ -683,7 +994,19 @@ update_required: boolean }
  * oil_credit | adjustment; tires carry qty, oil carries liters; a debit
  * resolves the consuming work order's plate.
  */
-export type StockMovementRow = { id: string; kind: string; brand: string | null; model: string | null; size: string | null; oil_type: string | null; qty: number | null; liters: number | null; work_order_id: string | null; plate: string | null; created_at: string; mirrored: boolean }
+export type StockMovementRow = { id: string; kind: string; brand: string | null; model: string | null; size: string | null; oil_type: string | null; qty: number | null; liters: number | null; work_order_id: string | null; plate: string | null; created_at: string; mirrored: boolean; note: string | null; 
+/**
+ * Set when the fleet system refused this movement (its counts do not include it).
+ */
+mirror_error: string | null; 
+/**
+ * A count correction ("we counted N"), not a delivery or a use.
+ */
+is_count: boolean; 
+/**
+ * Who recorded it, when the server knows the name.
+ */
+user_name: string | null }
 export type StockOilLine = { id: string; oil_type: string; snapshot_liters: number; pending_liters: number; projected_liters: number; low_stock: boolean; fetched_at: string | null }
 export type StockTireLine = { id: string; brand: string; model: string | null; size: string | null; snapshot_qty: number; pending_debits: number; projected_qty: number; 
 /**
@@ -696,17 +1019,78 @@ export type StockView = { tires: StockTireLine[]; oil: StockOilLine[];
  * Used tires available to mount (individual assets in the pool).
  */
 used_pool_count: number }
-export type SyncStatus = { online: boolean; auth_paused: boolean; pending: number; inflight: number; dead: number; last_push_at: string | null; last_pull_at: string | null; last_error: string | null }
+export type SyncIssue = { id: number; created_at: string; entity_type: string; entity_id: string; op: string; 
+/**
+ * Stable code (server rule code, or `conflict_deleted`, `gave_up`).
+ */
+code: string; message: string | null; 
+/**
+ * JSON of what the user had entered.
+ */
+detail: string | null; seen: boolean }
+export type SyncStatus = { online: boolean; 
+/**
+ * The session is not accepted any more (expired or access removed).
+ */
+auth_paused: boolean; 
+/**
+ * Changes waiting to reach the server.
+ */
+pending: number; 
+/**
+ * Of those, queued by a different user than the one signed in.
+ */
+other_user_pending: number; 
+/**
+ * Refused changes the user has not looked at yet.
+ */
+issues: number; last_push_at: string | null; last_pull_at: string | null; last_error: string | null }
 export type TaskRow = { id: string; kind: string; category_id: string | null; category_name_ar: string | null; description_ar: string | null; 
 /**
  * Done-ness is what resets the due clock (0017) — the checkbox state.
  */
-is_done: boolean; created_at: string; pending: boolean }
+is_done: boolean; done_at: string | null; created_at: string; pending: boolean }
+export type TireEditInput = { brand: string; model: string | null; size: string | null; dot_code: string | null; 
+/**
+ * Km the tire had run before it was first registered here.
+ */
+base_km: number; notes: string | null }
 export type TireEventRow = { id: string; event_type: string; from_status: string | null; to_status: string | null; notes: string | null; occurred_at: string }
 export type TireFile = { tire: TireRow; mounts: TireOpRow[]; events: TireEventRow[] }
-export type TireOpRow = { assignment_id: string; tire_id: string; dot_code: string | null; brand: string | null; position_code: string | null; mounted_at: string | null; mounted_odometer: number | null; mount_reason: string | null; dismounted_at: string | null; dismounted_odometer: number | null; dismount_reason: string | null; pending: boolean }
-export type TireRow = { id: string; dot_code: string | null; brand: string; model: string | null; size: string | null; status: string; origin: string; total_km: number; retread_count: number; mounted_vehicle_id: number | null; mounted_plate: string | null; mounted_position_code: string | null; mounted_at: string | null; pending: boolean }
-export type TruckRow = { id: number; plate: string; car_type: string | null; class_id: string | null; class_name_ar: string | null; odometer: OdoTruth | null; open_wo_count: number; overdue_count: number; due_soon_count: number; has_chassis: boolean; driver_name: string | null }
+export type TireOpRow = { assignment_id: string; tire_id: string; dot_code: string | null; brand: string | null; position_code: string | null; vehicle_id: number | null; plate: string | null; mounted_at: string | null; mounted_odometer: number | null; mount_reason: string | null; dismounted_at: string | null; dismounted_odometer: number | null; dismount_reason: string | null; 
+/**
+ * Km run on this mount (None when an odometer is missing or it is a spare).
+ */
+km_run: number | null; pending: boolean }
+export type TireProductOption = { 
+/**
+ * None = used on this device, not confirmed by the server yet.
+ */
+id: string | null; brand: string; model: string; size: string; 
+/**
+ * New tires in stock (server count minus fittings still queued here).
+ */
+on_hand: number | null; tires: number }
+export type TireRow = { id: string; dot_code: string | null; brand: string; model: string | null; size: string | null; status: string; origin: string; total_km: number; retread_count: number; mounted_vehicle_id: number | null; mounted_plate: string | null; mounted_position_code: string | null; mounted_at: string | null; 
+/**
+ * Km the tire had before it was registered here (editable).
+ */
+base_km: number; notes: string | null; 
+/**
+ * Some mount on a road position is missing an odometer, so total_km is
+ * lower than the truth. Shown, so the number is not taken as exact.
+ */
+km_incomplete: boolean; pending: boolean }
+export type TruckRow = { id: number; plate: string; car_type: string | null; class_id: string | null; class_name_ar: string | null; class_name_en: string | null; odometer: OdoTruth | null; open_wo_count: number; overdue_count: number; due_soon_count: number; 
+/**
+ * Plans that apply to this truck and have never been recorded as done.
+ */
+never_done_count: number; 
+/**
+ * Plans that apply to this truck at all. 0 = nothing is being tracked
+ * (no class, or a class with no plans) — that is not "all good".
+ */
+plan_count: number; has_chassis: boolean; driver_name: string | null }
 export type UserInfo = { id: number; email: string; name: string; permission: number; driver_id: number; jwt_exp: number }
 /**
  * Compact projection sent to the JS layer for list rendering.
@@ -717,7 +1101,11 @@ export type WoDetail = { wo: WoListRow; sync_version: number; tasks: TaskRow[]; 
  * This truck's due items — the cockpit's suggestion panel.
  */
 due: DueRow[]; odometer: OdoTruth | null }
-export type WoListRow = { id: string; vehicle_id: number; plate: string; title: string | null; status: string; opened_at: string; closed_at: string | null; odometer_at_open: number | null; task_count: number; opened_by_user_id: number; 
+export type WoListRow = { id: string; vehicle_id: number; plate: string; title: string | null; status: string; opened_at: string; closed_at: string | null; odometer_at_open: number | null; 
+/**
+ * Tasks the mechanic listed (oil changes are counted separately).
+ */
+task_count: number; done_count: number; notes: string | null; opened_by_user_id: number; 
 /**
  * True while any part of this WO is still queued/unacked in the outbox.
  */

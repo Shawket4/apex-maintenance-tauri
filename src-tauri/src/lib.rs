@@ -61,9 +61,10 @@ fn specta_builder() -> tauri_specta::Builder {
         // Sync engine
         commands::sync::sync_status,
         commands::sync::sync_now,
+        commands::sync::sync_resync,
         commands::sync::outbox_list,
-        commands::sync::outbox_retry,
-        commands::sync::outbox_discard,
+        commands::sync::sync_issues,
+        commands::sync::sync_issues_seen,
         // Owned domain — view-model reads
         commands::domain::home_summary,
         commands::domain::truck_list,
@@ -79,6 +80,7 @@ fn specta_builder() -> tauri_specta::Builder {
         commands::domain::classes_list,
         commands::domain::plans_list,
         commands::domain::search_all,
+        commands::domain::catalog_get,
         // Owned domain — writes (local + outbox)
         commands::domain::wo_open,
         commands::domain::wo_close,
@@ -89,9 +91,20 @@ fn specta_builder() -> tauri_specta::Builder {
         commands::domain::wo_task_set_done,
         commands::domain::record_baseline,
         commands::domain::chassis_delete,
+        commands::domain::wo_delete,
+        commands::domain::wo_set_notes,
+        commands::domain::wo_task_update,
         commands::domain::oil_add,
+        commands::domain::oil_update,
+        commands::domain::oil_delete,
         commands::domain::override_set,
         commands::domain::class_assign,
+        commands::domain::class_unassign,
+        commands::domain::mount_undo,
+        commands::domain::dismount_undo,
+        commands::domain::dismount_set_reason,
+        commands::domain::tire_update,
+        commands::domain::tire_delete,
         commands::domain::mount_from_stock,
         commands::domain::mount_used,
         commands::domain::dismount,
@@ -104,8 +117,19 @@ fn specta_builder() -> tauri_specta::Builder {
         commands::online::reference_refresh,
         commands::online::stock_refresh,
         commands::online::plan_upsert,
+        commands::online::plan_delete,
+        commands::online::stock_count_tires,
+        commands::online::stock_count_oil,
+        commands::online::catalog_rename_tire_product,
+        commands::online::catalog_merge_tire_product,
+        commands::online::catalog_rename_oil_product,
+        commands::online::catalog_merge_oil_product,
+        commands::online::catalog_save_job,
+        commands::online::catalog_remove_job,
+        commands::online::stock_credit_tires,
+        commands::online::stock_credit_oil,
         commands::online::class_create,
-        commands::online::ai_query,
+        commands::online::ai_search,
         commands::online::service_events,
         commands::online::stock_movements,
         commands::online::stock_movements_refresh,
@@ -186,17 +210,41 @@ pub fn run() {
                     if session_store::read_jwt(&boot_state.data_dir).ok().flatten().is_some() {
                         commands::online::refresh_all_mirrors(&boot_state).await;
                     }
+                    // Heartbeat: send what is queued, and pull on a slower
+                    // beat so a second garage's work shows up without anyone
+                    // pressing a button. (Pull used to run only at start-up,
+                    // at login or from Settings.)
+                    let pull_every = (120 / heartbeat.as_secs().max(1)).max(1);
+                    let mirrors_every = (900 / heartbeat.as_secs().max(1)).max(1);
+                    let mut tick: u64 = 0;
                     loop {
                         tokio::time::sleep(heartbeat).await;
+                        tick += 1;
                         let Ok(s) = engine.status() else { continue };
-                        if s.pending > 0 || s.inflight > 0 {
-                            let _ = engine.drain().await;
-                        } else if !s.online && !s.auth_paused {
-                            // Empty queue + offline flag: a drain makes no
-                            // network call, so the flag would stick forever.
-                            // A pull both probes AND refreshes — success
-                            // marks the engine online again.
-                            let _ = engine.pull().await;
+                        if s.auth_paused {
+                            continue;
+                        }
+                        let signed_in = session_store::read_jwt(&boot_state.data_dir).ok().flatten().is_some();
+                        if s.pending > 0 {
+                            let sent = engine.drain().await.is_ok();
+                            // What was just sent may have added a tire or oil
+                            // type to the lists.
+                            if sent && signed_in {
+                                commands::online::catalog_refresh_inner(&boot_state).await;
+                            }
+                        }
+                        if !s.online || tick % pull_every == 0 {
+                            // Offline: a pull is also the probe that brings
+                            // the engine back online.
+                            if engine.pull().await.is_ok() && signed_in {
+                                commands::online::catalog_refresh_inner(&boot_state).await;
+                            }
+                        }
+                        if tick % mirrors_every == 0
+                            && session_store::read_jwt(&boot_state.data_dir).ok().flatten().is_some()
+                        {
+                            // Fleet list, odometers and stock go stale too.
+                            commands::online::refresh_light_mirrors(&boot_state).await;
                         }
                     }
                 });

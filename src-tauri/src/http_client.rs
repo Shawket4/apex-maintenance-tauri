@@ -50,6 +50,36 @@ impl HttpClient {
         )
     }
 
+    fn rust_url(&self, path: &str) -> String {
+        format!(
+            "{}{}{}",
+            self.config.backend.base_url, self.config.backend.rust_prefix, path
+        )
+    }
+
+    /// Authenticated POST to apex-rust (same JWT as maint-rust: apex-rust's
+    /// JwtAuth accepts the admin_user HS256 token maint-rust mints), with its
+    /// own timeout so a slow optional call can't eat the whole request budget.
+    pub async fn rust_post_raw<B: Serialize>(
+        &self,
+        path: &str,
+        body: &B,
+        timeout: std::time::Duration,
+    ) -> AppResult<RawResponse> {
+        let jwt = self.require_jwt()?;
+        let url = self.rust_url(path);
+        tracing::debug!(%url, "rust POST");
+        let resp = self
+            .inner
+            .post(&url)
+            .timeout(timeout)
+            .header(header::AUTHORIZATION, format!("Bearer {jwt}"))
+            .json(body)
+            .send()
+            .await?;
+        consume_response(&url, resp).await
+    }
+
     pub async fn falcon_login_raw<B: Serialize>(
         &self,
         path: &str,
@@ -131,6 +161,35 @@ impl HttpClient {
         consume_response(&url, resp).await
     }
 
+    /// PUT/PATCH with a JSON body.
+    pub async fn maint_send_raw<B: Serialize>(&self, method: &str, path: &str, body: &B) -> AppResult<RawResponse> {
+        let jwt = self.require_jwt()?;
+        let url = self.maint_url(path);
+        tracing::debug!(%url, %method, "maint request");
+        let m = reqwest::Method::from_bytes(method.as_bytes()).map_err(|e| AppError::Internal(e.to_string()))?;
+        let resp = self
+            .inner
+            .request(m, &url)
+            .header(header::AUTHORIZATION, format!("Bearer {jwt}"))
+            .json(body)
+            .send()
+            .await?;
+        consume_response(&url, resp).await
+    }
+
+    pub async fn maint_delete_raw(&self, path: &str) -> AppResult<RawResponse> {
+        let jwt = self.require_jwt()?;
+        let url = self.maint_url(path);
+        tracing::debug!(%url, "maint DELETE");
+        let resp = self
+            .inner
+            .delete(&url)
+            .header(header::AUTHORIZATION, format!("Bearer {jwt}"))
+            .send()
+            .await?;
+        consume_response(&url, resp).await
+    }
+
     pub async fn get<T: serde::de::DeserializeOwned>(&self, path: &str) -> AppResult<T> {
         let raw = self.maint_get_raw(path).await?;
         Ok(serde_json::from_str(&raw.body)?)
@@ -147,6 +206,10 @@ impl HttpClient {
 
     fn require_jwt(&self) -> AppResult<String> {
         session_store::read_jwt(&self.data_dir)?.ok_or(AppError::Unauthorized)
+    }
+
+    pub fn data_dir(&self) -> &std::path::Path {
+        &self.data_dir
     }
 
     pub fn base_url(&self) -> &str {
@@ -180,11 +243,19 @@ async fn consume_response(url: &str, resp: Response) -> AppResult<RawResponse> {
 
     if !status.is_success() {
         tracing::warn!(%url, %status, body = %truncate(&body, 500), "non-2xx response");
-        return Err(AppError::Http(format!(
-            "{} — {}",
-            status,
-            truncate(&body, 500)
-        )));
+        let envelope = serde_json::from_str::<serde_json::Value>(&body).ok();
+        let field = |k: &str| {
+            envelope
+                .as_ref()
+                .and_then(|v| v.get(k))
+                .and_then(|v| v.as_str())
+                .map(str::to_string)
+        };
+        return Err(AppError::Status {
+            status: status.as_u16(),
+            code: field("error").unwrap_or_default(),
+            message: field("message").unwrap_or_else(|| format!("the server answered {}", status.as_u16())),
+        });
     }
 
     Ok(RawResponse { status, body })

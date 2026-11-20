@@ -1,0 +1,42 @@
+{
+  "rangeLabel": "Period",
+  "kindLabel": "Type",
+  "range": {
+    "7": "Last week",
+    "30": "Last month",
+    "90": "Last 3 months",
+    "all": "All time"
+  },
+  "updating": "Loading movements…",
+  "upToDate": "Movements are up to date for this period.",
+  "offlineNotice": "No connection — showing what was last saved on this device.",
+  "refreshFailed": "Movements were not updated: {{why}}",
+  "lastUpdated": "Last updated from this device: {{at}}",
+  "savedOnly": "Some movements of this period may be missing until it is updated.",
+  "refresh": "Refresh movements",
+  "totalsTitle": "Totals — {{range}}",
+  "totals": {
+    "tiresIn": "Tires in",
+    "tiresOut": "Tires out",
+    "oilIn": "Oil in (liters)",
+    "oilOut": "Oil out (liters)"
+  },
+  "unmirroredCount": "Movements not recorded in the fleet system: {{n}} — its stock numbers do not include them.",
+  "emptyKind": "No movements of this type in this period",
+  "shownOf": "Showing {{shown}} of {{total}}",
+  "what": {
+    "received": "Stock received",
+    "usedOn": "Used on",
+    "used": "Taken out of stock",
+    "adjustIn": "Stock count correction — added",
+    "adjustOut": "Stock count correction — removed",
+    "count": "Stock count:",
+    "countMore": "more was counted than recorded",
+    "countLess": "fewer were counted than recorded"
+  },
+  "note": "Note:",
+  "notMirrored": "Not recorded in the fleet system",
+  "notMirroredWhy": "(press for the reason)",
+  "notMirroredHelp": "This movement is recorded here only; the stock numbers in the fleet system do not include it. Give these details to whoever looks after the system:",
+  "by": "By:"
+}

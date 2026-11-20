@@ -23,10 +23,10 @@ use crate::commands::sync::EngineState;
 use crate::error::CmdResult;
 use crate::services::domain::{
     self, ChassisConfig, DismountInput, LegacyTireInput, MountFromStockInput, MountUsedInput,
-    OnboardPositionInput,
+    OnboardPositionInput, TireEditInput,
 };
 use crate::services::views::{
-    self, CategoryRow, ChassisPayload, ClassRow, DueRow, HomeSummary, PlanRow, SearchResults,
+    self, CatalogView, CategoryRow, ChassisPayload, ClassRow, DueRow, HomeSummary, PlanRow, SearchResults,
     StockView, TireFile, TireRow, TruckRow, WoDetail, WoListRow,
 };
 use crate::{session_store, AppError, AppResult, AppState};
@@ -138,6 +138,13 @@ pub async fn classes_list(state: State<'_, AppState>) -> CmdResult<Vec<ClassRow>
 #[specta::specta]
 pub async fn plans_list(state: State<'_, AppState>) -> CmdResult<Vec<PlanRow>> {
     Ok(views::plans_list(&state.db)?)
+}
+
+/// Options for the tire / oil / job pickers.
+#[tauri::command]
+#[specta::specta]
+pub async fn catalog_get(state: State<'_, AppState>) -> CmdResult<CatalogView> {
+    Ok(views::catalog(&state.db)?)
 }
 
 #[tauri::command]
@@ -287,16 +294,78 @@ pub async fn oil_add(
     state: State<'_, AppState>,
     engine: State<'_, EngineState>,
     work_order_id: String,
-    vehicle_id: i64,
     oil_type: String,
     liters: f64,
     odometer: Option<i64>,
 ) -> CmdResult<OilAddResult> {
     let uid = current_user_id(&state)?;
-    let (oil_id, flagged) =
-        domain::oil_add(&state.db, &work_order_id, vehicle_id, &oil_type, liters, odometer, uid)?;
+    let (oil_id, flagged) = domain::oil_add(&state.db, &work_order_id, &oil_type, liters, odometer, uid)?;
     kick(&engine);
     Ok(OilAddResult { oil_id, flagged })
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn oil_update(
+    state: State<'_, AppState>,
+    engine: State<'_, EngineState>,
+    id: String,
+    oil_type: String,
+    liters: f64,
+    odometer: Option<i64>,
+) -> CmdResult<bool> {
+    let uid = current_user_id(&state)?;
+    let flagged = domain::oil_update(&state.db, &id, &oil_type, liters, odometer, uid)?;
+    kick(&engine);
+    Ok(flagged)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn oil_delete(state: State<'_, AppState>, engine: State<'_, EngineState>, id: String) -> CmdResult<()> {
+    let uid = current_user_id(&state)?;
+    domain::oil_delete(&state.db, &id, uid)?;
+    kick(&engine);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn wo_delete(state: State<'_, AppState>, engine: State<'_, EngineState>, id: String) -> CmdResult<()> {
+    let uid = current_user_id(&state)?;
+    domain::wo_delete(&state.db, &id, uid)?;
+    kick(&engine);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn wo_set_notes(
+    state: State<'_, AppState>,
+    engine: State<'_, EngineState>,
+    id: String,
+    title: Option<String>,
+    notes: Option<String>,
+) -> CmdResult<()> {
+    let uid = current_user_id(&state)?;
+    domain::wo_set_notes(&state.db, &id, title.as_deref(), notes.as_deref(), uid)?;
+    kick(&engine);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn wo_task_update(
+    state: State<'_, AppState>,
+    engine: State<'_, EngineState>,
+    task_id: String,
+    category_id: Option<String>,
+    description_ar: String,
+) -> CmdResult<()> {
+    let uid = current_user_id(&state)?;
+    domain::wo_task_update(&state.db, &task_id, category_id.as_deref(), &description_ar, uid)?;
+    kick(&engine);
+    Ok(())
 }
 
 // ── odometer / class ─────────────────────────────────────────────────────────
@@ -436,6 +505,73 @@ pub async fn tire_set_status(
 ) -> CmdResult<()> {
     let uid = current_user_id(&state)?;
     domain::tire_set_status(&state.db, &tire_id, &to_status, &event_type, notes.as_deref(), uid)?;
+    kick(&engine);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn class_unassign(state: State<'_, AppState>, engine: State<'_, EngineState>, vehicle_id: i64) -> CmdResult<()> {
+    let uid = current_user_id(&state)?;
+    domain::class_unassign(&state.db, vehicle_id, uid)?;
+    kick(&engine);
+    Ok(())
+}
+
+/// Undo a mount made by mistake (wrong tire or wrong wheel).
+#[tauri::command]
+#[specta::specta]
+pub async fn mount_undo(state: State<'_, AppState>, engine: State<'_, EngineState>, assignment_id: String) -> CmdResult<()> {
+    let uid = current_user_id(&state)?;
+    domain::mount_undo(&state.db, &assignment_id, uid)?;
+    kick(&engine);
+    Ok(())
+}
+
+/// Undo a dismount made by mistake: the tire goes back on its wheel.
+#[tauri::command]
+#[specta::specta]
+pub async fn dismount_undo(state: State<'_, AppState>, engine: State<'_, EngineState>, assignment_id: String) -> CmdResult<()> {
+    let uid = current_user_id(&state)?;
+    domain::dismount_undo(&state.db, &assignment_id, uid)?;
+    kick(&engine);
+    Ok(())
+}
+
+/// Correct why a tire came off (the tire's status follows the reason).
+#[tauri::command]
+#[specta::specta]
+pub async fn dismount_set_reason(
+    state: State<'_, AppState>,
+    engine: State<'_, EngineState>,
+    assignment_id: String,
+    reason: String,
+) -> CmdResult<()> {
+    let uid = current_user_id(&state)?;
+    domain::dismount_set_reason(&state.db, &assignment_id, &reason, uid)?;
+    kick(&engine);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn tire_update(
+    state: State<'_, AppState>,
+    engine: State<'_, EngineState>,
+    tire_id: String,
+    input: TireEditInput,
+) -> CmdResult<()> {
+    let uid = current_user_id(&state)?;
+    domain::tire_update(&state.db, &tire_id, &input, uid)?;
+    kick(&engine);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn tire_delete(state: State<'_, AppState>, engine: State<'_, EngineState>, tire_id: String) -> CmdResult<()> {
+    let uid = current_user_id(&state)?;
+    domain::tire_delete(&state.db, &tire_id, uid)?;
     kick(&engine);
     Ok(())
 }

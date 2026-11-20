@@ -73,7 +73,7 @@ pub const ENTITIES: &[EntityMeta] = &[
         pk: "id",
         columns: &[
             "id", "work_order_id", "kind", "category_id", "description_ar", "description_en",
-            "is_done", "sort_order", "created_at", "updated_at", "deleted_at",
+            "is_done", "done_at", "sort_order", "standard_job_id", "created_at", "updated_at", "deleted_at",
             "created_by_user_id", "updated_by_user_id", "sync_version",
         ],
         bool_cols: &["is_done"],
@@ -84,7 +84,7 @@ pub const ENTITIES: &[EntityMeta] = &[
         pk: "id",
         columns: &[
             "id", "work_order_id", "vehicle_id", "oil_type", "liters", "odometer", "flagged",
-            "notes", "performed_at", "created_at", "updated_at", "deleted_at",
+            "notes", "performed_at", "oil_product_id", "created_at", "updated_at", "deleted_at",
             "created_by_user_id", "updated_by_user_id", "sync_version",
         ],
         bool_cols: &["flagged"],
@@ -115,7 +115,7 @@ pub const ENTITIES: &[EntityMeta] = &[
         pk: "id",
         columns: &[
             "id", "dot_code", "brand", "model", "size", "status", "origin", "total_km",
-            "parent_tire_id", "retread_count", "notes_ar", "notes_en",
+            "parent_tire_id", "retread_count", "notes_ar", "notes_en", "tire_product_id",
             "created_at", "updated_at", "deleted_at",
             "created_by_user_id", "updated_by_user_id", "sync_version",
         ],
@@ -159,6 +159,26 @@ pub fn pk_for(entity: &str) -> &'static str {
 pub fn columns_for(entity: &str) -> &'static [&'static str] {
     meta(entity).map(|m| m.columns).unwrap_or(&[])
 }
+
+/// The entity a foreign-key payload column points at.
+pub fn fk_target(col: &str) -> Option<&'static str> {
+    match col {
+        "layout_id" => Some("chassis_layouts"),
+        "axle_id" => Some("chassis_axles"),
+        "position_id" => Some("chassis_positions"),
+        "work_order_id" | "dismount_work_order_id" => Some("work_orders"),
+        "tire_id" | "parent_tire_id" => Some("tires"),
+        _ => None,
+    }
+}
+
+/// Columns the server never accepts from a client (it assigns them). Left out
+/// of outbox payloads so a payload says exactly what the user changed.
+pub const SERVER_OWNED: &[&str] = &[
+    "created_at", "updated_at", "deleted_at", "created_by_user_id", "updated_by_user_id", "sync_version",
+    // Catalog links: the server resolves text to a catalog row.
+    "tire_product_id", "oil_product_id", "standard_job_id",
+];
 
 #[cfg(test)]
 mod tests {

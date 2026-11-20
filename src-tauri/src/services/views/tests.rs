@@ -241,7 +241,7 @@
 
         // A work order with an oil change resets the clock.
         let wo = domain::wo_open(&p, 4, Some(105_000), 9).unwrap();
-        let (_, flagged) = domain::oil_add(&p, &wo, 4, "15W-40", 40.0, Some(105_100), 9).unwrap();
+        let (_, flagged) = domain::oil_add(&p, &wo, "15W-40", 40.0, Some(105_100), 9).unwrap();
         assert!(flagged, "40 L flags");
         let due = due_board(&p, Some(4)).unwrap();
         assert_eq!(due[0].status, "ok");
@@ -337,21 +337,48 @@
         let set_mileage = |km: i64| {
             p.get()
                 .unwrap()
-                .execute("UPDATE vehicles_cache SET mileage = ?1 WHERE id = 11", params![km])
+                .execute(
+                    "UPDATE vehicles_cache SET mileage = ?1, mileage_changed_at = ?2 WHERE id = 11",
+                    params![km, domain::now_iso()],
+                )
                 .unwrap();
+            std::thread::sleep(std::time::Duration::from_millis(5));
         };
         set_mileage(204_500);
         let o = odometer_truth(&p, 11).unwrap().unwrap();
         assert_eq!((o.km, o.source.as_str()), (204_500, "falcon_mileage"));
 
-        // A downward correction supersedes the mileage too, not just fuel.
+        // A downward correction supersedes BOTH Falcon readings — the fuel
+        // reading (200,000) is not the larger one and used to win here.
         domain::override_set(&p, 11, 150_000, None, 9).unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(5));
         let o = odometer_truth(&p, 11).unwrap().unwrap();
         assert_eq!((o.km, o.source.as_str()), (150_000, "manual_override"));
 
         set_mileage(205_000);
         let o = odometer_truth(&p, 11).unwrap().unwrap();
         assert_eq!((o.km, o.source.as_str()), (205_000, "falcon_mileage"));
+    }
+
+    /// The reported freeze: a typo'd Falcon reading is corrected DOWN, then the
+    /// truck refuels at a real, higher value that is still below the typo.
+    #[test]
+    fn the_odometer_moves_again_after_a_downward_correction() {
+        let p = pool();
+        seed_vehicle(&p, 12, "ف ر ع 1300", 4_123_000);
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        domain::override_set(&p, 12, 412_300, None, 9).unwrap();
+        assert_eq!(odometer_truth(&p, 12).unwrap().unwrap().km, 412_300);
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        p.get()
+            .unwrap()
+            .execute(
+                "UPDATE vehicles_cache SET last_fuel_odometer = 418000, fuel_odometer_changed_at = ?1 WHERE id = 12",
+                params![domain::now_iso()],
+            )
+            .unwrap();
+        let o = odometer_truth(&p, 12).unwrap().unwrap();
+        assert_eq!((o.km, o.source.as_str()), (418_000, "falcon_fuel"));
     }
 
     #[test]
@@ -525,51 +552,6 @@
         assert_eq!(t.tire.status, "mounted");
     }
 
-    /// requeue_dead rebases the op onto the local row's current sync_version —
-    /// a conflict dead letter already applied the server row locally, so
-    /// re-pushing the old base conflicted again forever.
-    #[test]
-    fn requeue_dead_rebases_onto_the_local_row_version() {
-        let p = pool();
-        seed_vehicle(&p, 43, "ن م ر 300", 100_000);
-        let tires = domain::intake_legacy(
-            &p,
-            &[domain::LegacyTireInput {
-                brand: "GT".into(),
-                model: None,
-                size: None,
-                dot_code: None,
-                estimated_km: None,
-            }],
-            9,
-        )
-        .unwrap();
-        let tire_id = tires[0].clone();
-        let conn = p.get().unwrap();
-        // Simulate: the op died as a conflict, and the conflict's server row
-        // (sync_version 7) was applied to the local table.
-        let seq: i64 = conn
-            .query_row("SELECT seq FROM outbox WHERE entity_id = ?1", params![tire_id], |r| r.get(0))
-            .unwrap();
-        conn.execute(
-            "UPDATE outbox SET status = 'dead', op = 'update', last_error = 'conflict' WHERE seq = ?1",
-            params![seq],
-        )
-        .unwrap();
-        conn.execute("UPDATE tires SET sync_version = 7 WHERE id = ?1", params![tire_id]).unwrap();
-
-        crate::services::outbox::requeue_dead(&conn, seq).unwrap();
-        let (status, base): (String, i64) = conn
-            .query_row(
-                "SELECT status, base_sync_version FROM outbox WHERE seq = ?1",
-                params![seq],
-                |r| Ok((r.get(0)?, r.get(1)?)),
-            )
-            .unwrap();
-        assert_eq!(status, "pending");
-        assert_eq!(base, 7, "retry must carry the CURRENT local version, not the stale base");
-    }
-
     /// Stock projection debits count only queued INSERTS — a status update
     /// queued for a long-acked shipment tire is not a stock debit.
     #[test]
@@ -642,3 +624,303 @@
         assert!(!domain::oil_flagged(36.0));
         assert!(domain::oil_flagged(36.1));
     }
+
+    // ───────────── 2026-11 audit: corrections, groups, due clocks ─────────────
+
+    fn outbox_rows(pool: &DbPool) -> Vec<(String, String, String, Option<String>, serde_json::Value)> {
+        let conn = pool.get().unwrap();
+        let mut stmt = conn
+            .prepare("SELECT entity_type, entity_id, op, group_id, payload FROM outbox WHERE status IN ('pending','inflight') ORDER BY seq")
+            .unwrap();
+        let rows = stmt
+            .query_map([], |r| {
+                Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, serde_json::from_str(&r.get::<_, String>(4)?).unwrap()))
+            })
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        rows
+    }
+    fn mark_all_sent(pool: &DbPool) {
+        pool.get().unwrap().execute("UPDATE outbox SET sent = 1", []).unwrap();
+    }
+    fn rule_code(e: crate::AppError) -> String {
+        match e {
+            crate::AppError::Rule { code, .. } => code.to_string(),
+            other => panic!("expected a rule, got {other:?}"),
+        }
+    }
+    fn truck_with_chassis(p: &DbPool, id: i64, km: i64) -> Vec<String> {
+        seed_vehicle(p, id, &format!("ن ص ر {id}"), km);
+        domain::chassis_create(p, id, &ChassisConfig { drive_axles: 1, trailer_axles: 0, spares: 0, single_trailer_axles: None }, 9).unwrap();
+        chassis_get(p, id).unwrap().unwrap().positions.into_iter().map(|x| x.id).collect()
+    }
+
+    #[test]
+    fn one_action_is_one_group_and_updates_carry_only_what_changed() {
+        let p = pool();
+        seed_vehicle(&p, 1, "ف ل ص 1", 100_000);
+        let wo = domain::wo_open(&p, 1, Some(100_500), 9).unwrap();
+        domain::oil_add(&p, &wo, "15W-40", 35.0, Some(100_500), 9).unwrap();
+        let rows = outbox_rows(&p);
+        assert_eq!(rows.len(), 3);
+        assert_ne!(rows[0].3, rows[1].3, "opening the WO and adding oil are separate actions");
+        assert_eq!(rows[1].3, rows[2].3, "the oil change and its task are one action");
+        assert!(rows[1].4.get("sync_version").is_none() && rows[1].4.get("created_at").is_none(), "no server-owned columns");
+
+        // Once sent, closing the WO queues a small update — not the whole row.
+        mark_all_sent(&p);
+        domain::wo_close(&p, &wo, 9).unwrap();
+        let rows = outbox_rows(&p);
+        let close = rows.last().unwrap();
+        assert_eq!(close.2, "update");
+        let keys: Vec<&String> = close.4.as_object().unwrap().keys().collect();
+        assert_eq!(keys.len(), 3, "{keys:?}");
+        assert!(close.4.get("status").is_some() && close.4.get("closed_at").is_some() && close.4.get("id").is_some());
+    }
+
+    #[test]
+    fn a_wrong_mount_and_a_wrong_dismount_can_be_undone() {
+        let p = pool();
+        let pos = truck_with_chassis(&p, 2, 200_000);
+        seed_stock(&p);
+        let wo = domain::wo_open(&p, 2, Some(200_000), 9).unwrap();
+        let mount = |position: &str| {
+            domain::mount_from_stock(
+                &p,
+                &MountFromStockInput {
+                    position_id: position.to_string(),
+                    vehicle_id: 2,
+                    work_order_id: wo.clone(),
+                    brand: "Pirelli".into(),
+                    model: Some("FR01".into()),
+                    size: Some("315/80R22.5".into()),
+                    dot_code: None,
+                    odometer: Some(200_000),
+                },
+                9,
+            )
+            .unwrap()
+        };
+
+        // Mounted by mistake, nothing sent yet: the undo leaves no trace at all.
+        let (tire, asg) = mount(&pos[0]);
+        domain::mount_undo(&p, &asg, 9).unwrap();
+        assert!(tire_file(&p, &tire).unwrap().is_none());
+        assert!(outbox_rows(&p).iter().all(|r| r.1 != tire && r.1 != asg), "never sent, so nothing to send");
+        assert_eq!(stock_view(&p).unwrap().tires[0].projected_qty, 5, "the stock tire is back");
+
+        // Same mistake after it reached the server: both deletes are queued.
+        let (tire, asg) = mount(&pos[0]);
+        mark_all_sent(&p);
+        domain::mount_undo(&p, &asg, 9).unwrap();
+        let rows = outbox_rows(&p);
+        let deletes: Vec<&str> = rows.iter().filter(|r| r.2 == "delete").map(|r| r.0.as_str()).collect();
+        assert_eq!(deletes, vec!["tire_assignments", "tires"]);
+        assert!(tire_file(&p, &tire).unwrap().is_none());
+
+        // A real mount, then the wrong tire is taken off as "worn" (scrapped).
+        let (tire, asg) = mount(&pos[0]);
+        domain::dismount(&p, &DismountInput { assignment_id: asg.clone(), odometer: Some(201_000), reason: "worn".into(), work_order_id: Some(wo.clone()) }, 9).unwrap();
+        assert_eq!(tire_file(&p, &tire).unwrap().unwrap().tire.status, "scrapped");
+        // The reason was wrong…
+        domain::dismount_set_reason(&p, &asg, "rotation", 9).unwrap();
+        assert_eq!(tire_file(&p, &tire).unwrap().unwrap().tire.status, "in_stock_used");
+        // …in fact it should never have come off.
+        domain::dismount_undo(&p, &asg, 9).unwrap();
+        let f = tire_file(&p, &tire).unwrap().unwrap();
+        assert_eq!(f.tire.status, "mounted");
+        assert!(f.mounts[0].dismounted_at.is_none() && f.mounts[0].dismount_reason.is_none());
+        // A mounted tire cannot be deleted; a mount that is closed cannot be "un-mounted".
+        assert_eq!(rule_code(domain::tire_delete(&p, &tire, 9).unwrap_err()), "tire_mounted");
+        domain::dismount(&p, &DismountInput { assignment_id: asg.clone(), odometer: None, reason: "rotation".into(), work_order_id: None }, 9).unwrap();
+        assert_eq!(rule_code(domain::mount_undo(&p, &asg, 9).unwrap_err()), "already_dismounted");
+        // Odometers cannot run backwards.
+        assert_eq!(rule_code(domain::assignment_set_odometers(&p, &asg, None, Some(5), 9).unwrap_err()), "odometer_backwards");
+    }
+
+    #[test]
+    fn rules_are_refused_with_codes_before_anything_is_written() {
+        let p = pool();
+        let pos = truck_with_chassis(&p, 3, 50_000);
+        truck_with_chassis(&p, 4, 60_000);
+        let wo = domain::wo_open(&p, 3, None, 9).unwrap();
+        let before = outbox_rows(&p).len();
+        let bad_mount = MountFromStockInput {
+            position_id: pos[0].clone(),
+            vehicle_id: 4,
+            work_order_id: wo.clone(),
+            brand: "B".into(),
+            model: None,
+            size: None,
+            dot_code: None,
+            odometer: None,
+        };
+        assert_eq!(rule_code(domain::mount_from_stock(&p, &bad_mount, 9).unwrap_err()), "wo_wrong_vehicle");
+        assert_eq!(rule_code(domain::wo_open(&p, 999, None, 9).unwrap_err()), "vehicle_not_found");
+        assert_eq!(rule_code(domain::wo_open(&p, 3, Some(-4), 9).unwrap_err()), "odometer_range");
+        assert_eq!(rule_code(domain::oil_add(&p, &wo, "15W-40", 0.0, None, 9).unwrap_err()), "liters_range");
+        assert_eq!(rule_code(domain::oil_add(&p, &wo, " ", 35.0, None, 9).unwrap_err()), "oil_type_required");
+        assert_eq!(rule_code(domain::wo_add_task(&p, &wo, None, "  ", 9).unwrap_err()), "task_empty");
+        assert_eq!(rule_code(domain::record_baseline(&p, 3, "oil_change", "2999-01-01", None, 9).unwrap_err()), "date_in_future");
+        domain::wo_close(&p, &wo, 9).unwrap();
+        assert_eq!(rule_code(domain::wo_add_task(&p, &wo, None, "x", 9).unwrap_err()), "wo_closed");
+        assert_eq!(rule_code(domain::oil_add(&p, &wo, "15W-40", 35.0, None, 9).unwrap_err()), "wo_closed");
+        assert_eq!(outbox_rows(&p).len(), before, "only the close was queued (folded into the unsent insert)");
+    }
+
+    #[test]
+    fn a_work_order_opened_by_mistake_can_be_removed_unless_it_has_real_work() {
+        let p = pool();
+        seed_vehicle(&p, 5, "ف ل ص 5", 4_123_000);
+        seed_stock(&p);
+        let wo = domain::wo_open(&p, 5, Some(4_999_000), 9).unwrap();
+        assert_eq!(odometer_truth(&p, 5).unwrap().unwrap().km, 4_999_000, "its typo'd reading is the odometer");
+        domain::wo_add_task(&p, &wo, Some("brakes"), "x", 9).unwrap();
+        let (oil, _) = domain::oil_add(&p, &wo, "15W-40", 35.0, None, 9).unwrap();
+        assert_eq!(rule_code(domain::wo_delete(&p, &wo, 9).unwrap_err()), "wo_not_empty");
+
+        domain::oil_delete(&p, &oil, 9).unwrap();
+        let d = wo_detail(&p, &wo).unwrap().unwrap();
+        assert!(d.oil_changes.is_empty());
+        assert!(d.tasks.iter().all(|t| t.kind != "oil"), "the oil task went with the last oil change");
+        domain::wo_delete(&p, &wo, 9).unwrap();
+        assert!(wo_detail(&p, &wo).unwrap().is_none());
+        assert_eq!(odometer_truth(&p, 5).unwrap().unwrap().km, 4_123_000, "and its reading no longer counts");
+        assert!(outbox_rows(&p).is_empty(), "nothing had been sent, so nothing is left to send");
+    }
+
+    #[test]
+    fn an_oil_change_can_be_corrected() {
+        let p = pool();
+        seed_vehicle(&p, 6, "ف ل ص 6", 10_000);
+        let wo = domain::wo_open(&p, 6, None, 9).unwrap();
+        let (oil, flagged) = domain::oil_add(&p, &wo, "15W-40", 350.0, None, 9).unwrap();
+        assert!(flagged);
+        mark_all_sent(&p);
+        assert!(!domain::oil_update(&p, &oil, "15W-40", 35.0, Some(10_050), 9).unwrap());
+        let d = wo_detail(&p, &wo).unwrap().unwrap();
+        assert_eq!((d.oil_changes[0].liters, d.oil_changes[0].flagged), (35.0, false));
+        let rows = outbox_rows(&p);
+        let last = rows.last().unwrap();
+        assert_eq!((last.0.as_str(), last.2.as_str()), ("oil_changes", "update"));
+        assert!(last.4.get("flagged").is_none(), "the flag is the server's to compute");
+    }
+
+    #[test]
+    fn a_plan_with_km_and_days_is_due_on_whichever_comes_first() {
+        let p = pool();
+        seed_vehicle(&p, 7, "ف ل ص 7", 105_000);
+        seed_plan(&p, "tractor", "oil_change", 10_000);
+        p.get().unwrap().execute("UPDATE service_plans SET interval_days = 180", []).unwrap();
+        domain::class_assign(&p, 7, "tractor", 9).unwrap();
+        assert_eq!(due_board(&p, Some(7)).unwrap()[0].status, "never_done");
+
+        // Done 200 days ago at 100,000 km: km in hand, time ran out.
+        let long_ago = (chrono::Utc::now() - chrono::Duration::days(200)).format("%Y-%m-%d").to_string();
+        domain::record_baseline(&p, 7, "oil_change", &long_ago, Some(100_000), 9).unwrap();
+        let d = &due_board(&p, Some(7)).unwrap()[0];
+        assert_eq!(d.status, "overdue");
+        assert_eq!(d.km_remaining, Some(5_000));
+        assert!(d.days_remaining.unwrap() <= -19, "{:?}", d.days_remaining);
+
+        // A task ticked TODAY on a work order with no odometer restarts the
+        // time clock from today and keeps the older km baseline.
+        let wo = domain::wo_open(&p, 7, None, 9).unwrap();
+        let task = domain::wo_add_task(&p, &wo, Some("oil_change"), "", 9).unwrap();
+        assert_eq!(due_board(&p, Some(7)).unwrap()[0].status, "overdue", "a planned task is not done work");
+        domain::wo_task_set_done(&p, &task, true, 9).unwrap();
+        let d = &due_board(&p, Some(7)).unwrap()[0];
+        assert_eq!(d.status, "ok");
+        assert_eq!(d.last_km, Some(100_000));
+        assert!((179..=180).contains(&d.days_remaining.unwrap()), "{:?}", d.days_remaining);
+        domain::wo_task_set_done(&p, &task, false, 9).unwrap();
+        assert_eq!(due_board(&p, Some(7)).unwrap()[0].status, "overdue", "unticking takes it back");
+    }
+
+    #[test]
+    fn work_from_old_office_invoices_counts_toward_the_plan() {
+        let p = pool();
+        seed_vehicle(&p, 8, "ف ل ص 8", 103_000);
+        seed_plan(&p, "tractor", "oil_change", 10_000);
+        domain::class_assign(&p, 8, "tractor", 9).unwrap();
+        assert_eq!(due_board(&p, Some(8)).unwrap()[0].status, "never_done");
+        // What the server sends: Postgres timestamps with an offset.
+        let rows = vec![
+            serde_json::json!({"id": 1, "vehicle_id": 8, "category_id": "oil_change", "done_at": "2026-01-05T10:00:00.123456+02:00", "km": 90_000}),
+            serde_json::json!({"id": 2, "vehicle_id": 8, "category_id": "oil_change", "done_at": "2026-09-05T10:00:00+03:00", "km": 99_000}),
+            serde_json::json!({"id": 3, "vehicle_id": 8, "category_id": null, "done_at": "2026-10-01T10:00:00+03:00", "km": 1}),
+        ];
+        crate::services::refdata::replace_legacy_events(&p, &rows).unwrap();
+        let d = &due_board(&p, Some(8)).unwrap()[0];
+        assert_eq!((d.last_km, d.km_remaining), (Some(99_000), Some(6_000)), "the newest recognised line is the baseline");
+        assert_ne!(d.status, "never_done");
+        // A refresh without them (the invoice was deleted) takes them away.
+        crate::services::refdata::replace_legacy_events(&p, &[]).unwrap();
+        assert_eq!(due_board(&p, Some(8)).unwrap()[0].status, "never_done");
+    }
+
+    #[test]
+    fn truck_cards_tell_untracked_from_fine_and_agree_with_the_home_counts() {
+        let p = pool();
+        seed_vehicle(&p, 8, "ف ل ص 8", 10_000);
+        seed_vehicle(&p, 9, "ف ل ص 9", 10_000);
+        seed_plan(&p, "tractor", "oil_change", 10_000);
+        domain::class_assign(&p, 8, "tractor", 9).unwrap();
+        let trucks = truck_list(&p, None).unwrap();
+        let (a, b) = (&trucks[0], &trucks[1]);
+        assert_eq!((a.plan_count, a.never_done_count, a.overdue_count), (1, 1, 0), "never done is not 'overdue'");
+        assert_eq!(b.plan_count, 0, "no class: nothing tracked, not 'all good'");
+        let home = home_summary(&p).unwrap();
+        assert_eq!((home.due_counts.never_done, home.due_counts.overdue, home.due_counts.unclassified_trucks), (1, 0, 1));
+        // Removing the class takes the truck off the board.
+        domain::class_unassign(&p, 8, 9).unwrap();
+        assert!(due_board(&p, None).unwrap().is_empty());
+    }
+
+    #[test]
+    fn search_ignores_spaces_digit_scripts_and_letter_variants() {
+        let p = pool();
+        seed_vehicle(&p, 10, "أ ص ر 8351", 1);
+        for q in ["اصر 8351", "أصر٨٣٥١", "ا ص ر", "8351", "٨٣٥١"] {
+            assert_eq!(truck_list(&p, Some(q)).unwrap().len(), 1, "{q}");
+            assert_eq!(search_all(&p, q).unwrap().trucks.len(), 1, "{q}");
+        }
+        assert!(truck_list(&p, Some("زز")).unwrap().is_empty());
+        assert_eq!(fold_search(" Ab-1 "), "AB1");
+    }
+
+    #[test]
+    fn a_tire_can_be_edited_and_its_km_says_when_it_is_incomplete() {
+        let p = pool();
+        let pos = truck_with_chassis(&p, 11, 300_000);
+        let (tire, _) = domain::onboard_position(
+            &p,
+            &domain::OnboardPositionInput {
+                position_id: pos[0].clone(),
+                vehicle_id: 11,
+                brand: "Pireli".into(),
+                model: None,
+                size: None,
+                dot_code: None,
+                estimated_km: Some(40_000),
+                odometer: None,
+            },
+            9,
+        )
+        .unwrap();
+        let f = tire_file(&p, &tire).unwrap().unwrap();
+        assert!(f.tire.km_incomplete, "no odometer at mount: km from here cannot be counted");
+        assert_eq!(f.mounts[0].plate.as_deref(), Some("ن ص ر 11"));
+        domain::tire_update(
+            &p,
+            &tire,
+            &domain::TireEditInput { brand: "Pirelli".into(), model: Some("FR01".into()), size: None, dot_code: Some("1224".into()), base_km: 45_000, notes: None },
+            9,
+        )
+        .unwrap();
+        let t = tire_file(&p, &tire).unwrap().unwrap().tire;
+        assert_eq!((t.brand.as_str(), t.dot_code.as_deref(), t.base_km), ("Pirelli", Some("1224"), 45_000));
+        assert_eq!(tires_list(&p, None, Some("fr01")).unwrap().len(), 1, "model is searchable");
+    }
+

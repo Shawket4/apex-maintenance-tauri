@@ -1,0 +1,31 @@
+{
+  "searchLabel": "Search by plate",
+  "searchPlaceholder": "Type a plate or a driver name…",
+  "clearSearch": "Clear search",
+  "filterLabel": "Filter trucks",
+  "filter": {
+    "overdue": "Overdue",
+    "never_done": "Never recorded",
+    "due_soon": "Due soon",
+    "untracked": "No maintenance plan",
+    "open_wo": "Open work order"
+  },
+  "noMatch": "No truck matches “{{q}}”",
+  "noneInFilter": "No trucks match this filter",
+  "showAll": "Show all trucks",
+  "empty": "No trucks on this device yet — open Settings and press Refresh to download them",
+  "openWoBadge": "Open work order",
+  "noOdometer": "No odometer reading",
+  "noDriver": "No driver on record",
+  "unclassified": "No class",
+  "noChassis": "Tire layout not set up yet",
+  "state": {
+    "untracked": "No maintenance plan — this truck is not tracked",
+    "untrackedNoClass": "Choose a maintenance class on the truck page",
+    "untrackedNoPlans": "Its class has no maintenance plans yet",
+    "overdue": "Overdue: {{n}}",
+    "neverDone": "Never recorded: {{n}}",
+    "dueSoon": "Due soon: {{n}}",
+    "ok": "All maintenance is on schedule"
+  }
+}

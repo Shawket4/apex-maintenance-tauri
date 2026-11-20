@@ -1,55 +1,99 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import { Loader2, Search } from "lucide-react";
 
 import { commands, unwrap, type PositionRow } from "@/shared/api/client";
-import { useDomainMutation, useStock, useTires } from "@/shared/api/queries";
-import { notifyError } from "@/shared/lib/notify";
-import { fmtNumber } from "@/shared/lib/numbers";
+import { useCatalog, useDomainMutation, useTires } from "@/shared/api/queries";
 import { cn } from "@/shared/lib/cn";
+import { notifyError, notifySuccess } from "@/shared/lib/notify";
+import { norm } from "@/shared/lib/normalize";
+import { fmtKm, fmtNumber, parseIntInput } from "@/shared/lib/numbers";
 import { Button } from "@/shared/ui/button";
 import { Input } from "@/shared/ui/input";
 import { Label } from "@/shared/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/ui/tabs";
+import { NumberInput } from "@/shared/ui/number-input";
+import { ErrorState } from "@/shared/ui/query-state";
+import { Skeleton } from "@/shared/ui/skeleton";
+import { TireProductPicker, type TireSpec } from "@/widgets/catalog/pickers";
 
-/** Mount onto an empty position, inside a WO — rendered in the inspector
- * column (the canvas is never overlaid). Two sources:
- *  - NEW from fungible stock → identity (DOT) is captured NOW; the server
- *    derives the stock debit from the shipment-origin insert.
- *  - USED from the individual pool (in_stock_used assets). */
+import { matchesSearch, sameSize, sortUsedTires } from "./pick";
+import { Note, RadioCard } from "./Workbench";
+
+type Source = "new" | "used";
+const USED_REASONS = ["replacement", "rotation", "repair_return"] as const;
+
+/** Fit a tire onto an empty wheel, inside an open work order. Two sources:
+ *  - NEW from stock: one tire of the chosen type leaves stock; its DOT is
+ *    written down now if the mechanic has it. A type the stock does not have
+ *    never blocks the job: the tire is in the mechanic's hands and the count
+ *    is corrected afterwards.
+ *  - USED: one particular tire from the used pool. */
 export function MountForm({
   position,
   vehicleId,
   workOrderId,
   defaultOdometer,
-  onClose,
+  preferredSize: likelySize,
+  previousTireId,
+  recentTireIds,
+  onDone,
+  onDirtyChange,
 }: {
   position: PositionRow;
   vehicleId: number;
   workOrderId: string;
+  /** The truck's current odometer, prefilled. */
   defaultOdometer: number | null;
-  onClose: () => void;
+  /** The size this wheel most likely takes, judged from the truck's other wheels. */
+  preferredSize: string | null;
+  /** The tire last taken off this wheel in this work order: when it is in
+   * the used pool its size is the one to match. */
+  previousTireId: string | null;
+  /** Tires taken off this truck in this work order — a rotation picks from these. */
+  recentTireIds: readonly string[];
+  onDone: () => void;
+  onDirtyChange?: (dirty: boolean) => void;
 }) {
   const { t, i18n } = useTranslation();
-  const stock = useStock();
+  const lang = i18n.language;
+  const catalog = useCatalog();
   const usedPool = useTires("in_stock_used");
-  const [stockId, setStockId] = useState<string | null>(null);
+
+  const [source, setSource] = useState<Source>("new");
+  const [spec, setSpec] = useState<TireSpec | null>(null);
   const [usedId, setUsedId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
   const [dot, setDot] = useState("");
   const [odometer, setOdometer] = useState(defaultOdometer != null ? String(defaultOdometer) : "");
-  // Free-brand path: an empty/stale stock mirror must never block a mount —
-  // the copy always promised "continue and the balance goes negative".
-  const [customBrand, setCustomBrand] = useState(false);
-  const [brand, setBrand] = useState("");
-  const [model, setModel] = useState("");
-  const [size, setSize] = useState("");
-  // The USED mount's real reason (recording rotation as "replacement" lied
-  // to the history).
-  const [usedReason, setUsedReason] = useState("replacement");
+  const [usedReason, setUsedReason] = useState<string>("replacement");
 
-  const stockLines = stock.data?.tires ?? [];
-  const line = stockLines.find((l) => l.id === stockId);
-  const useCustom = customBrand || stockLines.length === 0;
-  const newReady = useCustom ? !!brand.trim() : !!line;
+  const previousSize = previousTireId ? usedPool.data?.find((x) => x.id === previousTireId)?.size : null;
+  const preferredSize = previousSize ?? likelySize;
+
+  const usedTires = useMemo(
+    () => sortUsedTires(usedPool.data ?? [], { preferredSize, recentIds: recentTireIds }),
+    [usedPool.data, preferredSize, recentTireIds],
+  );
+  const used = usedTires.find((x) => x.id === usedId) ?? null;
+  // New-tire stock of the chosen type: null = this type is not in stock at
+  // all; undefined = not known yet (the list is still loading).
+  const onHand = useMemo(() => {
+    if (!spec || !catalog.data) return undefined;
+    const key = (x: TireSpec) => `${norm(x.brand)}|${norm(x.model)}|${norm(x.size)}`;
+    return catalog.data.tire_products.find((p) => key(p) === key(spec))?.on_hand ?? null;
+  }, [spec, catalog.data]);
+  const km = parseIntInput(odometer);
+
+  const dirty = !!(spec || usedId || dot.trim());
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
+
+  const done = () => {
+    notifySuccess(t("diagram.mount.done"));
+    onDone();
+  };
 
   const mountNew = useDomainMutation(
     () =>
@@ -58,14 +102,14 @@ export function MountForm({
           position_id: position.id,
           vehicle_id: vehicleId,
           work_order_id: workOrderId,
-          brand: useCustom ? brand.trim() : line!.brand,
-          model: useCustom ? model.trim() || null : line!.model,
-          size: useCustom ? size.trim() || null : line!.size,
-          dot_code: dot || null,
-          odometer: odometer ? Number(odometer) : null,
+          brand: spec!.brand.trim(),
+          model: spec!.model.trim() || null,
+          size: spec!.size.trim() || null,
+          dot_code: dot.trim() || null,
+          odometer: km,
         }),
       ),
-    { onSuccess: onClose, onError: notifyError },
+    { onSuccess: done, onError: notifyError },
   );
 
   const mountUsed = useDomainMutation(
@@ -76,185 +120,205 @@ export function MountForm({
           position_id: position.id,
           vehicle_id: vehicleId,
           work_order_id: workOrderId,
-          odometer: odometer ? Number(odometer) : null,
+          odometer: km,
           reason: usedReason,
         }),
       ),
-    { onSuccess: onClose, onError: notifyError },
+    { onSuccess: done, onError: notifyError },
   );
 
-  return (
-      <Tabs defaultValue="new">
-        <TabsList className="w-full">
-          <TabsTrigger value="new" className="flex-1">
-            {t("diagram.mount.fromNew")}
-          </TabsTrigger>
-          <TabsTrigger value="used" className="flex-1">
-            {t("diagram.mount.fromUsed")}
-          </TabsTrigger>
-        </TabsList>
+  const busy = mountNew.isPending || mountUsed.isPending;
+  const newReady = !!spec?.brand.trim();
+  const shownUsed = usedTires.filter((x) => matchesSearch(x, search));
 
-        <TabsContent value="new" className="space-y-3 pt-3">
-          {stockLines.length === 0 ? (
-            <p className="text-xs text-status-due_soon">{t("diagram.mount.noStock")}</p>
-          ) : !useCustom ? (
-            <div className="max-h-40 space-y-1.5 overflow-y-auto">
-              {stockLines.map((l) => (
-                <button
-                  key={l.id}
-                  onClick={() => setStockId(l.id)}
-                  className={cn(
-                    "flex w-full items-center justify-between rounded-lg border px-3 py-2 text-start text-sm transition",
-                    stockId === l.id
-                      ? "border-primary bg-primary/5 font-medium"
-                      : "hover:bg-accent",
-                  )}
-                >
-                  <span dir="ltr" className="truncate">
-                    {l.brand} {l.model ?? ""} {l.size ?? ""}
-                  </span>
-                  <span
-                    className={cn(
-                      "ms-2 shrink-0 rounded-full px-2 py-0.5 text-xs tabular",
-                      l.projected_qty <= 0
-                        ? "bg-status-overdue/10 text-status-overdue"
-                        : "bg-muted text-muted-foreground",
-                    )}
-                  >
-                    {fmtNumber(l.projected_qty, i18n.language)}
-                  </span>
-                </button>
-              ))}
-            </div>
-          ) : null}
-          {useCustom && (
-            <div className="grid grid-cols-2 gap-2">
-              <div className="col-span-2 space-y-1.5">
-                <Label htmlFor="mount-brand" className="text-xs text-muted-foreground">
-                  {t("tires.brand")}
-                </Label>
-                <Input
-                  id="mount-brand"
-                  dir="ltr"
-                  className="h-9"
-                  value={brand}
-                  onChange={(e) => setBrand(e.target.value)}
-                />
-              </div>
-              <Input
-                aria-label={t("tires.size")}
-                placeholder={t("tires.size")}
-                dir="ltr"
-                className="h-9"
-                value={size}
-                onChange={(e) => setSize(e.target.value)}
-              />
-              <Input
-                aria-label={t("diagram.mount.model")}
-                placeholder={t("diagram.mount.model")}
-                dir="ltr"
-                className="h-9"
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-              />
-            </div>
-          )}
-          {stockLines.length > 0 && (
-            <button
-              onClick={() => setCustomBrand((v) => !v)}
-              className="text-xs text-primary hover:underline"
-            >
-              {customBrand ? t("diagram.mount.pickFromStock") : t("diagram.mount.customBrand")}
-            </button>
-          )}
-          <div className="space-y-1.5">
-            <Label htmlFor="mount-dot" className="text-xs text-muted-foreground">
-              {t("diagram.mount.dotPrompt")}
-            </Label>
-            <Input id="mount-dot" dir="ltr" className="h-9" value={dot} onChange={(e) => setDot(e.target.value)} />
-          </div>
-          <OdometerField value={odometer} onChange={setOdometer} />
-          <Button
-            className="w-full"
-            disabled={!newReady || mountNew.isPending}
-            onClick={() => mountNew.mutate()}
-          >
-            {t("diagram.mount.submit")}
-          </Button>
-        </TabsContent>
-
-        <TabsContent value="used" className="space-y-3 pt-3">
-          {(usedPool.data ?? []).length === 0 ? (
-            <p className="text-xs text-muted-foreground">{t("diagram.mount.noUsed")}</p>
-          ) : (
-            <div className="max-h-40 space-y-1.5 overflow-y-auto">
-              {(usedPool.data ?? []).map((tire) => (
-                <button
-                  key={tire.id}
-                  onClick={() => setUsedId(tire.id)}
-                  className={cn(
-                    "flex w-full items-center justify-between rounded-lg border px-3 py-2 text-start text-sm transition",
-                    usedId === tire.id
-                      ? "border-primary bg-primary/5 font-medium"
-                      : "hover:bg-accent",
-                  )}
-                >
-                  <span dir="ltr" className="truncate">
-                    {tire.dot_code ?? `${tire.brand} ${tire.model ?? ""}`}
-                  </span>
-                  <span className="ms-2 shrink-0 text-xs text-muted-foreground tabular">
-                    {fmtNumber(tire.total_km, i18n.language)} {t("common.km")}
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
-          <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">{t("diagram.mount.reason")}</Label>
-            <div className="flex flex-wrap gap-1.5">
-              {["replacement", "rotation", "repair_return"].map((r) => (
-                <button
-                  key={r}
-                  onClick={() => setUsedReason(r)}
-                  className={cn(
-                    "rounded-lg border px-2 py-1 text-xs transition",
-                    usedReason === r
-                      ? "border-primary bg-primary/5 font-semibold text-primary"
-                      : "hover:bg-accent",
-                  )}
-                >
-                  {t(`tires.mountReason.${r}`)}
-                </button>
-              ))}
-            </div>
-          </div>
-          <OdometerField value={odometer} onChange={setOdometer} />
-          <Button
-            className="w-full"
-            disabled={!usedId || mountUsed.isPending}
-            onClick={() => mountUsed.mutate()}
-          >
-            {t("diagram.mount.submit")}
-          </Button>
-        </TabsContent>
-      </Tabs>
+  const sourceButton = (s: Source) => (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={source === s}
+      disabled={busy}
+      onClick={() => {
+        setSource(s);
+        setSearch("");
+      }}
+      className={cn(
+        "min-h-11 flex-1 rounded-md px-2 py-1.5 text-sm font-semibold transition",
+        "focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
+        source === s ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+      )}
+    >
+      {t(s === "new" ? "diagram.mount.fromNew" : "diagram.mount.fromUsed")}
+    </button>
   );
-}
 
-function OdometerField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const { t } = useTranslation();
-  return (
-    <div className="space-y-1.5">
-      <Label htmlFor="mount-odo" className="text-xs text-muted-foreground">
-        {t("diagram.mount.odometer")}
-      </Label>
+  const searchBox = (id: string) => (
+    <div className="relative">
+      <Search aria-hidden className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
       <Input
-        id="mount-odo"
-        inputMode="numeric"
-        className="h-9 tabular"
-        value={value}
-        onChange={(e) => onChange(e.target.value.replace(/[^0-9]/g, ""))}
+        id={id}
+        type="search"
+        aria-label={t("diagram.mount.search")}
+        placeholder={t("diagram.mount.search")}
+        className="ps-9"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
       />
+    </div>
+  );
+
+  const odometerField = (
+    <div className="space-y-1.5">
+      <Label htmlFor="mount-odo">{t("diagram.field.odometerNow")}</Label>
+      <NumberInput id="mount-odo" value={odometer} onValueChange={setOdometer} />
+      {km == null && !position.is_spare && <Note tone="warn">{t("diagram.field.odometerMissing")}</Note>}
+    </div>
+  );
+
+  return (
+    <div className="space-y-4">
+      <div role="radiogroup" aria-label={t("diagram.mount.sourceLabel")} className="flex gap-1 rounded-lg bg-muted p-1">
+        {sourceButton("new")}
+        {sourceButton("used")}
+      </div>
+
+      {source === "new" ? (
+        <div className="space-y-4">
+          <Note>{t("diagram.mount.newExplain")}</Note>
+
+          <div className="space-y-1.5">
+            <Label id="mount-type-label" htmlFor="mount-type">
+              {t("diagram.mount.pickLine")}
+            </Label>
+            <TireProductPicker
+              id="mount-type"
+              aria-labelledby="mount-type-label"
+              showStock
+              disabled={busy}
+              value={spec}
+              onChange={setSpec}
+            />
+            {!newReady && <Note>{t("diagram.field.tireTypeRequired")}</Note>}
+            {spec && onHand === null && <Note tone="warn">{t("diagram.mount.customWarn")}</Note>}
+            {spec && onHand != null && onHand <= 0 && <Note tone="warn">{t("diagram.mount.zeroWarn")}</Note>}
+            {spec && preferredSize && spec.size && !sameSize(spec.size, preferredSize) && (
+              <Note tone="warn">{t("diagram.mount.sizeDiffers", { size: preferredSize })}</Note>
+            )}
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="mount-dot">{t("diagram.field.dot")}</Label>
+            <Input id="mount-dot" dir="ltr" autoComplete="off" value={dot} onChange={(e) => setDot(e.target.value)} />
+            <Note>{t("diagram.field.dotHint")}</Note>
+          </div>
+          {odometerField}
+          <Button className="w-full" disabled={!newReady || busy} onClick={() => mountNew.mutate()}>
+            {mountNew.isPending && <Loader2 className="animate-spin" />}
+            {t("diagram.mount.submitNew")}
+          </Button>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {usedPool.isError && usedPool.data === undefined ? (
+            <ErrorState error={usedPool.error} onRetry={() => void usedPool.refetch()} retrying={usedPool.isFetching} />
+          ) : usedPool.isPending ? (
+            <Skeleton className="h-24 w-full rounded-lg" />
+          ) : usedTires.length === 0 ? (
+            <div className="space-y-2 rounded-lg border border-dashed p-4 text-sm">
+              <p className="font-semibold">{t("diagram.mount.noUsed")}</p>
+              <p className="leading-relaxed text-muted-foreground">{t("diagram.mount.noUsedHow")}</p>
+              <Link to="/tires" className="inline-flex min-h-11 items-center font-semibold text-primary hover:underline">
+                {t("diagram.mount.goTires")}
+              </Link>
+            </div>
+          ) : (
+            <>
+              <div className="space-y-2">
+                <div id="mount-used" className="text-sm font-semibold">
+                  {t("diagram.mount.pickUsed")}
+                </div>
+                {searchBox("mount-used-search")}
+                <div role="radiogroup" aria-labelledby="mount-used" className="grid max-h-72 gap-2 overflow-y-auto pe-0.5">
+                  {shownUsed.map((x) => (
+                    <RadioCard
+                      key={x.id}
+                      checked={usedId === x.id}
+                      onSelect={() => setUsedId(x.id)}
+                      disabled={busy}
+                      title={
+                        <>
+                          <bdi dir="ltr">{[x.brand, x.model].filter(Boolean).join(" ")}</bdi>
+                          {" · "}
+                          {x.size ? <bdi dir="ltr">{x.size}</bdi> : t("diagram.mount.noSize")}
+                        </>
+                      }
+                      description={
+                        <>
+                          {x.dot_code ? (
+                            <>
+                              {t("diagram.tire.dot")} <bdi dir="ltr">{x.dot_code}</bdi>
+                            </>
+                          ) : (
+                            <span className="font-semibold text-status-due_soon">{t("diagram.tire.noDot")}</span>
+                          )}
+                          {" · "}
+                          {t("diagram.mount.ran", { km: fmtKm(x.total_km, lang) })}
+                          {x.km_incomplete ? ` ${t("diagram.mount.kmAtLeast")}` : ""}
+                          {" · "}
+                          {x.retread_count > 0
+                            ? t("diagram.mount.retreaded", { n: fmtNumber(x.retread_count, lang) })
+                            : t("diagram.mount.notRetreaded")}
+                        </>
+                      }
+                    >
+                      {(recentTireIds.includes(x.id) || sameSize(x.size, preferredSize)) && (
+                        <span className="mt-1.5 flex flex-wrap gap-1.5">
+                          {recentTireIds.includes(x.id) && (
+                            <span className="rounded-full bg-info-soft px-2 py-0.5 text-xs font-semibold text-info">
+                              {t("diagram.mount.justOff")}
+                            </span>
+                          )}
+                          {sameSize(x.size, preferredSize) && (
+                            <span className="rounded-full bg-status-ok-soft px-2 py-0.5 text-xs font-semibold text-status-ok">
+                              {t("diagram.mount.sameSize")}
+                            </span>
+                          )}
+                        </span>
+                      )}
+                    </RadioCard>
+                  ))}
+                  {shownUsed.length === 0 && <Note>{t("diagram.mount.noMatch")}</Note>}
+                </div>
+                {used && preferredSize && used.size && !sameSize(used.size, preferredSize) && (
+                  <Note tone="warn">{t("diagram.mount.sizeDiffers", { size: preferredSize })}</Note>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <div id="mount-why" className="text-sm font-semibold">
+                  {t("diagram.mount.reason")}
+                </div>
+                <div role="radiogroup" aria-labelledby="mount-why" className="grid gap-2">
+                  {USED_REASONS.map((r) => (
+                    <RadioCard
+                      key={r}
+                      checked={usedReason === r}
+                      onSelect={() => setUsedReason(r)}
+                      disabled={busy}
+                      title={t(`diagram.mount.why.${r}`)}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {odometerField}
+              <Button className="w-full" disabled={!usedId || busy} onClick={() => mountUsed.mutate()}>
+                {mountUsed.isPending && <Loader2 className="animate-spin" />}
+                {t("diagram.mount.submitUsed")}
+              </Button>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }

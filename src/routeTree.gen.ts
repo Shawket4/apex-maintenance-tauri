@@ -20,6 +20,7 @@ import { Route as AppTiresIndexRouteImport } from './routes/_app.tires.index'
 import { Route as AppTiresTireIdRouteImport } from './routes/_app.tires.$tireId'
 import { Route as AppTrucksIndexRouteImport } from './routes/_app.trucks.index'
 import { Route as AppTrucksTruckIdRouteImport } from './routes/_app.trucks.$truckId'
+import { Route as AppWoIndexRouteImport } from './routes/_app.wo.index'
 import { Route as AppTrucksTruckIdIndexRouteImport } from './routes/_app.trucks.$truckId.index'
 import { Route as AppTrucksTruckIdDueRouteImport } from './routes/_app.trucks.$truckId.due'
 import { Route as AppTrucksTruckIdHistoryRouteImport } from './routes/_app.trucks.$truckId.history'
@@ -81,6 +82,11 @@ const AppTrucksTruckIdRoute = AppTrucksTruckIdRouteImport.update({
   path: '/trucks/$truckId',
   getParentRoute: () => AppRoute,
 } as any)
+const AppWoIndexRoute = AppWoIndexRouteImport.update({
+  id: '/wo/',
+  path: '/wo/',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppTrucksTruckIdIndexRoute = AppTrucksTruckIdIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -123,6 +129,7 @@ export interface FileRoutesByFullPath {
   '/trucks/$truckId': typeof AppTrucksTruckIdRouteWithChildren
   '/tires/': typeof AppTiresIndexRoute
   '/trucks/': typeof AppTrucksIndexRoute
+  '/wo/': typeof AppWoIndexRoute
   '/trucks/$truckId/due': typeof AppTrucksTruckIdDueRoute
   '/trucks/$truckId/history': typeof AppTrucksTruckIdHistoryRoute
   '/trucks/$truckId/tires': typeof AppTrucksTruckIdTiresRoute
@@ -140,6 +147,7 @@ export interface FileRoutesByTo {
   '/tires/$tireId': typeof AppTiresTireIdRoute
   '/tires': typeof AppTiresIndexRoute
   '/trucks': typeof AppTrucksIndexRoute
+  '/wo': typeof AppWoIndexRoute
   '/trucks/$truckId/due': typeof AppTrucksTruckIdDueRoute
   '/trucks/$truckId/history': typeof AppTrucksTruckIdHistoryRoute
   '/trucks/$truckId/tires': typeof AppTrucksTruckIdTiresRoute
@@ -160,6 +168,7 @@ export interface FileRoutesById {
   '/_app/trucks/$truckId': typeof AppTrucksTruckIdRouteWithChildren
   '/_app/tires/': typeof AppTiresIndexRoute
   '/_app/trucks/': typeof AppTrucksIndexRoute
+  '/_app/wo/': typeof AppWoIndexRoute
   '/_app/trucks/$truckId/due': typeof AppTrucksTruckIdDueRoute
   '/_app/trucks/$truckId/history': typeof AppTrucksTruckIdHistoryRoute
   '/_app/trucks/$truckId/tires': typeof AppTrucksTruckIdTiresRoute
@@ -180,6 +189,7 @@ export interface FileRouteTypes {
     | '/trucks/$truckId'
     | '/tires/'
     | '/trucks/'
+    | '/wo/'
     | '/trucks/$truckId/due'
     | '/trucks/$truckId/history'
     | '/trucks/$truckId/tires'
@@ -197,6 +207,7 @@ export interface FileRouteTypes {
     | '/tires/$tireId'
     | '/tires'
     | '/trucks'
+    | '/wo'
     | '/trucks/$truckId/due'
     | '/trucks/$truckId/history'
     | '/trucks/$truckId/tires'
@@ -216,6 +227,7 @@ export interface FileRouteTypes {
     | '/_app/trucks/$truckId'
     | '/_app/tires/'
     | '/_app/trucks/'
+    | '/_app/wo/'
     | '/_app/trucks/$truckId/due'
     | '/_app/trucks/$truckId/history'
     | '/_app/trucks/$truckId/tires'
@@ -308,6 +320,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppTrucksTruckIdRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/wo/': {
+      id: '/_app/wo/'
+      path: '/wo'
+      fullPath: '/wo/'
+      preLoaderRoute: typeof AppWoIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/trucks/$truckId/': {
       id: '/_app/trucks/$truckId/'
       path: '/'
@@ -380,6 +399,7 @@ interface AppRouteChildren {
   AppTrucksTruckIdRoute: typeof AppTrucksTruckIdRouteWithChildren
   AppTiresIndexRoute: typeof AppTiresIndexRoute
   AppTrucksIndexRoute: typeof AppTrucksIndexRoute
+  AppWoIndexRoute: typeof AppWoIndexRoute
   AppWoWoIdTiresRoute: typeof AppWoWoIdTiresRoute
   AppWoWoIdIndexRoute: typeof AppWoWoIdIndexRoute
 }
@@ -394,6 +414,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppTrucksTruckIdRoute: AppTrucksTruckIdRouteWithChildren,
   AppTiresIndexRoute: AppTiresIndexRoute,
   AppTrucksIndexRoute: AppTrucksIndexRoute,
+  AppWoIndexRoute: AppWoIndexRoute,
   AppWoWoIdTiresRoute: AppWoWoIdTiresRoute,
   AppWoWoIdIndexRoute: AppWoWoIdIndexRoute,
 }

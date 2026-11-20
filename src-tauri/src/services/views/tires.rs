@@ -41,10 +41,20 @@ pub struct TireRow {
     pub mounted_plate: Option<String>,
     pub mounted_position_code: Option<String>,
     pub mounted_at: Option<String>,
+    /// Km the tire had before it was registered here (editable).
+    pub base_km: i64,
+    pub notes: Option<String>,
+    /// Some mount on a road position is missing an odometer, so total_km is
+    /// lower than the truth. Shown, so the number is not taken as exact.
+    pub km_incomplete: bool,
     pub pending: bool,
 }
 
 pub fn tires_list(pool: &DbPool, status: Option<&str>, q: Option<&str>) -> AppResult<Vec<TireRow>> {
+    tires_query(pool, status, q, None)
+}
+
+fn tires_query(pool: &DbPool, status: Option<&str>, q: Option<&str>, only_id: Option<&str>) -> AppResult<Vec<TireRow>> {
     let conn = pool.get()?;
     let pending = pending_ids(&conn, "tires")?;
     // Mounted tires show LIVE km: accrued total + the current run so far
@@ -60,7 +70,13 @@ pub fn tires_list(pool: &DbPool, status: Option<&str>, q: Option<&str>) -> AppRe
                              AND odo.current_odometer > ta.mounted_odometer
                         THEN odo.current_odometer - ta.mounted_odometer ELSE 0 END,
                COALESCE(t.retread_count,0),
-               ta.vehicle_id, v.car_no_plate, p.position_code, ta.mounted_at
+               ta.vehicle_id, v.car_no_plate, p.position_code, ta.mounted_at,
+               COALESCE(t.total_km,0), t.notes_ar,
+               EXISTS (SELECT 1 FROM tire_assignments m
+                        LEFT JOIN chassis_positions mp ON mp.id = m.position_id
+                       WHERE m.tire_id = t.id AND m.deleted_at IS NULL AND COALESCE(mp.is_spare,0)=0
+                         AND (m.mounted_odometer IS NULL
+                              OR (m.dismounted_at IS NOT NULL AND m.dismounted_odometer IS NULL)))
           FROM tires t
           LEFT JOIN tire_assignments ta ON ta.tire_id = t.id AND ta.dismounted_at IS NULL AND ta.deleted_at IS NULL
           LEFT JOIN chassis_positions p ON p.id = ta.position_id
@@ -68,8 +84,14 @@ pub fn tires_list(pool: &DbPool, status: Option<&str>, q: Option<&str>) -> AppRe
           LEFT JOIN odo ON odo.vehicle_id = ta.vehicle_id
          WHERE t.deleted_at IS NULL"
     );
-    if status.is_some() {
-        sql.push_str(" AND t.status = ?1");
+    let mut args: Vec<String> = Vec::new();
+    if let Some(st) = status {
+        args.push(st.to_string());
+        sql.push_str(&format!(" AND t.status = ?{}", args.len()));
+    }
+    if let Some(id) = only_id {
+        args.push(id.to_string());
+        sql.push_str(&format!(" AND t.id = ?{}", args.len()));
     }
     sql.push_str(" ORDER BY julianday(t.updated_at) DESC");
     let mut stmt = conn.prepare(&sql)?;
@@ -88,22 +110,24 @@ pub fn tires_list(pool: &DbPool, status: Option<&str>, q: Option<&str>) -> AppRe
             mounted_plate: r.get(10)?,
             mounted_position_code: r.get(11)?,
             mounted_at: r.get(12)?,
+            base_km: r.get(13)?,
+            notes: r.get(14)?,
+            km_incomplete: r.get::<_, i64>(15)? != 0,
             pending: false,
         })
     };
-    let mut rows = match status {
-        Some(s) => stmt.query_map(params![s], map)?.collect::<Result<Vec<_>, _>>()?,
-        None => stmt.query_map([], map)?.collect::<Result<Vec<_>, _>>()?,
-    };
+    let mut rows = stmt.query_map(rusqlite::params_from_iter(args.iter()), map)?.collect::<Result<Vec<_>, _>>()?;
     for t in &mut rows {
         t.pending = pending.contains(&t.id);
     }
     if let Some(q) = q {
-        let nq = normalize_digits(q.trim()).to_uppercase();
+        let nq = fold_search(q);
         if !nq.is_empty() {
             rows.retain(|t| {
-                t.dot_code.as_deref().map(|d| d.to_uppercase().contains(&nq)).unwrap_or(false)
-                    || t.brand.to_uppercase().contains(&nq)
+                [t.dot_code.as_deref(), Some(t.brand.as_str()), t.model.as_deref(), t.size.as_deref(), t.mounted_plate.as_deref()]
+                    .into_iter()
+                    .flatten()
+                    .any(|f| fold_search(f).contains(&nq))
             });
         }
     }
@@ -128,7 +152,7 @@ pub struct TireFile {
 }
 
 pub fn tire_file(pool: &DbPool, id: &str) -> AppResult<Option<TireFile>> {
-    let tire = tires_list(pool, None, None)?.into_iter().find(|t| t.id == id);
+    let tire = tires_query(pool, None, None, Some(id))?.into_iter().next();
     let Some(tire) = tire else { return Ok(None) };
     let conn = pool.get()?;
     let mounts = tire_ops_for(&conn, "ta.tire_id = ?1", &[&id])?;

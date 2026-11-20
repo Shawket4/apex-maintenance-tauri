@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
-import ar from "./ar.json";
-import en from "./en.json";
+import { resources } from "./index";
+
+// The merged catalogs the app actually runs with: ar.json/en.json plus every
+// locales/<area>.<lang>.json pair.
+const ar = resources.ar.translation;
+const en = resources.en.translation;
 
 /** Flattens {a:{b:"x"}} into ["a.b"]. */
 function keysOf(obj: Record<string, unknown>, prefix = ""): string[] {

@@ -314,6 +314,12 @@ impl ExcelExporter {
                         write_cell(ws, raw_val, &cell_fmt)?;
                     },
                     Some("date") | Some("dateTime") => {
+                        // Without a number format a date cell shows its serial number.
+                        cell_fmt = cell_fmt.set_num_format(if col_def.r#type.as_deref() == Some("dateTime") {
+                            "yyyy-mm-dd hh:mm"
+                        } else {
+                            "yyyy-mm-dd"
+                        });
                         if let Some(s) = raw_val.as_str() {
                             if let Ok(dt) = ExcelDateTime::parse_from_str(s) {
                                 if col_num == end_col {

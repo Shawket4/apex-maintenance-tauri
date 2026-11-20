@@ -3,10 +3,11 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useTranslation } from "react-i18next";
-import { Loader2 } from "lucide-react";
+import React from "react";
+import { Eye, EyeOff, Loader2 } from "lucide-react";
 
 import { fetchCurrentUser, useAuth } from "@/shared/api/auth";
-import { isApiError } from "@/shared/api/client";
+import { isApiError, isOffline } from "@/shared/api/client";
 import { Button } from "@/shared/ui/button";
 import { Input } from "@/shared/ui/input";
 import { Label } from "@/shared/ui/label";
@@ -20,7 +21,8 @@ export const Route = createFileRoute("/login")({
 });
 
 const schema = z.object({
-  email: z.string().min(1, "login.emailRequired"),
+  // Trimmed: a trailing space from a phone keyboard is not a wrong email.
+  email: z.string().trim().min(1, "login.emailRequired"),
   password: z.string().min(1, "login.passwordRequired"),
 });
 type FormValues = z.infer<typeof schema>;
@@ -31,6 +33,7 @@ function LoginPage() {
   const { t } = useTranslation();
   const { login } = useAuth();
   const navigate = useNavigate();
+  const [showPassword, setShowPassword] = React.useState(false);
   const {
     register,
     handleSubmit,
@@ -43,10 +46,15 @@ function LoginPage() {
       await login(values.email, values.password);
       await navigate({ to: "/" });
     } catch (e) {
-      const key =
-        isApiError(e) && (e.kind === "auth_failed" || e.kind === "unauthorized")
+      // Say what actually went wrong. "Check the internet" for a wrong
+      // password (or the reverse) sends people the wrong way.
+      const key = isOffline(e)
+        ? "login.offline"
+        : isApiError(e) && (e.kind === "auth_failed" || e.kind === "unauthorized")
           ? "login.wrongCredentials"
-          : "login.serverError";
+          : isApiError(e) && e.code === "no_access"
+            ? "login.noAccess"
+            : "login.serverError";
       setError("password", { message: key });
     }
   });
@@ -74,16 +82,45 @@ function LoginPage() {
           <form onSubmit={(e) => void onSubmit(e)} className="space-y-4">
             <div className="space-y-1.5">
               <Label htmlFor="email">{t("login.email")}</Label>
-              <Input id="email" type="text" dir="ltr" className="text-start" autoFocus {...register("email")} />
+              <Input
+                id="email"
+                type="email"
+                inputMode="email"
+                autoComplete="username"
+                autoCapitalize="none"
+                spellCheck={false}
+                dir="ltr"
+                className="text-start"
+                autoFocus
+                {...register("email")}
+              />
               {errors.email?.message && (
                 <p className="text-xs text-destructive">{t(errors.email.message)}</p>
               )}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="password">{t("login.password")}</Label>
-              <Input id="password" type="password" dir="ltr" {...register("password")} />
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  autoComplete="current-password"
+                  dir="ltr"
+                  className="pe-11 text-start"
+                  {...register("password")}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  aria-label={t(showPassword ? "login.hidePassword" : "login.showPassword")}
+                  aria-pressed={showPassword}
+                  className="absolute inset-y-0 end-0 grid w-11 place-items-center text-muted-foreground hover:text-foreground"
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
               {errors.password?.message && (
-                <p className="text-xs text-destructive">{t(errors.password.message)}</p>
+                <p role="alert" className="text-sm text-destructive">{t(errors.password.message)}</p>
               )}
             </div>
             <Button type="submit" className="mt-2 w-full" disabled={isSubmitting}>

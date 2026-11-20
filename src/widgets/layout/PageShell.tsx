@@ -21,7 +21,7 @@ export function PageShell({
   return (
     <div
       className={cn(
-        "mx-auto space-y-7 p-7",
+        "mx-auto space-y-6 p-4 sm:p-7",
         width === "wide" ? "max-w-[1400px]" : "max-w-6xl",
         className,
       )}
@@ -30,7 +30,7 @@ export function PageShell({
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div className="min-w-0">
             {title && <h1 className="text-[23px] font-bold leading-relaxed">{title}</h1>}
-            {subtitle && <div className="text-xs text-muted-foreground">{subtitle}</div>}
+            {subtitle && <div className="text-sm text-muted-foreground">{subtitle}</div>}
           </div>
           {actions && <div className="flex flex-none items-center gap-2.5">{actions}</div>}
         </div>
@@ -55,7 +55,7 @@ export function Section({
   return (
     <section className={className}>
       <div className="mb-3 flex items-center justify-between gap-3">
-        <h2 className="flex min-w-0 items-center gap-2 text-xs font-semibold text-muted-foreground">
+        <h2 className="flex min-w-0 items-center gap-2 text-sm font-bold text-foreground">
           {title}
         </h2>
         {action}

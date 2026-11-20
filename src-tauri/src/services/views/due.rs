@@ -1,4 +1,4 @@
-//! Due board — the client mirror of maint-rust v_maintenance_due (0017).
+//! Due board — the client mirror of maint-rust v_maintenance_due (0022).
 
 
 use rusqlite::params;
@@ -11,74 +11,109 @@ use super::*;
 
 // ═════════════════════════════ due ═══════════════════════════════════════════
 
-/// Local mirror of maint-rust v_maintenance_due (plans × class assignments,
-/// last-done from categorized work-order tasks, odometer truth).
-/// Time comparisons go through julianday() because pulled rows carry Postgres
-/// timestamp formatting while local writes carry RFC3339-Z — lexical compare
-/// across the two lies.
+/// Local mirror of maint-rust v_maintenance_due (0022): plans × classified
+/// vehicles, graded against the last DONE task of the plan's category.
+///
+///  * "last done" is when the task was ticked (done_at), not when its work
+///    order was opened;
+///  * the km baseline is the newest done record that HAS a reading;
+///  * a plan has a km interval, a day interval, or both — due on whichever
+///    comes first;
+///  * a km-only plan on a vehicle with no reading is `unknown`, not `ok`.
+///
+/// Times go through julianday(): pulled rows carry Postgres formatting, local
+/// writes RFC3339-Z, and comparing the two as text lies.
 pub(crate) const DUE_TAIL: &str = "
-last_done AS (
-    -- Mirror of maint-rust 0017: only DONE tasks reset the due clock, and
-    -- last_at/last_km come from the SAME (latest) work order — independent
-    -- MAXes could pair one WO's date with another WO's odometer.
-    SELECT vehicle_id, category_id, last_at, last_km FROM (
-        SELECT wo.vehicle_id, t.category_id,
-               wo.opened_at        AS last_at,
-               wo.odometer_at_open AS last_km,
-               ROW_NUMBER() OVER (
-                   PARTITION BY wo.vehicle_id, t.category_id
-                   ORDER BY wo.opened_at DESC
-               ) AS rn
-          FROM work_order_tasks t
-          JOIN work_orders wo ON wo.id = t.work_order_id
-         WHERE t.deleted_at IS NULL AND wo.deleted_at IS NULL
-           AND t.category_id IS NOT NULL AND t.is_done = 1
+done AS (
+    SELECT wo.vehicle_id, t.category_id, t.id AS task_id,
+           COALESCE(t.done_at, wo.opened_at) AS done_at,
+           wo.odometer_at_open               AS km
+      FROM work_order_tasks t
+      JOIN work_orders wo ON wo.id = t.work_order_id
+     WHERE t.deleted_at IS NULL AND wo.deleted_at IS NULL
+       AND t.category_id IS NOT NULL AND t.is_done = 1
+    UNION ALL
+    -- Old service-invoice lines the server recognised as this type.
+    SELECT l.vehicle_id, l.category_id, 'legacy-' || l.id, l.done_at, l.km
+      FROM legacy_events l
+),
+last_at AS (
+    SELECT vehicle_id, category_id, done_at FROM (
+        SELECT *, ROW_NUMBER() OVER (PARTITION BY vehicle_id, category_id
+                                     ORDER BY julianday(done_at) DESC, task_id) rn FROM done
     ) WHERE rn = 1
+),
+last_km AS (
+    SELECT vehicle_id, category_id, km FROM (
+        SELECT *, ROW_NUMBER() OVER (PARTITION BY vehicle_id, category_id
+                                     ORDER BY julianday(done_at) DESC, task_id) rn
+          FROM done WHERE km IS NOT NULL
+    ) WHERE rn = 1
+),
+base AS (
+    SELECT
+        vca.vehicle_id,
+        v.car_no_plate                AS plate,
+        sp.id                         AS plan_id,
+        sp.category_id,
+        c.name_ar                     AS category_name_ar,
+        c.name_en                     AS category_name_en,
+        sp.trigger_type, sp.interval_km, sp.interval_days,
+        COALESCE(sp.lead_warn_km, 500) AS lead_warn_km,
+        COALESCE(sp.lead_warn_days, 14) AS lead_warn_days,
+        la.done_at                    AS last_at,
+        lk.km                         AS last_km,
+        lk.km + sp.interval_km        AS next_due_km,
+        CASE WHEN la.done_at IS NOT NULL AND sp.interval_days IS NOT NULL
+             THEN julianday(la.done_at) + sp.interval_days END AS next_due_jd,
+        odo.current_odometer, odo.odometer_source, odo.odometer_observed_at
+    FROM vehicle_class_assignments vca
+    JOIN service_plans sp ON sp.class_id = vca.class_id AND sp.is_active = 1 AND sp.deleted_at IS NULL
+    JOIN maintenance_categories c ON c.id = sp.category_id
+    JOIN vehicles_cache v ON v.id = vca.vehicle_id AND v.source_deleted_at IS NULL
+    LEFT JOIN last_at la ON la.vehicle_id = vca.vehicle_id AND la.category_id = sp.category_id
+    LEFT JOIN last_km lk ON lk.vehicle_id = vca.vehicle_id AND lk.category_id = sp.category_id
+    LEFT JOIN odo ON odo.vehicle_id = vca.vehicle_id
+    WHERE vca.deleted_at IS NULL
+),
+graded AS (
+    SELECT base.*,
+        CASE
+            WHEN interval_km IS NULL THEN NULL
+            WHEN last_km IS NULL THEN 'never_done'
+            WHEN current_odometer IS NULL THEN 'unknown'
+            WHEN current_odometer >= next_due_km THEN 'overdue'
+            WHEN current_odometer >= next_due_km - lead_warn_km THEN 'due_soon'
+            ELSE 'ok'
+        END AS km_status,
+        CASE
+            WHEN interval_days IS NULL THEN NULL
+            WHEN last_at IS NULL THEN 'never_done'
+            WHEN julianday('now') >= next_due_jd THEN 'overdue'
+            WHEN julianday('now') >= next_due_jd - MIN(lead_warn_days, interval_days) THEN 'due_soon'
+            ELSE 'ok'
+        END AS time_status
+    FROM base
 )
 SELECT
-    vca.vehicle_id,
-    v.car_no_plate                            AS plate,
-    sp.id                                     AS plan_id,
-    sp.category_id,
-    c.name_ar                                 AS category_name_ar,
-    c.name_en                                 AS category_name_en,
-    sp.trigger_type,
-    sp.interval_km,
-    sp.interval_days,
-    ld.last_at,
-    ld.last_km,
-    CASE WHEN sp.trigger_type = 'mileage' THEN ld.last_km + sp.interval_km END AS next_due_km,
-    CASE WHEN sp.trigger_type = 'time' AND ld.last_at IS NOT NULL
-         THEN datetime(julianday(ld.last_at) + sp.interval_days) END           AS next_due_at,
-    odo.current_odometer,
-    odo.odometer_source,
-    odo.odometer_observed_at,
+    vehicle_id, plate, plan_id, category_id, category_name_ar, category_name_en,
+    trigger_type, interval_km, interval_days, last_at, last_km,
+    next_due_km,
+    CASE WHEN next_due_jd IS NOT NULL THEN strftime('%Y-%m-%dT%H:%M:%SZ', next_due_jd) END AS next_due_at,
+    current_odometer, odometer_source, odometer_observed_at,
+    CASE WHEN next_due_km IS NOT NULL AND current_odometer IS NOT NULL
+         THEN next_due_km - current_odometer END AS km_remaining,
+    CASE WHEN next_due_jd IS NOT NULL
+         THEN CAST(julianday(date(next_due_jd, '+2 hours')) - julianday(date('now', '+2 hours')) AS INTEGER) END AS days_remaining,
     CASE
-        WHEN ld.last_at IS NULL THEN 'never_done'
-        WHEN sp.trigger_type = 'mileage' THEN
-            CASE
-                -- 0017: no km on the latest record = no usable baseline for a
-                -- mileage plan — surface it instead of silently 'ok' forever.
-                WHEN ld.last_km IS NULL THEN 'never_done'
-                WHEN odo.current_odometer IS NULL THEN 'ok'
-                WHEN odo.current_odometer >= ld.last_km + sp.interval_km THEN 'overdue'
-                WHEN odo.current_odometer >= ld.last_km + sp.interval_km - COALESCE(sp.lead_warn_km,500) THEN 'due_soon'
-                ELSE 'ok'
-            END
-        ELSE
-            CASE
-                WHEN julianday('now') >= julianday(ld.last_at) + sp.interval_days THEN 'overdue'
-                WHEN julianday('now') >= julianday(ld.last_at) + sp.interval_days - COALESCE(sp.lead_warn_days,14) THEN 'due_soon'
-                ELSE 'ok'
-            END
+        WHEN last_at IS NULL THEN 'never_done'
+        WHEN 'overdue'  IN (COALESCE(km_status,''), COALESCE(time_status,'')) THEN 'overdue'
+        WHEN 'due_soon' IN (COALESCE(km_status,''), COALESCE(time_status,'')) THEN 'due_soon'
+        WHEN time_status IS NULL AND km_status = 'never_done' THEN 'never_done'
+        WHEN time_status IS NULL AND km_status = 'unknown' THEN 'unknown'
+        ELSE 'ok'
     END AS status
-FROM vehicle_class_assignments vca
-JOIN service_plans sp ON sp.class_id = vca.class_id AND sp.is_active = 1 AND sp.deleted_at IS NULL
-JOIN maintenance_categories c ON c.id = sp.category_id
-JOIN vehicles_cache v ON v.id = vca.vehicle_id AND v.source_deleted_at IS NULL
-LEFT JOIN last_done ld ON ld.vehicle_id = vca.vehicle_id AND ld.category_id = sp.category_id
-LEFT JOIN odo ON odo.vehicle_id = vca.vehicle_id
-WHERE vca.deleted_at IS NULL
+FROM graded
 ";
 
 #[derive(Debug, Clone, Serialize, specta::Type)]
@@ -99,6 +134,11 @@ pub struct DueRow {
     pub current_odometer: Option<i64>,
     pub odometer_source: Option<String>,
     pub odometer_observed_at: Option<String>,
+    /// Km left before the plan is due (negative = km overdue).
+    pub km_remaining: Option<i64>,
+    /// Days left before the plan is due (negative = days overdue).
+    pub days_remaining: Option<i64>,
+    /// overdue | never_done | due_soon | unknown | ok
     pub status: String,
 }
 
@@ -120,13 +160,18 @@ pub(crate) fn map_due(r: &rusqlite::Row<'_>) -> rusqlite::Result<DueRow> {
         current_odometer: r.get("current_odometer")?,
         odometer_source: r.get("odometer_source")?,
         odometer_observed_at: r.get("odometer_observed_at")?,
+        km_remaining: r.get("km_remaining")?,
+        days_remaining: r.get("days_remaining")?,
         status: r.get("status")?,
     })
 }
 
 pub fn due_board(pool: &DbPool, vehicle_id: Option<i64>) -> AppResult<Vec<DueRow>> {
     let conn = pool.get()?;
-    let order = " ORDER BY CASE status WHEN 'overdue' THEN 0 WHEN 'never_done' THEN 1 WHEN 'due_soon' THEN 2 ELSE 3 END, plate";
+    // Most urgent first: by status, then by how far past (or how close).
+    let order = " ORDER BY CASE status WHEN 'overdue' THEN 0 WHEN 'never_done' THEN 1 WHEN 'due_soon' THEN 2 \
+                  WHEN 'unknown' THEN 3 ELSE 4 END, \
+                  MIN(COALESCE(km_remaining / 100.0, 1e12), COALESCE(days_remaining, 1e12)), plate, category_id";
     let due_sql = format!("WITH {ODO_CTE}, {DUE_TAIL}");
     let rows = match vehicle_id {
         Some(vid) => {

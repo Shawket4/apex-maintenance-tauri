@@ -29,7 +29,10 @@
     "ai": "AI Search",
     "settings": "Settings",
     "logout": "Log out",
-    "movements": "Stock movements"
+    "movements": "Stock movements",
+    "main": "Menu",
+    "menu": "Open menu",
+    "workOrders": "Work orders"
   },
   "login": {
     "title": "Sign in",
@@ -41,11 +44,15 @@
     "emailRequired": "Enter your email",
     "passwordRequired": "Enter your password",
     "wrongCredentials": "Wrong email or password",
-    "serverError": "Could not reach the server",
+    "serverError": "The server is not answering — try again shortly",
     "welcome": "Welcome back",
     "welcomeSub": "Sign in to manage your fleet",
     "brandTagline": "One maintenance record, for every vehicle in your fleet.",
-    "copyright": "© 2026 Apex Petroleum Transport"
+    "copyright": "© 2026 Apex Petroleum Transport",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password",
+    "offline": "No connection — signing in needs a connection",
+    "noAccess": "This account has no access to maintenance — ask your manager"
   },
   "search": {
     "placeholder": "Search by plate or DOT…",
@@ -303,6 +310,13 @@
     "thinking": "Searching…",
     "keyNeeded": "AI search needs ANTHROPIC_API_KEY on the server",
     "empty": "Ask anything about the service history — it understands synonyms",
+    "searchedFor": "Searched for:",
+    "hitsCount": "{{n}} service lines",
+    "noHits": "No matching service lines — try other words",
+    "advisorDown": "History search is unavailable right now — this is the older AI answer",
+    "noHitsFellBack": "No matching service lines, so the question was answered another way",
+    "invoice": "Invoice #{{id}}",
+    "openTruck": "Open truck history",
     "examples": {
       "one": "When was the last oil change for truck 5139?",
       "two": "Which truck changed the most tires this year?",
@@ -378,16 +392,76 @@
   },
   "sync": {
     "online": "Online",
-    "offline": "Offline — work is saved locally",
-    "pending": "{{n}} on the way",
-    "dead": "{{count}} need attention",
-    "synced": "Synced",
-    "authExpired": "Log in again"
+    "offline": "No connection — your work is kept on this device",
+    "offlinePending": "No connection — {{n}} changes kept on this device",
+    "pending": "{{n}} changes still sending",
+    "synced": "All work sent",
+    "authExpired": "Your session ended — tap to sign in again",
+    "noAccess": "This account has no access — tap to sign in with another",
+    "issues": "{{n}} changes were not accepted — tap to see",
+    "otherUser": "{{n}} changes by another user are waiting for them to sign in"
   },
   "errors": {
-    "offline": "No connection — try again when back online",
-    "unauthorized": "Session expired — sign in again",
-    "generic": "Something went wrong: {{message}}"
+    "offline": "No connection — try again when it is back",
+    "unauthorized": "Your session ended — sign in again",
+    "generic": "Something went wrong — try again",
+    "server": "The server is not answering properly — try again shortly",
+    "loadFailed": "The data did not load",
+    "screenFailed": "This screen hit a problem",
+    "pageNotFound": "This page does not exist",
+    "codes": {
+      "wo_not_found": "That work order does not exist",
+      "wo_closed": "The work order is closed — reopen it first",
+      "wo_not_closed": "The work order is not closed",
+      "wo_not_empty": "The work order has tire or oil work — remove that first",
+      "work_order_not_empty": "The work order has tire or oil work — remove that first",
+      "wo_wrong_vehicle": "That work order is for another truck",
+      "vehicle_not_found": "That truck does not exist",
+      "odometer_range": "That odometer reading is not plausible — check the number",
+      "odometer_backwards": "The dismount odometer is lower than the mount odometer — check the number",
+      "bad_date": "That date is not valid",
+      "date_in_future": "That date is in the future",
+      "task_empty": "Write the task or pick a maintenance type",
+      "task_not_found": "That task does not exist",
+      "oil_type_required": "Pick the oil type",
+      "liters_range": "That amount of oil is not plausible — check the number",
+      "oil_not_found": "That oil change does not exist",
+      "class_not_found": "That class does not exist",
+      "position_not_found": "That wheel position does not exist",
+      "position_wrong_vehicle": "That position is on another truck",
+      "position_occupied": "That position already has a tire",
+      "tire_already_mounted": "That tire is already mounted",
+      "tire_not_available": "That tire is not in the used pool",
+      "tire_not_found": "That tire does not exist",
+      "tire_mounted": "The tire is mounted — dismount it first",
+      "assignment_not_found": "That tire is not mounted",
+      "still_mounted": "The tire is still mounted",
+      "tire_moved_on": "The tire has been used since — it cannot go back",
+      "already_dismounted": "The tire has already been dismounted",
+      "brand_required": "Enter the tire brand",
+      "bad_reason": "That reason is not valid",
+      "bad_status": "That status is not valid",
+      "bad_count": "Register between 1 and 200 tires at a time",
+      "chassis_not_found": "This truck has no wheel layout yet",
+      "chassis_in_use": "Tires are mounted there — dismount them first",
+      "chassis_exists": "This truck already has a wheel layout",
+      "bad_chassis": "That axle count is not valid",
+      "not_found": "Not found",
+      "no_access": "This account has no access to maintenance",
+      "validation": "A number or value is not valid",
+      "deleted": "It was deleted on another device",
+      "duplicate": "It is already recorded",
+      "missing_reference": "It refers to something the server does not have",
+      "group_rolled_back": "Cancelled with the rest of the action",
+      "internal": "Server problem — try again",
+      "conflict": "It was changed on another device",
+      "conflict_deleted": "It was deleted on another device",
+      "gave_up": "The server did not accept it after several tries",
+      "rejected": "The server refused it",
+      "forbidden": "You are not allowed to do that",
+      "too_many_requests": "Too many requests — wait a moment",
+      "unavailable": "That service is not available right now"
+    }
   },
   "chassis": {
     "decrement": "Decrease {{label}}",
@@ -417,5 +491,51 @@
     },
     "localData": "Local data — offline",
     "offlineEmpty": "No saved movements — connect to load them"
+  },
+  "logout": {
+    "title": "Sign out",
+    "body": "You will need a connection to sign in again.",
+    "unsent": "{{n}} changes have not been sent yet. They stay on this device and go out when you sign in again with the same account. You will need a connection to sign in."
+  },
+  "combo": {
+    "placeholder": "Choose…",
+    "search": "Type to search…",
+    "empty": "Nothing by that name",
+    "use": "Use “{{text}}”",
+    "more": "There are more — keep typing to narrow down",
+    "clear": "Clear the choice"
+  },
+  "catalog": {
+    "tire": {
+      "placeholder": "Choose the tire type",
+      "search": "Brand, model or size…",
+      "newTitle": "A tire type not on the list",
+      "brand": "Brand",
+      "model": "Model",
+      "size": "Size",
+      "useNew": "New type: “{{text}}”",
+      "onHand": "In stock: {{n}}",
+      "noStock": "Not in stock",
+      "useThis": "Use this type",
+      "back": "Back to the list",
+      "newHint": "Type the brand and size as written on the tire. The type is added to the list by itself.",
+      "brandPh": "e.g. Pirelli",
+      "modelPh": "e.g. FR01",
+      "sizePh": "e.g. 315/80R22.5",
+      "notListed": "Not on the list? Add a new type",
+      "unconfirmed": "Still being recorded"
+    },
+    "oil": {
+      "placeholder": "Choose the oil type",
+      "search": "Type the oil type…",
+      "useNew": "New oil type: “{{text}}”",
+      "onHand": "In stock: {{n}}"
+    },
+    "job": {
+      "placeholder": "Type the job or choose from the list",
+      "search": "Type the job…",
+      "useNew": "Use it as typed: “{{text}}”",
+      "resets": "Counts toward “{{name}}”"
+    }
   }
 }

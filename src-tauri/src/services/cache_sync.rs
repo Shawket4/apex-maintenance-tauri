@@ -95,7 +95,7 @@ pub fn upsert_vehicles_and_drivers(
                 calibration_license_url, calibration_license_back_url,
                 tank_license_url, tank_license_back_url,
                 raw_payload, source_created_at, source_updated_at, source_deleted_at,
-                fetched_at
+                fetched_at, fuel_odometer_changed_at, mileage_changed_at
              ) VALUES (
                 ?1, ?2, ?3, ?4, ?5,
                 ?6, ?7, ?8,
@@ -107,7 +107,7 @@ pub fn upsert_vehicles_and_drivers(
                 ?29, ?30,
                 ?31, ?32,
                 ?33, ?34, ?35, ?36,
-                ?37
+                ?37, ?37, ?37
              )
              ON CONFLICT(id) DO UPDATE SET
                 car_no_plate = excluded.car_no_plate,
@@ -146,6 +146,16 @@ pub fn upsert_vehicles_and_drivers(
                 source_created_at = excluded.source_created_at,
                 source_updated_at = excluded.source_updated_at,
                 source_deleted_at = excluded.source_deleted_at,
+                -- When each odometer reading last CHANGED (the odometer rules
+                -- compare these with the time of a manual correction).
+                fuel_odometer_changed_at = CASE
+                    WHEN vehicles_cache.last_fuel_odometer IS NOT excluded.last_fuel_odometer
+                    THEN excluded.fetched_at
+                    ELSE COALESCE(vehicles_cache.fuel_odometer_changed_at, vehicles_cache.fetched_at) END,
+                mileage_changed_at = CASE
+                    WHEN vehicles_cache.mileage IS NOT excluded.mileage
+                    THEN excluded.fetched_at
+                    ELSE COALESCE(vehicles_cache.mileage_changed_at, vehicles_cache.fetched_at) END,
                 fetched_at = excluded.fetched_at",
         )?;
 
@@ -191,6 +201,21 @@ pub fn upsert_vehicles_and_drivers(
                 v.mileage,
             ])?;
             inserted += 1;
+        }
+
+        // A vehicle Falcon no longer lists (sold, deleted) leaves the fleet
+        // list and the due board. Only when the answer has vehicles in it: an
+        // empty answer is far more likely a fault than an empty fleet.
+        if !vehicles.is_empty() {
+            let ids: Vec<String> = vehicles.iter().map(|v| v.id.to_string()).collect();
+            tx.execute(
+                &format!(
+                    "UPDATE vehicles_cache SET source_deleted_at = ?1
+                      WHERE source_deleted_at IS NULL AND id NOT IN ({})",
+                    ids.join(",")
+                ),
+                params![fetched],
+            )?;
         }
     }
 
@@ -261,7 +286,7 @@ pub fn upsert_invoices(pool: &DbPool, invoices: &[CachedInvoice]) -> AppResult<u
                 id, car_id, driver_name, date, meter_reading,
                 plate_number, supervisor, operating_region,
                 raw_payload, source_created_at, source_updated_at, source_deleted_at,
-                fetched_at
+                fetched_at, fuel_odometer_changed_at, mileage_changed_at
              ) VALUES (
                 ?1, ?2, ?3, ?4, ?5,
                 ?6, ?7, ?8,

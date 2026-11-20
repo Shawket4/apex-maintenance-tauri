@@ -100,7 +100,7 @@ export const useStockMovements = (kind?: "tire" | "oil", from?: string) =>
 export const useStockMovementsRefresh = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () => unwrap(commands.stockMovementsRefresh()),
+    mutationFn: (days?: number) => unwrap(commands.stockMovementsRefresh(days ?? null)),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["stock-movements"] }),
   });
 };
@@ -126,6 +126,10 @@ export const useClasses = () =>
     staleTime: 5 * 60_000,
   });
 
+/** Options for the tire / oil / job pickers (catalog + what this device has used). */
+export const useCatalog = () =>
+  useQuery({ queryKey: ["catalog"], queryFn: () => unwrap(commands.catalogGet()) });
+
 export const usePlans = () =>
   useQuery({ queryKey: keys.plans, queryFn: () => unwrap(commands.plansList()) });
 
@@ -144,16 +148,17 @@ export const useSyncStatus = () => {
     queryFn: () => unwrap(commands.syncStatus()),
     refetchInterval: 10_000,
   });
-  // A background pull applies server rows without any React-side event —
-  // when last_pull_at advances, the local view-models may have new data.
-  const lastPull = q.data?.last_pull_at ?? null;
-  const prev = React.useRef(lastPull);
+  // The engine changes local tables with no React-side event: a pull brings
+  // server rows, a push adopts versions, a refused change is undone. When any
+  // of those moves, the screens may be showing stale rows.
+  const stamp = q.data ? `${q.data.last_pull_at}|${q.data.last_push_at}|${q.data.issues}|${q.data.pending}` : null;
+  const prev = React.useRef(stamp);
   React.useEffect(() => {
-    if (prev.current !== null && lastPull !== null && prev.current !== lastPull) {
-      invalidateDomain(qc);
+    if (prev.current !== null && stamp !== null && prev.current !== stamp) {
+      invalidateDomain(qc, false);
     }
-    prev.current = lastPull;
-  }, [lastPull, qc]);
+    prev.current = stamp;
+  }, [stamp, qc]);
   return q;
 };
 
@@ -162,6 +167,14 @@ export const useOutbox = () =>
     queryKey: keys.outbox,
     queryFn: () => unwrap(commands.outboxList()),
     refetchInterval: 10_000,
+  });
+
+/** Changes the server refused (already undone on this device). */
+export const useSyncIssues = () =>
+  useQuery({
+    queryKey: ["sync-issues"],
+    queryFn: () => unwrap(commands.syncIssues()),
+    refetchInterval: 30_000,
   });
 
 export const useInvoices = (vehicleId: number) =>
@@ -183,13 +196,14 @@ export const useInvoice = (id: number | null) =>
 /** Invalidate everything the owned domain can touch — local reads are cheap.
  * plans/categories/classes are included: planUpsert and the reference refresh
  * rewrite exactly those mirrors, and their editors render from these keys. */
-function invalidateDomain(qc: ReturnType<typeof useQueryClient>) {
+function invalidateDomain(qc: ReturnType<typeof useQueryClient>, withSync = true) {
   for (const k of [
     "home", "trucks", "truck", "due", "wos", "wo", "tires", "tire", "stock",
-    "chassis", "plans", "categories", "classes", "sync-status", "outbox",
+    "chassis", "plans", "categories", "classes", "outbox", "sync-issues", "search", "catalog",
   ]) {
     void qc.invalidateQueries({ queryKey: [k] });
   }
+  if (withSync) void qc.invalidateQueries({ queryKey: ["sync-status"] });
 }
 
 export function useDomainMutation<TOut, TArgs = void>(

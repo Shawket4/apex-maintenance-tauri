@@ -20,6 +20,8 @@ pub struct BackendConfig {
     pub base_url: String,
     pub falcon_prefix: String,
     pub maint_prefix: String,
+    /// apex-rust behind the same nginx (the advisor's history search).
+    pub rust_prefix: String,
     pub request_timeout: Duration,
 }
 
@@ -62,6 +64,7 @@ impl AppConfig {
                 base_url: env_or("APEX_BASE_URL", "https://apextransport.ddns.net"),
                 falcon_prefix: env_or("APEX_FALCON_PREFIX", "/api/go"),
                 maint_prefix: env_or("APEX_MAINT_PREFIX", "/api/maint"),
+                rust_prefix: env_or("APEX_RUST_PREFIX", "/api/rust"),
                 request_timeout: Duration::from_secs(env_u64("APEX_REQUEST_TIMEOUT_SECS", 30)),
             },
             cache: CacheConfig {

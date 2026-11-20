@@ -31,3 +31,14 @@ describe("clock helpers", () => {
     expect(nowUtcIso()).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
   });
 });
+
+describe("fmtCairo AM/PM", () => {
+  it("calls noon PM in Arabic (dayjs' ar locale says ص for 12:xx)", () => {
+    // 10:47 UTC = 12:47 in Cairo (winter).
+    expect(fmtCairo("2026-11-20T10:47:00Z", "h:mm A", "ar")).toBe("12:47 م");
+    expect(fmtCairo("2026-11-20T07:05:00Z", "h:mm A", "ar")).toBe("9:05 ص");
+    expect(fmtCairo("2026-11-20T10:47:00Z", "h:mm A", "en")).toBe("12:47 PM");
+    expect(fmtCairo("not a date")).toBe("—");
+  });
+});
+
