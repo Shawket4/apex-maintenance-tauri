@@ -636,6 +636,28 @@ async planDelete(id: string) : Promise<Result<null, CmdError>> {
 }
 },
 /**
+ * "We counted N new tires of this type" (perm ≥4): the book figure becomes N.
+ */
+async stockCountTires(brand: string, model: string | null, size: string | null, counted: number, refId: string, note: string | null) : Promise<Result<CountResult, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("stock_count_tires", { brand, model, size, counted, refId, note }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * "We measured N liters of this oil" (perm ≥4).
+ */
+async stockCountOil(oilType: string, countedLiters: number, refId: string, note: string | null) : Promise<Result<CountResult, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("stock_count_oil", { oilType, countedLiters, refId, note }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
  * Correct a tire product's spelling everywhere (perm ≥3). If the corrected
  * spelling is already a product, the two are merged.
  */
@@ -817,6 +839,14 @@ export type ClassRow = { id: string; name_ar: string; name_en: string; sort_orde
  * frontend sees is byte-identical to AppError's own serialization.
  */
 export type CmdError = { kind: string; code: string | null; message: string }
+/**
+ * What a stock count changed.
+ */
+export type CountResult = { before: number; after: number; 
+/**
+ * after − before: negative when the shelf had fewer than the book.
+ */
+change: number }
 export type DbHealth = { ok: boolean; migrations_applied: number; outbox_pending: number; seeded_categories: number }
 export type DismountInput = { assignment_id: string; odometer: number | null; 
 /**
@@ -968,7 +998,15 @@ export type StockMovementRow = { id: string; kind: string; brand: string | null;
 /**
  * Set when the fleet system refused this movement (its counts do not include it).
  */
-mirror_error: string | null }
+mirror_error: string | null; 
+/**
+ * A count correction ("we counted N"), not a delivery or a use.
+ */
+is_count: boolean; 
+/**
+ * Who recorded it, when the server knows the name.
+ */
+user_name: string | null }
 export type StockOilLine = { id: string; oil_type: string; snapshot_liters: number; pending_liters: number; projected_liters: number; low_stock: boolean; fetched_at: string | null }
 export type StockTireLine = { id: string; brand: string; model: string | null; size: string | null; snapshot_qty: number; pending_debits: number; projected_qty: number; 
 /**

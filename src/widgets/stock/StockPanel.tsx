@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { AlertTriangle, CloudOff, Loader2, PackagePlus, RefreshCw } from "lucide-react";
+import { AlertTriangle, ClipboardCheck, CloudOff, Loader2, PackagePlus, RefreshCw } from "lucide-react";
 
 import { commands, isOffline, unwrap, type StockOilLine, type StockTireLine } from "@/shared/api/client";
 import { useAuth } from "@/shared/api/auth";
@@ -14,9 +14,11 @@ import { Button } from "@/shared/ui/button";
 import { QueryState } from "@/shared/ui/query-state";
 import { Skeleton } from "@/shared/ui/skeleton";
 
+import { CountStockDialog, type CountTarget } from "./CountStockDialog";
 import { ReceiveStockDialog } from "./ReceiveStockDialog";
 
-/** Who may receive stock (the server enforces the same level). */
+/** Who may receive stock or correct it by a count (the server enforces the
+ * same level for both). */
 const RECEIVE_PERMISSION = 4;
 
 type Level = "negative" | "empty" | "low" | "ok";
@@ -38,6 +40,7 @@ export function StockPanel() {
   const canReceive = (user?.permission ?? 0) >= RECEIVE_PERMISSION;
   const stock = useStock();
   const [receiving, setReceiving] = useState(false);
+  const [counting, setCounting] = useState<CountTarget | null>(null);
 
   const refresh = useMutation({
     mutationFn: () => unwrap(commands.stockRefresh()),
@@ -142,7 +145,11 @@ export function StockPanel() {
                     ) : (
                       <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                         {data.tires.map((line) => (
-                          <TireLine key={line.id} line={line} />
+                          <TireLine
+                            key={line.id}
+                            line={line}
+                            onCount={canReceive ? () => setCounting({ kind: "tire", line }) : undefined}
+                          />
                         ))}
                       </ul>
                     )}
@@ -157,7 +164,11 @@ export function StockPanel() {
                     ) : (
                       <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                         {data.oil.map((line) => (
-                          <OilLine key={line.id} line={line} />
+                          <OilLine
+                            key={line.id}
+                            line={line}
+                            onCount={canReceive ? () => setCounting({ kind: "oil", line }) : undefined}
+                          />
                         ))}
                       </ul>
                     )}
@@ -173,6 +184,13 @@ export function StockPanel() {
 
               {receiving && (
                 <ReceiveStockDialog open onOpenChange={setReceiving} stock={data} />
+              )}
+              {counting && (
+                <CountStockDialog
+                  key={`${counting.kind}:${counting.line.id}`}
+                  target={counting}
+                  onClose={() => setCounting(null)}
+                />
               )}
             </div>
           );
@@ -206,7 +224,18 @@ function LevelNote({ level, negativeKey }: { level: Level; negativeKey: string }
   );
 }
 
-function TireLine({ line }: { line: StockTireLine }) {
+/** "Stock count" on one line — only rendered for whoever may do it. */
+function CountButton({ onClick }: { onClick: () => void }) {
+  const { t } = useTranslation();
+  return (
+    <Button variant="outline" size="sm" className="mt-3 w-full" onClick={onClick}>
+      <ClipboardCheck />
+      {t("stock.count.open")}
+    </Button>
+  );
+}
+
+function TireLine({ line, onCount }: { line: StockTireLine; onCount?: () => void }) {
   const { t, i18n } = useTranslation();
   const lang = i18n.language;
   const level = levelOf(line.projected_qty, line.low_stock);
@@ -235,11 +264,12 @@ function TireLine({ line }: { line: StockTireLine }) {
         </p>
       )}
       <LevelNote level={level} negativeKey="stock.level.negativeTires" />
+      {onCount && <CountButton onClick={onCount} />}
     </li>
   );
 }
 
-function OilLine({ line }: { line: StockOilLine }) {
+function OilLine({ line, onCount }: { line: StockOilLine; onCount?: () => void }) {
   const { t, i18n } = useTranslation();
   const lang = i18n.language;
   const level = levelOf(line.projected_liters, line.low_stock);
@@ -263,6 +293,7 @@ function OilLine({ line }: { line: StockOilLine }) {
         </p>
       )}
       <LevelNote level={level} negativeKey="stock.level.negativeOil" />
+      {onCount && <CountButton onClick={onCount} />}
     </li>
   );
 }

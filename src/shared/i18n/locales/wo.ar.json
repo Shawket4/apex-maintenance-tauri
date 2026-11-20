@@ -134,5 +134,29 @@
     "due_soon": "قرب ميعاده",
     "never_done": "لسه ماتعملش",
     "unknown": "مش معروف — العداد مش متسجّل"
+  },
+  "print": {
+    "action": "اطبع",
+    "sheetTitle": "أمر شغل",
+    "plate": "رقم العربية",
+    "status": "الحالة",
+    "opened": "اتفتح",
+    "closed": "اتقفل",
+    "notClosed": "لسه مفتوح",
+    "printedOn": "اتطبع: {{date}}",
+    "colDone": "خلص؟",
+    "colTask": "الشغل",
+    "colType": "نوع الصيانة",
+    "colDoneAt": "خلص إمتى",
+    "notDone": "لسه",
+    "colOilType": "نوع الزيت",
+    "colLiters": "الكمية",
+    "colDate": "التاريخ",
+    "colOdometer": "العداد",
+    "colPosition": "المكان",
+    "colTire": "الكاوتشة",
+    "colWhat": "اللي اتعمل",
+    "none": "مفيش",
+    "subject": "الموضوع"
   }
 }

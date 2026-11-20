@@ -13,6 +13,7 @@ import { WoDue } from "@/widgets/wo/WoDue";
 import { WoHeader } from "@/widgets/wo/WoHeader";
 import { WoNotes } from "@/widgets/wo/WoNotes";
 import { WoOil } from "@/widgets/wo/WoOil";
+import { WoPrintSheet } from "@/widgets/wo/WoPrintSheet";
 import { WoTasks } from "@/widgets/wo/WoTasks";
 import { WoTireOps } from "@/widgets/wo/WoTireOps";
 
@@ -67,21 +68,26 @@ function WoScreen() {
 
   return (
     <PageShell>
-      <Crumbs plate={d.wo.plate} vehicleId={d.wo.vehicle_id} />
-      <WoHeader d={d} />
+      {/* On paper only the sheet shows; everything interactive stays on screen. */}
+      <WoPrintSheet d={d} />
 
-      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="min-w-0 space-y-7">
-          <WoTasks d={d} woId={woId} canEdit={isOpen} />
-          <WoOil d={d} woId={woId} canEdit={isOpen} />
-          <WoTireOps d={d} woId={woId} canEdit={isOpen} />
+      <div className="space-y-6 print:hidden">
+        <Crumbs plate={d.wo.plate} vehicleId={d.wo.vehicle_id} />
+        <WoHeader d={d} />
+
+        <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="min-w-0 space-y-7">
+            <WoTasks d={d} woId={woId} canEdit={isOpen} />
+            <WoOil d={d} woId={woId} canEdit={isOpen} />
+            <WoTireOps d={d} woId={woId} canEdit={isOpen} />
+          </div>
+
+          <aside className="min-w-0 space-y-7">
+            <WoDue d={d} woId={woId} canAdd={isOpen} />
+            <WoNotes wo={d.wo} />
+            <VehicleCard vehicleId={d.wo.vehicle_id} plate={d.wo.plate} />
+          </aside>
         </div>
-
-        <aside className="min-w-0 space-y-7">
-          <WoDue d={d} woId={woId} canAdd={isOpen} />
-          <WoNotes wo={d.wo} />
-          <VehicleCard vehicleId={d.wo.vehicle_id} plate={d.wo.plate} />
-        </aside>
       </div>
     </PageShell>
   );

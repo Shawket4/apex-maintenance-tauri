@@ -33,6 +33,10 @@ pub struct StockMovementRow {
     pub note: Option<String>,
     /// Set when the fleet system refused this movement (its counts do not include it).
     pub mirror_error: Option<String>,
+    /// A count correction ("we counted N"), not a delivery or a use.
+    pub is_count: bool,
+    /// Who recorded it, when the server knows the name.
+    pub user_name: Option<String>,
 }
 
 /// Upsert a window of movements (the server's JSON array) into the local
@@ -60,14 +64,16 @@ pub fn upsert(conn: &mut Connection, rows: &[Value]) -> AppResult<usize> {
         tx.execute(
             "INSERT INTO stock_movements_cache
                (id, kind, brand, model, size, oil_type, qty, liters, work_order_id, plate,
-                created_at, mirrored, fetched_at, note, mirror_error)
-             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12, datetime('now'), ?13, ?14)
+                created_at, mirrored, fetched_at, note, mirror_error, is_count, user_name)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12, datetime('now'), ?13, ?14, ?15, ?16)
              ON CONFLICT(id) DO UPDATE SET
                mirrored = excluded.mirrored, plate = excluded.plate, fetched_at = excluded.fetched_at,
-               note = excluded.note, mirror_error = excluded.mirror_error",
+               note = excluded.note, mirror_error = excluded.mirror_error,
+               is_count = excluded.is_count, user_name = excluded.user_name",
             params![
                 id, kind, s("brand"), s("model"), s("size"), s("oil_type"), qty, liters,
-                s("work_order_id"), s("plate"), created_at, mirrored as i64, s("note"), s("mirror_error")
+                s("work_order_id"), s("plate"), created_at, mirrored as i64, s("note"), s("mirror_error"),
+                row.get("is_count").and_then(|v| v.as_bool()).unwrap_or(false) as i64, s("user_name")
             ],
         )?;
         n += 1;
@@ -88,7 +94,7 @@ pub fn list(
 ) -> AppResult<Vec<StockMovementRow>> {
     let mut sql = String::from(
         "SELECT id, kind, brand, model, size, oil_type, qty, liters, work_order_id, plate,
-                created_at, mirrored, note, mirror_error
+                created_at, mirrored, note, mirror_error, is_count, user_name
            FROM stock_movements_cache WHERE 1=1",
     );
     // kind is inlined from a fixed set — never user text.
@@ -124,6 +130,8 @@ pub fn list(
                 mirrored: r.get::<_, i64>(11)? != 0,
                 note: r.get(12)?,
                 mirror_error: r.get(13)?,
+                is_count: r.get::<_, i64>(14)? != 0,
+                user_name: r.get(15)?,
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;
@@ -139,6 +147,7 @@ mod tests {
         let c = Connection::open_in_memory().unwrap();
         c.execute_batch(include_str!("../migrations/0010_stock_movements_cache.sql")).unwrap();
         c.execute_batch("ALTER TABLE stock_movements_cache ADD COLUMN note TEXT; ALTER TABLE stock_movements_cache ADD COLUMN mirror_error TEXT;").unwrap();
+        c.execute_batch(include_str!("../migrations/0013_stock_counts.sql")).unwrap();
         c
     }
 

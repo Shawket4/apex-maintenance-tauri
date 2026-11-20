@@ -234,6 +234,57 @@ pub async fn stock_credit_oil(
     Ok(())
 }
 
+/// What a stock count changed.
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
+pub struct CountResult {
+    pub before: f64,
+    pub after: f64,
+    /// after − before: negative when the shelf had fewer than the book.
+    pub change: f64,
+}
+
+fn num(v: &serde_json::Value, k: &str) -> f64 {
+    v.get(k).and_then(|x| x.as_f64()).unwrap_or(0.0)
+}
+
+/// "We counted N new tires of this type" (perm ≥4): the book figure becomes N.
+#[tauri::command]
+#[specta::specta]
+pub async fn stock_count_tires(
+    state: State<'_, AppState>,
+    brand: String,
+    model: Option<String>,
+    size: Option<String>,
+    counted: i64,
+    ref_id: String,
+    note: Option<String>,
+) -> CmdResult<CountResult> {
+    let body = json!({ "brand": brand, "model": model, "size": size, "counted": counted, "ref_id": ref_id, "note": note });
+    let v = state.http.maint_post_raw("/stock/tires/count", &body).await?.body;
+    let v: serde_json::Value = serde_json::from_str(&v).unwrap_or_default();
+    stock_refresh_inner(&state).await?;
+    let _ = movements_refresh_inner(&state, 7).await;
+    Ok(CountResult { before: num(&v, "before"), after: num(&v, "on_hand_qty"), change: num(&v, "change") })
+}
+
+/// "We measured N liters of this oil" (perm ≥4).
+#[tauri::command]
+#[specta::specta]
+pub async fn stock_count_oil(
+    state: State<'_, AppState>,
+    oil_type: String,
+    counted_liters: f64,
+    ref_id: String,
+    note: Option<String>,
+) -> CmdResult<CountResult> {
+    let body = json!({ "oil_type": oil_type, "counted_liters": counted_liters, "ref_id": ref_id, "note": note });
+    let v = state.http.maint_post_raw("/stock/oil/count", &body).await?.body;
+    let v: serde_json::Value = serde_json::from_str(&v).unwrap_or_default();
+    stock_refresh_inner(&state).await?;
+    let _ = movements_refresh_inner(&state, 7).await;
+    Ok(CountResult { before: num(&v, "before"), after: num(&v, "liters_on_hand"), change: num(&v, "change") })
+}
+
 /// Correct a tire product's spelling everywhere (perm ≥3). If the corrected
 /// spelling is already a product, the two are merged.
 #[tauri::command]
