@@ -161,6 +161,19 @@ impl HttpClient {
         consume_response(&url, resp).await
     }
 
+    pub async fn maint_delete_raw(&self, path: &str) -> AppResult<RawResponse> {
+        let jwt = self.require_jwt()?;
+        let url = self.maint_url(path);
+        tracing::debug!(%url, "maint DELETE");
+        let resp = self
+            .inner
+            .delete(&url)
+            .header(header::AUTHORIZATION, format!("Bearer {jwt}"))
+            .send()
+            .await?;
+        consume_response(&url, resp).await
+    }
+
     pub async fn get<T: serde::de::DeserializeOwned>(&self, path: &str) -> AppResult<T> {
         let raw = self.maint_get_raw(path).await?;
         Ok(serde_json::from_str(&raw.body)?)
@@ -177,6 +190,10 @@ impl HttpClient {
 
     fn require_jwt(&self) -> AppResult<String> {
         session_store::read_jwt(&self.data_dir)?.ok_or(AppError::Unauthorized)
+    }
+
+    pub fn data_dir(&self) -> &std::path::Path {
+        &self.data_dir
     }
 
     pub fn base_url(&self) -> &str {
@@ -210,11 +227,19 @@ async fn consume_response(url: &str, resp: Response) -> AppResult<RawResponse> {
 
     if !status.is_success() {
         tracing::warn!(%url, %status, body = %truncate(&body, 500), "non-2xx response");
-        return Err(AppError::Http(format!(
-            "{} — {}",
-            status,
-            truncate(&body, 500)
-        )));
+        let envelope = serde_json::from_str::<serde_json::Value>(&body).ok();
+        let field = |k: &str| {
+            envelope
+                .as_ref()
+                .and_then(|v| v.get(k))
+                .and_then(|v| v.as_str())
+                .map(str::to_string)
+        };
+        return Err(AppError::Status {
+            status: status.as_u16(),
+            code: field("error").unwrap_or_default(),
+            message: field("message").unwrap_or_else(|| format!("the server answered {}", status.as_u16())),
+        });
     }
 
     Ok(RawResponse { status, body })

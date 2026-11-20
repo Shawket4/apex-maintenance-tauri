@@ -1,5 +1,5 @@
 //! Odometer truth — the client mirror of maint-rust v_current_odometer
-//! (0014 + 0017 + 0019). ODO_CTE is the one home of the arbitration SQL.
+//! (0022). ODO_CTE is the one home of the arbitration SQL.
 
 
 use rusqlite::{params, OptionalExtension};
@@ -11,29 +11,34 @@ use crate::AppResult;
 
 // ═════════════════════════════ odometer truth ════════════════════════════════
 
-/// Mirrors maint-rust v_current_odometer (0014). A manual override is an
-/// explicit human correction, not one more reading competing by MAX:
-///  * oil/WO readings recorded BEFORE the correction are discarded;
-///  * the Falcon fuel reading is discarded while it is ≤ the value it showed
-///    when the correction was made (superseded_km);
-///  * everything observed after the correction competes by MAX as usual.
+/// Mirrors maint-rust v_current_odometer (0022). The current odometer is the
+/// highest reading, where a manual correction changes what counts:
+///  * oil/work-order readings recorded BEFORE the correction are ignored;
+///  * Falcon's readings (fuel, mileage) are ignored until they CHANGE after
+///    the correction. Each has its own change time (cache_sync keeps
+///    fuel_odometer_changed_at / mileage_changed_at), so a stale value stays
+///    ignored and the first new one counts. The old rule ignored everything at or below the
+///    corrected value, which froze the odometer after a downward correction;
+///  * everything else competes by MAX as usual.
 pub(crate) const ODO_CTE: &str = "
 readings(vehicle_id, km, src, observed_at) AS (
-    SELECT v.id, v.last_fuel_odometer, 'falcon_fuel', v.fetched_at
+    SELECT v.id, v.last_fuel_odometer, 'falcon_fuel', COALESCE(v.fuel_odometer_changed_at, v.fetched_at)
       FROM vehicles_cache v
       LEFT JOIN vehicle_odometer_overrides ovf
              ON ovf.vehicle_id = v.id AND ovf.odometer IS NOT NULL
      WHERE v.last_fuel_odometer IS NOT NULL AND v.last_fuel_odometer > 0
-       AND (ovf.vehicle_id IS NULL OR v.last_fuel_odometer > COALESCE(ovf.superseded_km, -1))
+       AND (ovf.vehicle_id IS NULL
+            OR julianday(COALESCE(v.fuel_odometer_changed_at, v.fetched_at)) > julianday(ovf.set_at))
     UNION ALL
     -- Falcon's cars.mileage = MAX(fuel, Falcon oil change, service invoice)
     -- readings (server 0019); same override rule as the fuel reading.
-    SELECT v.id, v.mileage, 'falcon_mileage', v.fetched_at
+    SELECT v.id, v.mileage, 'falcon_mileage', COALESCE(v.mileage_changed_at, v.fetched_at)
       FROM vehicles_cache v
       LEFT JOIN vehicle_odometer_overrides ovm
              ON ovm.vehicle_id = v.id AND ovm.odometer IS NOT NULL
      WHERE v.mileage IS NOT NULL AND v.mileage > 0
-       AND (ovm.vehicle_id IS NULL OR v.mileage > COALESCE(ovm.superseded_km, -1))
+       AND (ovm.vehicle_id IS NULL
+            OR julianday(COALESCE(v.mileage_changed_at, v.fetched_at)) > julianday(ovm.set_at))
     UNION ALL
     SELECT o.vehicle_id, o.odometer, 'oil_change', o.performed_at
       FROM oil_changes o
@@ -56,7 +61,7 @@ odo AS (
     SELECT vehicle_id, km AS current_odometer, src AS odometer_source,
            observed_at AS odometer_observed_at
       FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY vehicle_id
-                                        ORDER BY km DESC, (src = 'falcon_mileage')) rn
+                                        ORDER BY km DESC, (src = 'falcon_mileage'), src) rn
               FROM readings)
      WHERE rn = 1
 )";

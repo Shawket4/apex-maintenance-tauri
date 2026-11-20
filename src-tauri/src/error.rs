@@ -13,6 +13,15 @@ pub enum AppError {
     #[error("http error: {0}")]
     Http(String),
 
+    /// The server answered with a non-2xx status. `code`/`message` come from
+    /// its `{error, message}` envelope when there is one.
+    #[error("{message}")]
+    Status { status: u16, code: String, message: String },
+
+    /// A rule the app enforces before writing (stable code for translation).
+    #[error("{message}")]
+    Rule { code: &'static str, message: String },
+
     /// Transport-level failure: the NETWORK, not the request. Kept as its own
     /// variant because reqwest 0.12's Display is terse ("error sending
     /// request") — string-sniffing the message misclassified a
@@ -69,15 +78,31 @@ impl From<keyring::Error> for AppError {
 #[derive(Serialize)]
 struct WireError {
     kind: &'static str,
+    /// Stable machine code the UI translates (rule codes, server error codes).
+    code: Option<String>,
     message: String,
 }
 
 impl AppError {
+    pub fn rule(code: &'static str, message: impl Into<String>) -> Self {
+        AppError::Rule { code, message: message.into() }
+    }
+
+    fn code(&self) -> Option<String> {
+        match self {
+            AppError::Rule { code, .. } => Some((*code).to_string()),
+            AppError::Status { code, .. } if !code.is_empty() => Some(code.clone()),
+            _ => None,
+        }
+    }
+
     fn kind(&self) -> &'static str {
         match self {
             AppError::Db(_) => "db",
             AppError::Pool(_) => "pool",
             AppError::Http(_) => "http",
+            AppError::Status { .. } => "status",
+            AppError::Rule { .. } => "rule",
             AppError::Offline(_) => "offline",
             AppError::AuthFailed(_) => "auth_failed",
             AppError::Unauthorized => "unauthorized",
@@ -96,6 +121,7 @@ impl serde::Serialize for AppError {
     {
         WireError {
             kind: self.kind(),
+            code: self.code(),
             message: self.to_string(),
         }
         .serialize(serializer)
@@ -108,12 +134,13 @@ impl serde::Serialize for AppError {
 #[derive(Debug, Clone, Serialize, specta::Type)]
 pub struct CmdError {
     pub kind: String,
+    pub code: Option<String>,
     pub message: String,
 }
 
 impl From<AppError> for CmdError {
     fn from(e: AppError) -> Self {
-        CmdError { kind: e.kind().to_string(), message: e.to_string() }
+        CmdError { kind: e.kind().to_string(), code: e.code(), message: e.to_string() }
     }
 }
 

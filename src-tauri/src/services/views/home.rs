@@ -151,6 +151,8 @@ pub struct DueCounts {
     pub overdue: i64,
     pub never_done: i64,
     pub due_soon: i64,
+    /// Trucks with no maintenance class: no plan applies, nothing is tracked.
+    pub unclassified_trucks: i64,
 }
 
 #[derive(Debug, Clone, Serialize, specta::Type)]
@@ -162,7 +164,8 @@ pub struct HomeSummary {
     pub low_stock_tires: Vec<StockTireLine>,
     pub low_stock_oil: Vec<StockOilLine>,
     pub sync_pending: i64,
-    pub sync_dead: i64,
+    /// Refused changes the user has not read yet.
+    pub sync_issues: i64,
 }
 
 pub fn home_summary(pool: &DbPool) -> AppResult<HomeSummary> {
@@ -172,6 +175,17 @@ pub fn home_summary(pool: &DbPool) -> AppResult<HomeSummary> {
         overdue: due.iter().filter(|d| d.status == "overdue").count() as i64,
         never_done: due.iter().filter(|d| d.status == "never_done").count() as i64,
         due_soon: due.iter().filter(|d| d.status == "due_soon").count() as i64,
+        unclassified_trucks: {
+            let conn = pool.get()?;
+            conn.query_row(
+                "SELECT COUNT(*) FROM vehicles_cache v
+                  WHERE v.source_deleted_at IS NULL
+                    AND NOT EXISTS (SELECT 1 FROM vehicle_class_assignments a
+                                     WHERE a.vehicle_id = v.id AND a.deleted_at IS NULL)",
+                [],
+                |r| r.get(0),
+            )?
+        },
     };
     let attention: Vec<DueRow> = due
         .iter()
@@ -186,7 +200,7 @@ pub fn home_summary(pool: &DbPool) -> AppResult<HomeSummary> {
         stock.oil.into_iter().filter(|o| o.low_stock).collect();
 
     let conn = pool.get()?;
-    let counts = outbox::counts(&conn)?;
+    let counts = outbox::counts(&conn, None)?;
 
     Ok(HomeSummary {
         open_wos,
@@ -195,7 +209,7 @@ pub fn home_summary(pool: &DbPool) -> AppResult<HomeSummary> {
         low_stock_tires,
         low_stock_oil,
         sync_pending: counts.pending,
-        sync_dead: counts.dead,
+        sync_issues: outbox::unseen_issue_count(&conn)?,
     })
 }
 

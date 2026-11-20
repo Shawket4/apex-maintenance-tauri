@@ -30,6 +30,9 @@ pub struct StockMovementRow {
     pub plate: Option<String>,
     pub created_at: String,
     pub mirrored: bool,
+    pub note: Option<String>,
+    /// Set when the fleet system refused this movement (its counts do not include it).
+    pub mirror_error: Option<String>,
 }
 
 /// Upsert a window of movements (the server's JSON array) into the local
@@ -57,13 +60,14 @@ pub fn upsert(conn: &mut Connection, rows: &[Value]) -> AppResult<usize> {
         tx.execute(
             "INSERT INTO stock_movements_cache
                (id, kind, brand, model, size, oil_type, qty, liters, work_order_id, plate,
-                created_at, mirrored, fetched_at)
-             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12, datetime('now'))
+                created_at, mirrored, fetched_at, note, mirror_error)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12, datetime('now'), ?13, ?14)
              ON CONFLICT(id) DO UPDATE SET
-               mirrored = excluded.mirrored, plate = excluded.plate, fetched_at = excluded.fetched_at",
+               mirrored = excluded.mirrored, plate = excluded.plate, fetched_at = excluded.fetched_at,
+               note = excluded.note, mirror_error = excluded.mirror_error",
             params![
                 id, kind, s("brand"), s("model"), s("size"), s("oil_type"), qty, liters,
-                s("work_order_id"), s("plate"), created_at, mirrored as i64
+                s("work_order_id"), s("plate"), created_at, mirrored as i64, s("note"), s("mirror_error")
             ],
         )?;
         n += 1;
@@ -84,7 +88,7 @@ pub fn list(
 ) -> AppResult<Vec<StockMovementRow>> {
     let mut sql = String::from(
         "SELECT id, kind, brand, model, size, oil_type, qty, liters, work_order_id, plate,
-                created_at, mirrored
+                created_at, mirrored, note, mirror_error
            FROM stock_movements_cache WHERE 1=1",
     );
     // kind is inlined from a fixed set — never user text.
@@ -118,6 +122,8 @@ pub fn list(
                 plate: r.get(9)?,
                 created_at: r.get(10)?,
                 mirrored: r.get::<_, i64>(11)? != 0,
+                note: r.get(12)?,
+                mirror_error: r.get(13)?,
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;

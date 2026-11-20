@@ -18,23 +18,21 @@ pub struct SearchResults {
 }
 
 pub fn search_all(pool: &DbPool, q: &str) -> AppResult<SearchResults> {
-    let nq = normalize_digits(q.trim());
+    let nq = fold_search(q);
     if nq.is_empty() {
         return Ok(SearchResults { trucks: vec![], tires: vec![], work_orders: vec![] });
     }
-    let mut trucks = truck_list(pool, Some(&nq))?;
+    let mut trucks = truck_list(pool, Some(q))?;
     trucks.truncate(8);
-    let mut tires = tires_list(pool, None, Some(&nq))?;
+    let mut tires = tires_list(pool, None, Some(q))?;
     tires.truncate(8);
-    let up = nq.to_uppercase();
     let mut work_orders: Vec<WoListRow> = wo_list(pool, None, None)?
         .into_iter()
         .filter(|w| {
-            w.plate.contains(&nq)
-                || w.title.as_deref().map(|t| t.to_uppercase().contains(&up)).unwrap_or(false)
+            fold_search(&w.plate).contains(&nq)
+                || w.title.as_deref().map(|t| fold_search(t).contains(&nq)).unwrap_or(false)
         })
         .collect();
     work_orders.truncate(8);
     Ok(SearchResults { trucks, tires, work_orders })
 }
-

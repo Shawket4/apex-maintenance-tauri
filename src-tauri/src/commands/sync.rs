@@ -1,6 +1,6 @@
-//! Sync commands — thin wrappers over the engine. The UI's contract:
-//! `sync_status` is honest (dead letters are counted, never hidden), and every
-//! stuck row is visible and actionable through `outbox_list` / retry / discard.
+//! Sync commands — thin wrappers over the engine. `sync_status` is honest
+//! about what is waiting and what was refused; `sync_issues` lists refused
+//! changes (already undone locally) so nothing disappears without a trace.
 
 use std::sync::Arc;
 
@@ -8,7 +8,7 @@ use tauri::State;
 
 use crate::error::CmdResult;
 use crate::services::engine::{PullSummary, SyncEngine, SyncStatus};
-use crate::services::outbox::{self, OutboxItem};
+use crate::services::outbox::{self, OutboxItem, SyncIssue};
 use crate::AppState;
 
 pub struct EngineState(pub Arc<SyncEngine>);
@@ -30,35 +30,36 @@ pub async fn sync_now(engine: State<'_, EngineState>) -> CmdResult<SyncStatus> {
     Ok(eng.status()?)
 }
 
+/// Start every pull stream from zero and drop local rows the server does
+/// not have. Queued changes are sent first and never dropped.
+#[tauri::command]
+#[specta::specta]
+pub async fn sync_resync(engine: State<'_, EngineState>) -> CmdResult<PullSummary> {
+    Ok(engine.0.resync().await?)
+}
+
+/// Changes still waiting to reach the server.
 #[tauri::command]
 #[specta::specta]
 pub async fn outbox_list(state: State<'_, AppState>) -> CmdResult<Vec<OutboxItem>> {
     let conn = state.db.get()?;
-    Ok(outbox::list_active(&conn, 200).map_err(crate::AppError::from)?)
+    Ok(outbox::queued(&conn, 200).map_err(crate::AppError::from)?)
 }
 
+/// Changes the server refused. Each was undone locally; `detail` holds what
+/// the user had entered.
 #[tauri::command]
 #[specta::specta]
-pub async fn outbox_retry(
-    state: State<'_, AppState>,
-    engine: State<'_, EngineState>,
-    seq: i64,
-) -> CmdResult<()> {
-    {
-        let conn = state.db.get()?;
-        outbox::requeue_dead(&conn, seq).map_err(crate::AppError::from)?;
-    }
-    let eng = engine.0.clone();
-    tauri::async_runtime::spawn(async move {
-        let _ = eng.drain().await;
-    });
-    Ok(())
-}
-
-#[tauri::command]
-#[specta::specta]
-pub async fn outbox_discard(state: State<'_, AppState>, seq: i64) -> CmdResult<()> {
+pub async fn sync_issues(state: State<'_, AppState>) -> CmdResult<Vec<SyncIssue>> {
     let conn = state.db.get()?;
-    outbox::discard_dead(&conn, seq).map_err(crate::AppError::from)?;
+    Ok(outbox::list_issues(&conn, 100).map_err(crate::AppError::from)?)
+}
+
+/// Mark one issue (or all of them) as read.
+#[tauri::command]
+#[specta::specta]
+pub async fn sync_issues_seen(state: State<'_, AppState>, id: Option<i64>) -> CmdResult<()> {
+    let conn = state.db.get()?;
+    outbox::mark_issues_seen(&conn, id).map_err(crate::AppError::from)?;
     Ok(())
 }

@@ -51,7 +51,20 @@ pub async fn auth_login(
     };
 
     // §5.1 — proxy through maint-rust; the client never talks to Falcon directly.
-    let resp = state.http.maint_post_unauth_raw("/auth/login", &req).await?;
+    let resp = match state.http.maint_post_unauth_raw("/auth/login", &req).await {
+        Ok(r) => r,
+        // The server said no to these credentials (Falcon answers 404 for an
+        // unknown email and 4xx for a wrong password — both are "check what
+        // you typed", and neither should say which it was).
+        Err(AppError::Unauthorized)
+        | Err(AppError::Status { status: 400 | 401 | 404 | 422, .. }) => {
+            return Err(AppError::AuthFailed("wrong email or password".into()).into());
+        }
+        Err(AppError::Status { status: 403, .. }) => {
+            return Err(AppError::rule("no_access", "this account has no access to maintenance").into());
+        }
+        Err(e) => return Err(e.into()),
+    };
 
     tracing::debug!(
         email = %email,

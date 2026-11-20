@@ -28,14 +28,22 @@ pub async fn reference_refresh(state: State<'_, AppState>) -> CmdResult<()> {
 }
 
 pub(crate) async fn reference_refresh_inner(state: &AppState) -> CmdResult<()> {
-    let cats = get_json(state, "/categories").await?;
-    let classes = get_json(state, "/vehicle-classes").await?;
-    let plans = get_json(state, "/service-plans").await?;
-    let empty: Vec<Value> = Vec::new();
-    refdata::replace_categories(&state.db, cats.as_array().unwrap_or(&empty))?;
-    refdata::replace_classes(&state.db, classes.as_array().unwrap_or(&empty))?;
-    refdata::replace_plans(&state.db, plans.as_array().unwrap_or(&empty))?;
+    let cats = get_array(state, "/categories").await?;
+    let classes = get_array(state, "/vehicle-classes").await?;
+    let plans = get_array(state, "/service-plans").await?;
+    refdata::replace_categories(&state.db, &cats)?;
+    refdata::replace_classes(&state.db, &classes)?;
+    refdata::replace_plans(&state.db, &plans)?;
     Ok(())
+}
+
+/// A JSON array, or an error. These answers REPLACE a local mirror: anything
+/// that is not a list (an error envelope, a portal page) must not empty it.
+async fn get_array(state: &AppState, path: &str) -> AppResult<Vec<Value>> {
+    match get_json(state, path).await? {
+        Value::Array(a) => Ok(a),
+        _ => Err(AppError::Http(format!("unexpected answer for {path}"))),
+    }
 }
 
 /// Refresh the stock snapshot mirrors (server also re-mirrors from Falcon on
@@ -47,11 +55,10 @@ pub async fn stock_refresh(state: State<'_, AppState>) -> CmdResult<()> {
 }
 
 pub(crate) async fn stock_refresh_inner(state: &AppState) -> CmdResult<()> {
-    let tires = get_json(state, "/stock/tires").await?;
-    let oil = get_json(state, "/stock/oil").await?;
-    let empty: Vec<Value> = Vec::new();
-    refdata::replace_tire_stock(&state.db, tires.as_array().unwrap_or(&empty))?;
-    refdata::replace_oil_stock(&state.db, oil.as_array().unwrap_or(&empty))?;
+    let tires = get_array(state, "/stock/tires").await?;
+    let oil = get_array(state, "/stock/oil").await?;
+    refdata::replace_tire_stock(&state.db, &tires)?;
+    refdata::replace_oil_stock(&state.db, &oil)?;
     Ok(())
 }
 
@@ -73,17 +80,45 @@ pub(crate) async fn refresh_all_mirrors(state: &AppState) {
     if let Err(e) = crate::commands::cache::invoices_refresh_inner(state).await {
         tracing::warn!(error = ?e, "bootstrap: invoices refresh failed");
     }
-    // Mirror the recent movements window so the ledger is browsable offline.
-    if let Ok(v) = get_json(state, "/stock/movements?limit=200&offset=0").await {
-        let rows: Vec<Value> = v.as_array().cloned().unwrap_or_default();
-        let db = state.db.clone();
-        let _ = tokio::task::spawn_blocking(move || {
-            if let Ok(mut conn) = db.get() {
-                let _ = stock_movements::upsert(&mut conn, &rows);
-            }
-        })
-        .await;
+    // Mirror the recent movements so the ledger is browsable offline.
+    if let Err(e) = movements_refresh_inner(state, 90).await {
+        tracing::warn!(error = ?e, "bootstrap: movements refresh failed");
     }
+}
+
+/// Mirror every movement of the last `days` days, page by page. (One fixed
+/// page of 200 used to be all the app ever held, so the 90-day and "all"
+/// filters silently stopped at the 200 newest rows.)
+pub(crate) async fn movements_refresh_inner(state: &AppState, days: i64) -> AppResult<u32> {
+    let from = (chrono::Utc::now() - chrono::Duration::days(days.clamp(1, 3650))).format("%Y-%m-%d").to_string();
+    let mut total = 0u32;
+    for page in 0..50i64 {
+        let rows = get_array(state, &format!("/stock/movements?limit=200&offset={}&from={from}", page * 200)).await?;
+        let n = rows.len();
+        let db = state.db.clone();
+        tokio::task::spawn_blocking(move || -> AppResult<usize> {
+            let mut conn = db.get()?;
+            stock_movements::upsert(&mut conn, &rows)
+        })
+        .await
+        .map_err(|e| AppError::Internal(format!("join error: {e}")))??;
+        total += n as u32;
+        if n < 200 {
+            break;
+        }
+    }
+    Ok(total)
+}
+
+/// The cheap mirrors (fleet list with odometers, reference data, stock).
+/// Runs on the heartbeat; the invoice walk is left to login and manual refresh.
+pub(crate) async fn refresh_light_mirrors(state: &AppState) {
+    if let Err(e) = crate::commands::cache::vehicles_refresh_inner(state).await {
+        tracing::debug!(error = ?e, "heartbeat: vehicles refresh failed");
+        return; // offline or signed out: the rest would fail the same way
+    }
+    let _ = reference_refresh_inner(state).await;
+    let _ = stock_refresh_inner(state).await;
 }
 
 /// Upsert a fleet-wide service plan (server-authoritative, perm ≥3), then
@@ -94,20 +129,31 @@ pub async fn plan_upsert(
     state: State<'_, AppState>,
     class_id: String,
     category_id: String,
-    trigger_type: String,
     interval_km: Option<i64>,
     interval_days: Option<i64>,
-    is_active: Option<bool>,
+    lead_warn_km: Option<i64>,
+    lead_warn_days: Option<i64>,
 ) -> CmdResult<()> {
+    // A km interval, a day interval, or both (due on whichever comes first).
     let body = json!({
-        "class_id": class_id, "category_id": category_id, "trigger_type": trigger_type,
+        "class_id": class_id, "category_id": category_id,
         "interval_km": interval_km, "interval_days": interval_days,
-        "is_active": is_active,
+        "lead_warn_km": lead_warn_km, "lead_warn_days": lead_warn_days,
+        "is_active": true,
     });
     state.http.maint_post_raw("/service-plans", &body).await?;
-    let plans = get_json(&state, "/service-plans").await?;
-    let empty: Vec<Value> = Vec::new();
-    refdata::replace_plans(&state.db, plans.as_array().unwrap_or(&empty))?;
+    let plans = get_array(&state, "/service-plans").await?;
+    refdata::replace_plans(&state.db, &plans)?;
+    Ok(())
+}
+
+/// Retire a plan (perm ≥3): it leaves the due board on every device.
+#[tauri::command]
+#[specta::specta]
+pub async fn plan_delete(state: State<'_, AppState>, id: String) -> CmdResult<()> {
+    state.http.maint_delete_raw(&format!("/service-plans/{id}")).await?;
+    let plans = get_array(&state, "/service-plans").await?;
+    refdata::replace_plans(&state.db, &plans)?;
     Ok(())
 }
 
@@ -189,21 +235,10 @@ pub async fn stock_movements(
     .map_err(|e| AppError::Internal(format!("join error: {e}")))??)
 }
 
-/// Pull the latest window of movements from maint-rust and upsert the local
-/// mirror. Online; best-effort (the view still works offline on the last
-/// mirror). Server clamps the page at 200 — a generous recent horizon for
-/// this fleet.
+/// Mirror the movements of the last `days` days (default 90) from the server.
+/// Online; the view keeps working offline on the last mirror.
 #[tauri::command]
 #[specta::specta]
-pub async fn stock_movements_refresh(state: State<'_, AppState>) -> CmdResult<u32> {
-    let v = get_json(&state, "/stock/movements?limit=200&offset=0").await?;
-    let rows: Vec<Value> = v.as_array().cloned().unwrap_or_default();
-    let db = state.db.clone();
-    let n = tokio::task::spawn_blocking(move || -> AppResult<usize> {
-        let mut conn = db.get()?;
-        stock_movements::upsert(&mut conn, &rows)
-    })
-    .await
-    .map_err(|e| AppError::Internal(format!("join error: {e}")))??;
-    Ok(n as u32)
+pub async fn stock_movements_refresh(state: State<'_, AppState>, days: Option<i64>) -> CmdResult<u32> {
+    Ok(movements_refresh_inner(&state, days.unwrap_or(90)).await?)
 }

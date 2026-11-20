@@ -21,7 +21,10 @@ pub struct WoListRow {
     pub opened_at: String,
     pub closed_at: Option<String>,
     pub odometer_at_open: Option<i64>,
+    /// Tasks the mechanic listed (oil changes are counted separately).
     pub task_count: i64,
+    pub done_count: i64,
+    pub notes: Option<String>,
     pub opened_by_user_id: i64,
     /// True while any part of this WO is still queued/unacked in the outbox.
     pub pending: bool,
@@ -38,6 +41,8 @@ fn map_wo_list(r: &rusqlite::Row<'_>) -> rusqlite::Result<WoListRow> {
         closed_at: r.get("closed_at")?,
         odometer_at_open: r.get("odometer_at_open")?,
         task_count: r.get("task_count")?,
+        done_count: r.get("done_count")?,
+        notes: r.get("notes")?,
         opened_by_user_id: r.get("opened_by_user_id")?,
         pending: false,
     })
@@ -47,8 +52,11 @@ const WO_LIST_SQL: &str = "
 SELECT wo.id, wo.vehicle_id, COALESCE(v.car_no_plate, '#' || wo.vehicle_id) AS plate,
        wo.title, wo.status, wo.opened_at, wo.closed_at, wo.odometer_at_open,
        wo.created_by_user_id AS opened_by_user_id,
+       wo.notes_ar AS notes,
        (SELECT COUNT(*) FROM work_order_tasks t
-         WHERE t.work_order_id = wo.id AND t.deleted_at IS NULL) AS task_count
+         WHERE t.work_order_id = wo.id AND t.deleted_at IS NULL AND t.kind <> 'oil') AS task_count,
+       (SELECT COUNT(*) FROM work_order_tasks t
+         WHERE t.work_order_id = wo.id AND t.deleted_at IS NULL AND t.kind <> 'oil' AND t.is_done = 1) AS done_count
   FROM work_orders wo
   LEFT JOIN vehicles_cache v ON v.id = wo.vehicle_id
  WHERE wo.deleted_at IS NULL
@@ -81,7 +89,7 @@ pub fn wo_list(
     // row itself acked.
     let mut child_stmt = conn.prepare(
         "SELECT 1 FROM outbox o
-          WHERE o.status IN ('pending','inflight','dead')
+          WHERE o.status IN ('pending','inflight')
             AND (
                  (o.entity_type = 'work_order_tasks'
                     AND o.entity_id IN (SELECT id FROM work_order_tasks WHERE work_order_id = ?1))
@@ -110,6 +118,7 @@ pub struct TaskRow {
     pub description_ar: Option<String>,
     /// Done-ness is what resets the due clock (0017) — the checkbox state.
     pub is_done: bool,
+    pub done_at: Option<String>,
     pub created_at: String,
     pub pending: bool,
 }
@@ -132,12 +141,16 @@ pub struct TireOpRow {
     pub dot_code: Option<String>,
     pub brand: Option<String>,
     pub position_code: Option<String>,
+    pub vehicle_id: Option<i64>,
+    pub plate: Option<String>,
     pub mounted_at: Option<String>,
     pub mounted_odometer: Option<i64>,
     pub mount_reason: Option<String>,
     pub dismounted_at: Option<String>,
     pub dismounted_odometer: Option<i64>,
     pub dismount_reason: Option<String>,
+    /// Km run on this mount (None when an odometer is missing or it is a spare).
+    pub km_run: Option<i64>,
     pub pending: bool,
 }
 
@@ -171,7 +184,7 @@ pub fn wo_detail(pool: &DbPool, id: &str) -> AppResult<Option<WoDetail>> {
 
     let pending_tasks = pending_ids(&conn, "work_order_tasks")?;
     let mut stmt = conn.prepare(
-        "SELECT t.id, t.kind, t.category_id, c.name_ar, t.description_ar, t.is_done, t.created_at
+        "SELECT t.id, t.kind, t.category_id, c.name_ar, t.description_ar, t.is_done, t.created_at, t.done_at
            FROM work_order_tasks t
            LEFT JOIN maintenance_categories c ON c.id = t.category_id
           WHERE t.work_order_id = ?1 AND t.deleted_at IS NULL
@@ -187,6 +200,7 @@ pub fn wo_detail(pool: &DbPool, id: &str) -> AppResult<Option<WoDetail>> {
                 description_ar: r.get(4)?,
                 is_done: r.get::<_, i64>(5)? != 0,
                 created_at: r.get(6)?,
+                done_at: r.get(7)?,
                 pending: false,
             })
         })?
@@ -241,10 +255,16 @@ pub(crate) fn tire_ops_for(
     let sql = format!(
         "SELECT ta.id, ta.tire_id, t.dot_code, t.brand, p.position_code,
                 ta.mounted_at, ta.mounted_odometer, ta.mount_reason,
-                ta.dismounted_at, ta.dismounted_odometer, ta.dismount_reason
+                ta.dismounted_at, ta.dismounted_odometer, ta.dismount_reason,
+                ta.vehicle_id, v.car_no_plate,
+                CASE WHEN COALESCE(p.is_spare,0)=0 AND ta.mounted_odometer IS NOT NULL
+                          AND ta.dismounted_odometer IS NOT NULL
+                          AND ta.dismounted_odometer >= ta.mounted_odometer
+                     THEN ta.dismounted_odometer - ta.mounted_odometer END
            FROM tire_assignments ta
            LEFT JOIN tires t ON t.id = ta.tire_id
            LEFT JOIN chassis_positions p ON p.id = ta.position_id
+           LEFT JOIN vehicles_cache v ON v.id = ta.vehicle_id
           WHERE ta.deleted_at IS NULL AND {where_clause}
           ORDER BY julianday(ta.mounted_at)"
     );
@@ -263,6 +283,9 @@ pub(crate) fn tire_ops_for(
                 dismounted_at: r.get(8)?,
                 dismounted_odometer: r.get(9)?,
                 dismount_reason: r.get(10)?,
+                vehicle_id: r.get(11)?,
+                plate: r.get(12)?,
+                km_run: r.get(13)?,
                 pending: false,
             })
         })?
