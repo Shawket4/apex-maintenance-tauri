@@ -118,6 +118,8 @@ fn specta_builder() -> tauri_specta::Builder {
         commands::online::stock_refresh,
         commands::online::plan_upsert,
         commands::online::plan_delete,
+        commands::online::stock_count_tires,
+        commands::online::stock_count_oil,
         commands::online::catalog_rename_tire_product,
         commands::online::catalog_merge_tire_product,
         commands::online::catalog_rename_oil_product,
