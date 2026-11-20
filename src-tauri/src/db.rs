@@ -77,6 +77,11 @@ const MIGRATIONS: &[Migration] = &[
         name: "0011_sync_v2",
         sql: include_str!("migrations/0011_sync_v2.sql"),
     },
+    Migration {
+        version: 12,
+        name: "0012_catalogs",
+        sql: include_str!("migrations/0012_catalogs.sql"),
+    },
 ];
 
 #[derive(Clone)]

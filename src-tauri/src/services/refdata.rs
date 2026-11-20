@@ -135,3 +135,39 @@ pub fn replace_oil_stock(pool: &DbPool, rows: &[Value]) -> AppResult<usize> {
     tx.commit()?;
     Ok(rows.len())
 }
+
+/// Replace the three catalog mirrors from GET /catalog.
+pub fn replace_catalog(pool: &DbPool, v: &Value) -> AppResult<()> {
+    let empty: Vec<Value> = Vec::new();
+    let list = |k: &str| v.get(k).and_then(|x| x.as_array()).unwrap_or(&empty).clone();
+    // Not our envelope: leave the mirrors alone rather than empty them.
+    if !["tire_products", "oil_products", "standard_jobs"].iter().all(|k| v.get(*k).map(|x| x.is_array()).unwrap_or(false)) {
+        return Err(crate::AppError::Http("unexpected answer for /catalog".into()));
+    }
+    let mut conn = pool.get()?;
+    let tx = conn.transaction()?;
+    tx.execute("DELETE FROM tire_products", [])?;
+    for r in list("tire_products") {
+        tx.execute(
+            "INSERT OR REPLACE INTO tire_products (id, brand, model, size, tires, on_hand) VALUES (?1,?2,?3,?4,?5,?6)",
+            params![s(&r, "id"), s(&r, "brand").unwrap_or_default(), s(&r, "model").unwrap_or_default(),
+                    s(&r, "size").unwrap_or_default(), i(&r, "tires").unwrap_or(0), i(&r, "on_hand")],
+        )?;
+    }
+    tx.execute("DELETE FROM oil_products", [])?;
+    for r in list("oil_products") {
+        tx.execute(
+            "INSERT OR REPLACE INTO oil_products (id, name, uses, on_hand) VALUES (?1,?2,?3,?4)",
+            params![s(&r, "id"), s(&r, "name").unwrap_or_default(), i(&r, "uses").unwrap_or(0), f(&r, "on_hand")],
+        )?;
+    }
+    tx.execute("DELETE FROM standard_jobs", [])?;
+    for r in list("standard_jobs") {
+        tx.execute(
+            "INSERT OR REPLACE INTO standard_jobs (id, name_ar, name_en, category_id, uses) VALUES (?1,?2,?3,?4,?5)",
+            params![s(&r, "id"), s(&r, "name_ar").unwrap_or_default(), s(&r, "name_en"), s(&r, "category_id"), i(&r, "uses").unwrap_or(0)],
+        )?;
+    }
+    tx.commit()?;
+    Ok(())
+}

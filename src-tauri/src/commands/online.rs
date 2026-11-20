@@ -34,6 +34,12 @@ pub(crate) async fn reference_refresh_inner(state: &AppState) -> CmdResult<()> {
     refdata::replace_categories(&state.db, &cats)?;
     refdata::replace_classes(&state.db, &classes)?;
     refdata::replace_plans(&state.db, &plans)?;
+    // The catalog is newer than some servers; an older one answers 404.
+    match get_json(state, "/catalog").await {
+        Ok(v) => refdata::replace_catalog(&state.db, &v)?,
+        Err(AppError::Status { status: 404, .. }) => {}
+        Err(e) => return Err(e.into()),
+    }
     Ok(())
 }
 
@@ -205,6 +211,77 @@ pub async fn stock_credit_oil(
     state.http.maint_post_raw("/stock/oil/credit", &body).await?;
     stock_refresh_inner(&state).await?;
     let _ = movements_refresh_inner(&state, 7).await;
+    Ok(())
+}
+
+/// Correct a tire product's spelling everywhere (perm ≥3). If the corrected
+/// spelling is already a product, the two are merged.
+#[tauri::command]
+#[specta::specta]
+pub async fn catalog_rename_tire_product(
+    state: State<'_, AppState>,
+    id: String,
+    brand: String,
+    model: Option<String>,
+    size: Option<String>,
+) -> CmdResult<()> {
+    let body = json!({ "brand": brand, "model": model, "size": size });
+    state.http.maint_send_raw("PUT", &format!("/catalog/tire-products/{id}"), &body).await?;
+    after_catalog_change(&state).await
+}
+
+/// "These two are the same tire": fold `id` into `into` (perm ≥3).
+#[tauri::command]
+#[specta::specta]
+pub async fn catalog_merge_tire_product(state: State<'_, AppState>, id: String, into: String) -> CmdResult<()> {
+    state.http.maint_post_raw(&format!("/catalog/tire-products/{id}/merge"), &json!({ "into": into })).await?;
+    after_catalog_change(&state).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn catalog_rename_oil_product(state: State<'_, AppState>, id: String, name: String) -> CmdResult<()> {
+    state.http.maint_send_raw("PUT", &format!("/catalog/oil-products/{id}"), &json!({ "name": name })).await?;
+    after_catalog_change(&state).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn catalog_merge_oil_product(state: State<'_, AppState>, id: String, into: String) -> CmdResult<()> {
+    state.http.maint_post_raw(&format!("/catalog/oil-products/{id}/merge"), &json!({ "into": into })).await?;
+    after_catalog_change(&state).await
+}
+
+/// Add a standard job to the list (or edit one when `id` is given, perm ≥3).
+#[tauri::command]
+#[specta::specta]
+pub async fn catalog_save_job(
+    state: State<'_, AppState>,
+    id: Option<String>,
+    name_ar: String,
+    name_en: Option<String>,
+    category_id: Option<String>,
+) -> CmdResult<()> {
+    let body = json!({ "name_ar": name_ar, "name_en": name_en, "category_id": category_id });
+    match id {
+        Some(id) => state.http.maint_send_raw("PUT", &format!("/catalog/standard-jobs/{id}"), &body).await?,
+        None => state.http.maint_post_raw("/catalog/standard-jobs", &body).await?,
+    };
+    after_catalog_change(&state).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn catalog_remove_job(state: State<'_, AppState>, id: String) -> CmdResult<()> {
+    state.http.maint_delete_raw(&format!("/catalog/standard-jobs/{id}")).await?;
+    after_catalog_change(&state).await
+}
+
+/// A catalog change rewrites text on tires and oil changes server-side: take
+/// the new catalog, the new stock lines, and pull the changed rows.
+async fn after_catalog_change(state: &AppState) -> CmdResult<()> {
+    reference_refresh_inner(state).await?;
+    let _ = stock_refresh_inner(state).await;
     Ok(())
 }
 

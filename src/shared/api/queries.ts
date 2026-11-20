@@ -126,6 +126,10 @@ export const useClasses = () =>
     staleTime: 5 * 60_000,
   });
 
+/** Options for the tire / oil / job pickers (catalog + what this device has used). */
+export const useCatalog = () =>
+  useQuery({ queryKey: ["catalog"], queryFn: () => unwrap(commands.catalogGet()) });
+
 export const usePlans = () =>
   useQuery({ queryKey: keys.plans, queryFn: () => unwrap(commands.plansList()) });
 
@@ -195,7 +199,7 @@ export const useInvoice = (id: number | null) =>
 function invalidateDomain(qc: ReturnType<typeof useQueryClient>, withSync = true) {
   for (const k of [
     "home", "trucks", "truck", "due", "wos", "wo", "tires", "tire", "stock",
-    "chassis", "plans", "categories", "classes", "outbox", "sync-issues", "search",
+    "chassis", "plans", "categories", "classes", "outbox", "sync-issues", "search", "catalog",
   ]) {
     void qc.invalidateQueries({ queryKey: [k] });
   }
