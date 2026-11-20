@@ -138,6 +138,7 @@ mod tests {
     fn mem() -> Connection {
         let c = Connection::open_in_memory().unwrap();
         c.execute_batch(include_str!("../migrations/0010_stock_movements_cache.sql")).unwrap();
+        c.execute_batch("ALTER TABLE stock_movements_cache ADD COLUMN note TEXT; ALTER TABLE stock_movements_cache ADD COLUMN mirror_error TEXT;").unwrap();
         c
     }
 
