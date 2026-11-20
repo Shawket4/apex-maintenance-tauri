@@ -483,6 +483,24 @@ pub fn oil_add(
             params![task_id, work_order_id, now, user_id],
         )?;
         a.inserted("work_order_tasks", &task_id)?;
+        // "Oil change" planned on this work order (added from the due list)
+        // is the same job: tick it rather than leave it looking undone.
+        let planned: Vec<String> = {
+            let mut stmt = a.tx.prepare(
+                "SELECT id FROM work_order_tasks
+                  WHERE work_order_id = ?1 AND kind = 'free' AND category_id = 'oil_change'
+                    AND is_done = 0 AND deleted_at IS NULL",
+            )?;
+            let v = stmt.query_map(params![work_order_id], |r| r.get(0))?.collect::<Result<Vec<_>, _>>()?;
+            v
+        };
+        for t in planned {
+            a.tx.execute(
+                "UPDATE work_order_tasks SET is_done=1, done_at=?2, updated_at=?2, updated_by_user_id=?3 WHERE id=?1",
+                params![t, now, user_id],
+            )?;
+            a.updated("work_order_tasks", &t, &["is_done", "done_at"])?;
+        }
         Ok((oil_id, flagged))
     })
 }

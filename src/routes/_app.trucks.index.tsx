@@ -114,7 +114,7 @@ function TrucksPage() {
               {all.length > 0 && (
                 <div className="flex flex-wrap gap-2" role="group" aria-label={t("trucks.filterLabel")}>
                   <FilterChip active={!f} onClick={() => setSearch({ q })}>
-                    {t("common.all")} · {fmtNumber(all.length, i18n.language)}
+                    {t("common.all")} ({fmtNumber(all.length, i18n.language)})
                   </FilterChip>
                   {FILTERS.map((key) => {
                     const n = all.filter(matches[key]).length;
@@ -125,7 +125,7 @@ function TrucksPage() {
                         active={f === key}
                         onClick={() => setSearch({ q, f: f === key ? undefined : key })}
                       >
-                        {t(`trucks.filter.${key}`)} · {fmtNumber(n, i18n.language)}
+                        {t(`trucks.filter.${key}`)} ({fmtNumber(n, i18n.language)})
                       </FilterChip>
                     );
                   })}

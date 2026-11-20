@@ -123,7 +123,7 @@ function DueBoard() {
 
               <div className="flex flex-wrap gap-2" role="group" aria-label={t("due.filterLabel")}>
                 <FilterChip active={!status} onClick={() => setSearch({ q })}>
-                  {t("due.filter.attention")} · {fmtNumber(count(undefined), lang)}
+                  {t("due.filter.attention")} ({fmtNumber(count(undefined), lang)})
                 </FilterChip>
                 {STATUS_FILTERS.map((s) => {
                   const n = count(s);
@@ -136,7 +136,7 @@ function DueBoard() {
                       tone={s === "all" ? undefined : dueBadge(s)}
                       onClick={() => setSearch({ q, status: s })}
                     >
-                      {s === "all" ? t("common.all") : t(`due.status.${s}`)} · {fmtNumber(n, lang)}
+                      {s === "all" ? t("common.all") : t(`due.status.${s}`)} ({fmtNumber(n, lang)})
                     </FilterChip>
                   );
                 })}

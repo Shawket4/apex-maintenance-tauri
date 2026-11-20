@@ -19,7 +19,12 @@ export const CAIRO_TZ = "Africa/Cairo";
 /** Render an ISO-8601 UTC string in Cairo time, in the active locale. */
 export function fmtCairo(iso: string | null | undefined, format = "YYYY/MM/DD HH:mm", locale = "ar") {
   if (!iso) return "—";
-  return dayjs.utc(iso).tz(CAIRO_TZ).locale(locale).format(format);
+  const d = dayjs.utc(iso).tz(CAIRO_TZ).locale(locale);
+  if (!d.isValid()) return "—";
+  // dayjs' Arabic locale calls 12:xx noon "ص" (it tests hour > 12). Write the
+  // AM/PM marker ourselves.
+  const meridiem = d.hour() >= 12 ? (locale.startsWith("ar") ? "م" : "PM") : locale.startsWith("ar") ? "ص" : "AM";
+  return d.format(format.replace(/\bA\b/g, `[${meridiem}]`));
 }
 
 /** Relative time ("2 hours ago") in the active locale. */

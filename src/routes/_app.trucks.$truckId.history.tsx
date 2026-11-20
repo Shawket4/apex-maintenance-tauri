@@ -444,7 +444,7 @@ function InvoiceView({ id, truckId }: { id: number; truckId: string }) {
                 <Badge variant="secondary">{t("truck.history.falcon")}</Badge>
               </div>
               <h3 className="mb-2 text-sm font-bold">
-                {t("truck.history.invoiceItems")} · {fmtNumber(d.items.length, lang)}
+                {t("truck.history.invoiceItems")} ({fmtNumber(d.items.length, lang)})
               </h3>
               {d.items.length === 0 ? (
                 <p className="text-sm text-muted-foreground">{t("truck.history.invoiceNoItems")}</p>

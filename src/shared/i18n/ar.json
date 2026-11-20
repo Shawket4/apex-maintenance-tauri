@@ -105,7 +105,7 @@
     },
     "overrideOdometer": "صحّح العداد",
     "overrideNotes": "سبب التصحيح",
-    "class": "التصنيف",
+    "class": "الفئة",
     "history": {
       "workshop": "الورشة",
       "falcon": "فواتير الخدمة",
@@ -326,10 +326,10 @@
   "settings": {
     "title": "الإعدادات",
     "plans": {
-      "title": "التصنيفات وخطط الصيانة",
-      "tagTrucks": "تصنيف العربيات",
+      "title": "الفئات وخطط الصيانة",
+      "tagTrucks": "فئة العربيات",
       "plansEditor": "خطط الصيانة (لكل الأسطول)",
-      "class": "التصنيف",
+      "class": "الفئة",
       "category": "نوع الصيانة",
       "byKm": "بالكيلومترات",
       "byDays": "بالأيام",
@@ -339,7 +339,7 @@
       "onlineNote": "تعديل الخطط محتاج نت وصلاحية مشرف",
       "active": "شغالة",
       "paused": "موقوفة",
-      "noPermission": "تعديل الخطط والتصنيفات محتاج صلاحية مشرف."
+      "noPermission": "تعديل الخطط والفئات محتاج صلاحية مشرف."
     },
     "sync": {
       "title": "حالة الإرسال",
@@ -369,7 +369,7 @@
         "chassis_layouts": "الشاسيه",
         "chassis_axles": "محاور الشاسيه",
         "chassis_positions": "مواضع الشاسيه",
-        "vehicle_class_assignments": "تصنيفات العربيات",
+        "vehicle_class_assignments": "فئات العربيات",
         "vehicle_odometer_overrides": "تصحيحات العداد"
       }
     },
@@ -384,9 +384,9 @@
       "system": "زي الجهاز"
     },
     "classes": {
-      "addTitle": "إضافة تصنيف",
+      "addTitle": "إضافة فئة",
       "idPlaceholder": "كود إنجليزي",
-      "namePlaceholder": "اسم التصنيف",
+      "namePlaceholder": "اسم الفئة",
       "add": "إضافة"
     }
   },
