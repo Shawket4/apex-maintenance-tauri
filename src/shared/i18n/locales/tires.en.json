@@ -1,0 +1,232 @@
+{
+  "pending": "Not sent yet",
+  "dotShort": "DOT:",
+  "noDot": "No DOT",
+  "onTruck": "On",
+  "whereLabel": "Where it is now",
+  "where": {
+    "mounted": "Fitted on a truck",
+    "in_stock_used": "In stock — ready to fit",
+    "in_repair": "Out for repair",
+    "retreading": "Out for retreading",
+    "scrapped": "Scrapped — cannot be fitted",
+    "other": "Unknown"
+  },
+  "approx": "approx.",
+  "approxWhy": "Lower than the truth: one fitting has no odometer reading. Correct it under “Fitting history” below.",
+  "retreadCount": "Retreaded {{n}} times",
+  "totalKmLabel": "Total distance",
+  "originLabel": "Where it came from",
+  "origin": {
+    "shipment": "New, from stock",
+    "legacy": "Registered as used"
+  },
+  "status": {
+    "mounted": "Fitted",
+    "in_stock_used": "Used, in stock",
+    "in_repair": "In repair",
+    "retreading": "Retreading",
+    "scrapped": "Scrapped"
+  },
+  "mountReason": {
+    "new": "New from stock",
+    "rotation": "Rotation",
+    "replacement": "Replacement",
+    "repair_return": "Back from repair",
+    "onboard": "First registration (already fitted)"
+  },
+  "assets": {
+    "title": "All registered tires",
+    "searchLabel": "Find a tire",
+    "searchPlaceholder": "Brand, size, DOT, or truck plate",
+    "clearSearch": "Clear search",
+    "filterLabel": "Tire status",
+    "empty": "No tires registered yet. Tires are registered when fitted from a work order, or with “Register used tires already in the workshop”.",
+    "noMatch": "No tires match this search",
+    "noneInStatus": "No tires with this status",
+    "showAll": "Show all tires",
+    "showMore": "Show more",
+    "shownOf": "Showing {{shown}} of {{total}}"
+  },
+  "intake": {
+    "open": "Register used tires already in the workshop",
+    "title": "Register used tires already in the workshop",
+    "subtitle": "For used tires you already have that are not registered — so they can be fitted later. This is not receiving a shipment: new tires are recorded with “Receive stock”.",
+    "rowTitle": "Tire {{n}}",
+    "removeRow": "Remove tire {{n}}",
+    "brand": "Brand (required)",
+    "brandRequired": "Type the brand",
+    "km": "Roughly how many km it has run (if known)",
+    "estimatedKm": "Estimated km",
+    "addRow": "Add another tire",
+    "nothing": "Fill in at least one tire",
+    "submit": "Register ({{n}})",
+    "confirmTitle": "Register {{n}} used tires?",
+    "confirmBody": "Each one is registered as a used tire in stock, ready to fit. The new-tire stock does not change. A tire registered by mistake can be deleted from its file.",
+    "confirm": "Register",
+    "done": "Added to used stock",
+    "doneCount": "{{n}} used tires registered in stock"
+  },
+  "form": {
+    "model": "Model (if known)",
+    "size": "Size (if known)",
+    "dot": "DOT code written on the tire (if any)",
+    "notes": "Notes",
+    "kmBad": "Not a valid number — type a number up to 9,999,999"
+  },
+  "fix": {
+    "heading": "Correct the record"
+  },
+  "edit": {
+    "open": "Edit details",
+    "title": "Edit tire details",
+    "subtitle": "Correct what was typed wrong: brand, size, DOT, or the km it started with.",
+    "baseKm": "Km run before it was registered here",
+    "baseKmHint": "Leave zero for a new tire. This is added to what it has run since.",
+    "done": "Details updated"
+  },
+  "delete": {
+    "open": "Delete tire",
+    "title": "Delete this tire from the records?",
+    "body": "It is removed with all its history. Use this only if it was registered by mistake — if the tire is finished, scrap it instead.",
+    "bodyShipment": "It is removed with all its history, and one tire goes back to the new-tire stock. Use this only if it was registered by mistake — if the tire is finished, scrap it instead.",
+    "confirm": "Delete it",
+    "done": "Tire deleted",
+    "mounted": "The tire is fitted, so it cannot be deleted. Take it off in a work order first, or if the fitting itself was a mistake press “Fitted by mistake” below."
+  },
+  "life": {
+    "heading": "Change the tire's status",
+    "mountedFirst": "The tire is fitted on a truck. To send it for repair or retreading, or to scrap it, take it off first in a work order for that truck.",
+    "note": "Note (optional)",
+    "sendRepair": {
+      "label": "Send for repair",
+      "title": "Send the tire for repair?",
+      "body": "It is recorded as out for repair and is not offered for fitting until you bring it back.",
+      "notePlaceholder": "For example: where it went and what is wrong",
+      "confirm": "Send for repair",
+      "done": "Recorded as in repair"
+    },
+    "backFromRepair": {
+      "label": "Back from repair",
+      "title": "Is the tire back from repair?",
+      "body": "It goes back to stock as a used tire ready to fit.",
+      "notePlaceholder": "For example: what was done and the cost",
+      "confirm": "Return to stock",
+      "done": "Back in stock"
+    },
+    "sendRetread": {
+      "label": "Send for retreading",
+      "title": "Send the tire for retreading?",
+      "body": "It is recorded as out for retreading and is not offered for fitting until you bring it back.",
+      "notePlaceholder": "For example: the retreader's name",
+      "confirm": "Send for retreading",
+      "done": "Recorded as retreading"
+    },
+    "backFromRetread": {
+      "label": "Back from retreading",
+      "title": "Is the tire back from retreading?",
+      "body": "It goes back to stock ready to fit, and its retread count goes up by one.",
+      "notePlaceholder": "For example: the cost",
+      "confirm": "Return to stock",
+      "done": "Back in stock"
+    },
+    "scrap": {
+      "label": "Scrap it",
+      "title": "Scrap this tire?",
+      "body": "A scrapped tire cannot be fitted again and is not offered for fitting.",
+      "notePlaceholder": "For example: the reason",
+      "sure": "Yes, this tire is finished and will not be fitted again",
+      "confirm": "Scrap it",
+      "done": "Recorded as scrapped"
+    },
+    "unscrap": {
+      "label": "Scrapped by mistake — return to stock",
+      "title": "Return the tire to stock?",
+      "body": "It becomes a used tire in stock, ready to fit. Use this if it was scrapped by mistake.",
+      "notePlaceholder": "For example: scrapped by mistake",
+      "confirm": "Return to stock",
+      "done": "Back in stock"
+    }
+  },
+  "history": "Fitting history",
+  "historyEmpty": "This tire has not been fitted on a truck yet",
+  "unknownTruck": "Unknown truck",
+  "stillOn": "Still fitted",
+  "mountedLabel": "Fitted",
+  "dismountedLabel": "Taken off",
+  "odoAt": "Odometer then:",
+  "odoMissing": "not recorded",
+  "notYetOff": "Not taken off yet",
+  "reasonLabel": "Reason:",
+  "reasonMissing": "not recorded",
+  "kmRun": "Distance on this fitting:",
+  "kmRunSoFar": "Distance so far:",
+  "kmRunUnknown": "Distance not counted: a spare, or an odometer reading is missing.",
+  "editOdo": {
+    "open": "Correct odometer",
+    "title": "Correct odometer readings",
+    "hint": "The distance the tire ran is worked out from these two readings. A box left empty stays as it is.",
+    "mounted": "Odometer when fitted",
+    "dismounted": "Odometer when taken off",
+    "stillOn": "The tire is still fitted, so there is no take-off reading yet.",
+    "backwards": "The take-off reading ({{dismounted}}) is lower than the fitting reading ({{mounted}}). An odometer does not go backwards — check both numbers.",
+    "noChange": "No number was changed",
+    "done": "Odometer corrected"
+  },
+  "reason": {
+    "open": "Correct the reason",
+    "title": "Why did the tire come off?",
+    "body": "The reason decides what happens to the tire after it comes off. Pick the right one.",
+    "bodyNoFollow": "Only the recorded reason is corrected. The tire's current status stays, because it was changed after the tire came off — change it under “Change the tire's status”.",
+    "current": "(recorded now)",
+    "becomes": "The tire becomes: {{status}}",
+    "done": "Reason corrected"
+  },
+  "undoDismount": {
+    "open": "It should not have come off — put it back",
+    "title": "Put the tire back where it was?",
+    "body": "The take-off is cancelled as if it never happened, and the tire is fitted again on {{plate}} in the same place. If another tire has been fitted there, that one has to come off first.",
+    "confirm": "Put it back",
+    "done": "The tire is back in place",
+    "notPossible": "The tire's status changed or it was fitted again after this take-off, so it cannot be put back from here."
+  },
+  "undoMount": {
+    "open": "Fitted by mistake — cancel the fitting",
+    "title": "Cancel this fitting?",
+    "bodyUsed": "The fitting is cancelled as if it never happened, and the tire goes back to stock as a used tire ready to fit.",
+    "bodyNew": "The fitting is cancelled as if it never happened. This tire was new from stock: it goes back to the new-tire stock and this file is removed.",
+    "bodyOnboard": "The fitting is cancelled as if it never happened. This tire was registered only by this fitting, so its file is removed with it.",
+    "confirm": "Cancel the fitting",
+    "done": "Fitting cancelled"
+  },
+  "events": "Status changes",
+  "eventsEmpty": "No status changes recorded",
+  "eventType": {
+    "scrap": "Scrapped",
+    "retread": "Sent for retreading",
+    "repair_out": "Sent for repair",
+    "repair_in": "Back from repair",
+    "restock": "Returned to stock",
+    "intake": "Registered in stock",
+    "other": "Status change"
+  },
+  "fromTo": "From “{{from}}” to “{{to}}”",
+  "became": "Became “{{to}}”",
+  "noteShown": "Note:",
+  "notFoundLong": "This tire does not exist — it may have been deleted.",
+  "backToList": "All tires",
+  "pos": {
+    "steer": "Tractor · front · {{side}}",
+    "drive": "Tractor · axle {{n}} · {{side}}",
+    "trailer": "Trailer · axle {{n}} · {{side}}",
+    "spare": "Spare {{n}}",
+    "side": {
+      "left": "left",
+      "right": "right",
+      "leftOuter": "left outer",
+      "leftInner": "left inner",
+      "rightOuter": "right outer",
+      "rightInner": "right inner"
+    }
+  }
+}

@@ -1,0 +1,87 @@
+name: CI
+
+# Every pull request and every push to main is checked. (The checks used to
+# run only when a release tag was pushed — after the code was already merged.)
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Typecheck, lint, unit tests
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: System deps for the Tauri build (webkit)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - uses: dtolnay/rust-toolchain@stable
+      # tauri::generate_context!() needs ../dist to exist.
+      - run: npm run build
+      - name: cargo test (unit tests + bindings are up to date)
+        working-directory: src-tauri
+        run: |
+          cargo test
+          git diff --exit-code -- ../src/shared/api/bindings.ts
+
+  e2e:
+    name: Sync end-to-end against maint-rust
+    runs-on: ubuntu-22.04
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: maint
+          POSTGRES_PASSWORD: secret
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U maint" --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      # The server branch with the same name as this branch when it exists
+      # (a change that touches both sides), otherwise the server's main.
+      - name: Pick the maint-rust ref
+        id: ref
+        run: |
+          BRANCH="${{ github.head_ref || github.ref_name }}"
+          if git ls-remote --exit-code --heads https://github.com/Shawket4/maint-rust.git "$BRANCH" >/dev/null; then
+            echo "ref=$BRANCH" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=main" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v4
+        with:
+          repository: Shawket4/maint-rust
+          ref: ${{ steps.ref.outputs.ref }}
+          path: maint-rust
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: System deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev postgresql-client
+      - uses: dtolnay/rust-toolchain@stable
+      - run: npm ci
+      - run: npm run build
+      - name: End-to-end
+        env:
+          MAINT_RUST_DIR: ${{ github.workspace }}/maint-rust
+        run: ./scripts/e2e_live.sh

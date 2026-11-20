@@ -7,6 +7,7 @@ export const DUE_DOT: Record<string, string> = {
   due_soon: "bg-status-due_soon",
   never_done: "bg-status-never_done",
   ok: "bg-status-ok",
+  unknown: "bg-muted-foreground",
 };
 
 export const DUE_BADGE: Record<string, string> = {
@@ -14,6 +15,7 @@ export const DUE_BADGE: Record<string, string> = {
   due_soon: "bg-status-due_soon-soft text-status-due_soon",
   never_done: "bg-status-never_done-soft text-status-never_done",
   ok: "bg-status-ok-soft text-status-ok",
+  unknown: "bg-muted text-muted-foreground",
 };
 
 export const TIRE_BADGE: Record<string, string> = {

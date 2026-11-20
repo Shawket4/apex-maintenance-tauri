@@ -17,6 +17,7 @@ pub struct TruckRow {
     pub car_type: Option<String>,
     pub class_id: Option<String>,
     pub class_name_ar: Option<String>,
+    pub class_name_en: Option<String>,
     pub odometer: Option<OdoTruth>,
     pub open_wo_count: i64,
     pub overdue_count: i64,
@@ -41,7 +42,7 @@ pub fn truck_list(pool: &DbPool, q: Option<&str>) -> AppResult<Vec<TruckRow>> {
                   WHERE wo.vehicle_id = v.id AND wo.status='open' AND wo.deleted_at IS NULL) AS open_wo_count,
                 (SELECT COUNT(*) FROM chassis_layouts cl
                   WHERE cl.vehicle_id = v.id AND cl.deleted_at IS NULL) AS has_chassis,
-                d.name AS driver_name
+                d.name AS driver_name, vc.name_en AS class_name_en
            FROM vehicles_cache v
            LEFT JOIN vehicle_class_assignments vca ON vca.vehicle_id = v.id AND vca.deleted_at IS NULL
            LEFT JOIN vehicle_classes vc ON vc.id = vca.class_id
@@ -60,6 +61,7 @@ pub fn truck_list(pool: &DbPool, q: Option<&str>) -> AppResult<Vec<TruckRow>> {
                 car_type: r.get(2)?,
                 class_id: r.get(3)?,
                 class_name_ar: r.get(4)?,
+                class_name_en: r.get(11)?,
                 odometer: km.map(|k| OdoTruth {
                     km: k,
                     source: r.get(6).unwrap_or_else(|_| "none".into()),

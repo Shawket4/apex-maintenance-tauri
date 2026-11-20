@@ -31,7 +31,8 @@
     "logout": "Log out",
     "movements": "Stock movements",
     "main": "Menu",
-    "menu": "Open menu"
+    "menu": "Open menu",
+    "workOrders": "Work orders"
   },
   "login": {
     "title": "Sign in",

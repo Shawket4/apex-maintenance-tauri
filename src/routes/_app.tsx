@@ -5,8 +5,10 @@ import {
   ArrowLeftRight,
   CalendarClock,
   CircleDot,
+  ClipboardList,
   LogOut,
   Menu,
+  Search,
   Settings,
   Sparkles,
   Truck,
@@ -17,7 +19,7 @@ import { fetchCurrentUser, performLogout, useAuth } from "@/shared/api/auth";
 import { useHome, useSyncStatus } from "@/shared/api/queries";
 import { ConfirmDialog } from "@/shared/ui/confirm-dialog";
 import { fmtNumber } from "@/shared/lib/numbers";
-import { Omnisearch } from "@/widgets/shell/Omnisearch";
+import { Omnisearch, openOmnisearch } from "@/widgets/shell/Omnisearch";
 import { SyncIndicator } from "@/widgets/shell/SyncIndicator";
 import { UpdateBanner } from "@/widgets/shell/UpdateBanner";
 
@@ -33,6 +35,7 @@ export const Route = createFileRoute("/_app")({
 const NAV_MAIN = [
   { to: "/", key: "nav.home", icon: Warehouse, exact: true },
   { to: "/trucks", key: "nav.trucks", icon: Truck, exact: false },
+  { to: "/wo", key: "nav.workOrders", icon: ClipboardList, exact: false },
   { to: "/due", key: "nav.due", icon: CalendarClock, exact: false },
   { to: "/tires", key: "nav.tires", icon: CircleDot, exact: false },
   { to: "/stock/movements", key: "nav.movements", icon: ArrowLeftRight, exact: false },
@@ -184,9 +187,14 @@ function AppShell() {
           <Link to="/" className="min-w-0 flex-1 truncate text-sm font-bold">
             {t("app.name")}
           </Link>
-          <div className="w-44 max-w-[50%] flex-none">
-            <SyncIndicator />
-          </div>
+          <button
+            type="button"
+            aria-label={t("search.placeholder")}
+            onClick={() => openOmnisearch()}
+            className="grid h-11 w-11 flex-none place-items-center rounded-lg hover:bg-foreground/5"
+          >
+            <Search className="h-5 w-5" />
+          </button>
         </header>
         <main className="min-h-0 min-w-0 flex-1 overflow-auto">
           <UpdateBanner />

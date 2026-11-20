@@ -5,7 +5,7 @@ import { DUE_BADGE, DUE_DOT, REASON_STATUS, TIRE_BADGE } from "./status";
 // The status vocabularies. These lists are deliberate duplicates of the Rust
 // enums — the whole point is that adding a status over there without styling
 // it here fails THIS file, not a screen at runtime.
-const DUE_STATUSES = ["overdue", "due_soon", "never_done", "ok"] as const;
+const DUE_STATUSES = ["overdue", "due_soon", "never_done", "ok", "unknown"] as const;
 const TIRE_STATUSES = [
   "mounted",
   "in_stock_used",

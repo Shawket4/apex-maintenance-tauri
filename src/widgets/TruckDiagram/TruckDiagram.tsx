@@ -9,9 +9,15 @@
  *     physically occluded from every side angle; overhead-with-body-hidden is
  *     the only view where both have equal, stable click targets.
  *   - singles/spares just select (nothing occludes them).
- *   - Esc / click empty space → back to the solved full-truck fit.
+ *   - closing the inspector → back to the solved full-truck fit. Clicking
+ *     empty space does NOT deselect: it used to throw away a half-filled form.
  *   - camera glides on WALL-CLOCK time (rAF-starved webviews stall per-frame
  *     damping mid-glide).
+ *
+ * This is the OPTIONAL view: the 2D WheelMap is the default and does every
+ * job. So the scene is kept cheap — it draws a frame only when something
+ * changed (`frameloop="demand"`), has no post-processing, bakes its contact
+ * shadow once, and caps the pixel ratio. It is loaded lazily (WheelDiagram).
  *
  * Status encoding (in-app, real data): occupied = emerald, occupied spare
  * slot = sky, EMPTY position = hollow slate ring — an empty position is a
@@ -22,7 +28,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Html, Instances, Instance, OrbitControls, Outlines, RoundedBox, ContactShadows, Environment, Lightformer, Grid } from "@react-three/drei";
-import { EffectComposer, N8AO, Bloom, Vignette } from "@react-three/postprocessing";
 
 import type { AxleRow as ChassisAxle, PositionRow as ChassisPosition } from "@/shared/api/client";
 import {
@@ -70,7 +75,7 @@ const OUT = "#0f172a";
 const RUBBER = "#23272e";
 const RIM_C = "#dfe5ec";
 
-export const POSITION_COLORS = {
+const POSITION_COLORS = {
   occupied: "#10b981",
   spare: "#38bdf8",
   empty: "#94a3b8",
@@ -161,52 +166,6 @@ function Part({
   );
 }
 
-/** Status-ring material whose color GLIDES between states (mount acks,
- * status changes, legend dimming) instead of snapping. Non-animated fields
- * stay explicit props — R3F mutates materials in place, and a field that
- * stops being passed is never reset (the ghosting gotcha). */
-function DampedStatusMaterial({
-  target,
-  emissiveTarget,
-  emissiveIntensity,
-  ghost,
-}: {
-  target: string;
-  emissiveTarget: string;
-  emissiveIntensity: number;
-  ghost: { transparent: boolean; opacity: number; depthWrite: boolean };
-}) {
-  const ref = useRef<THREE.MeshStandardMaterial>(null);
-  const goal = useRef({ c: new THREE.Color(target), e: new THREE.Color(emissiveTarget) });
-  goal.current.c.set(target);
-  goal.current.e.set(emissiveTarget);
-
-  useFrame((_, dt) => {
-    const m = ref.current;
-    if (!m) return;
-    if (RM) {
-      m.color.copy(goal.current.c);
-      m.emissive.copy(goal.current.e);
-      return;
-    }
-    const k = 1 - Math.exp(-9 * dt);
-    m.color.lerp(goal.current.c, k);
-    m.emissive.lerp(goal.current.e, k);
-  });
-
-  return (
-    <meshStandardMaterial
-      ref={ref}
-      roughness={0.45}
-      side={THREE.DoubleSide}
-      emissiveIntensity={emissiveIntensity}
-      transparent={ghost.transparent}
-      opacity={ghost.opacity}
-      depthWrite={ghost.depthWrite}
-    />
-  );
-}
-
 // ── the wheel / empty slot ───────────────────────────────────────────────────
 interface WheelProps {
   pos: ChassisPosition;
@@ -218,7 +177,6 @@ interface WheelProps {
 }
 
 function Wheel({ pos, xyz, dimmed, selected, labelled, onSelect }: WheelProps) {
-  const grp = useRef<THREE.Group>(null);
   const [hovered, setHovered] = useState(false);
   const occupied = !!pos.tire_id;
   const color = occupied
@@ -230,20 +188,21 @@ function Wheel({ pos, xyz, dimmed, selected, labelled, onSelect }: WheelProps) {
     : POSITION_COLORS.empty;
   const emph = hovered || selected;
 
-  useFrame((_, dt) => {
-    const o = grp.current;
-    if (!o) return;
-    const target = emph ? 1.06 : 1;
-    const s = RM ? target : o.scale.x + (target - o.scale.x) * (1 - Math.exp(-12 * dt));
-    o.scale.setScalar(s);
-  });
+  // A hovered wheel that unmounts (entering the pair view hides the others)
+  // never gets pointer-out: give the cursor back.
+  useEffect(() => {
+    if (!hovered) return;
+    return () => {
+      document.body.style.cursor = "auto";
+    };
+  }, [hovered]);
 
   const ghost = dimmed ? { transparent: true, opacity: 0.13, depthWrite: false } : { transparent: false, opacity: 1, depthWrite: true };
 
   return (
     <group
-      ref={grp}
       position={xyz}
+      scale={emph ? 1.06 : 1}
       onClick={(e) => {
         // An orbit drag that ends over a wheel fires click on release —
         // event.delta is the pointer travel; a real click is near-zero.
@@ -292,11 +251,17 @@ function Wheel({ pos, xyz, dimmed, selected, labelled, onSelect }: WheelProps) {
             )}
             {[0.168, -0.168].map((y) => (
               <mesh key={y} geometry={ringGeo} position={[0, y, 0]} rotation={[(y > 0 ? -1 : 1) * (Math.PI / 2), 0, 0]}>
-                <DampedStatusMaterial
-                  target={dimmed ? POSITION_COLORS.empty : color}
-                  emissiveTarget={dimmed ? "#000000" : color}
+                {/* Every field stays an explicit prop: R3F mutates materials in
+                    place, and a field that stops being passed is never reset. */}
+                <meshStandardMaterial
+                  color={dimmed ? POSITION_COLORS.empty : color}
+                  emissive={dimmed ? "#000000" : color}
                   emissiveIntensity={dimmed ? 0 : selected ? 0.9 : hovered ? 0.6 : 0.3}
-                  ghost={ghost}
+                  roughness={0.45}
+                  side={THREE.DoubleSide}
+                  transparent={ghost.transparent}
+                  opacity={ghost.opacity}
+                  depthWrite={ghost.depthWrite}
                 />
               </mesh>
             ))}
@@ -457,6 +422,8 @@ function CameraRig({
   const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera;
   const scene = useThree((s) => s.scene);
   const size = useThree((s) => s.size);
+  // The canvas only draws on demand: every camera move asks for a frame.
+  const invalidate = useThree((s) => s.invalidate);
   const controls = useThree((s) => s.controls) as { target: THREE.Vector3; update: () => void; addEventListener: (e: string, f: () => void) => void; removeEventListener: (e: string, f: () => void) => void } | null;
   const goal = useRef<Glide | null>(null);
   const first = useRef(true);
@@ -529,6 +496,7 @@ function CameraRig({
       if (!focusChanged && goal.current) {
         goal.current.pos1 = g.pos;
         goal.current.tgt1 = g.tgt;
+        invalidate();
         return;
       }
       // A resize after the user manually orbited must not teleport the camera
@@ -546,6 +514,7 @@ function CameraRig({
         controls.update();
         if (first.current) onFirstFit();
         first.current = false;
+        invalidate();
       } else {
         goal.current = {
           pos0: camera.position.clone(),
@@ -554,10 +523,11 @@ function CameraRig({
           tgt1: g.tgt,
           t0: performance.now(),
         };
+        invalidate();
       }
     });
     return () => cancelAnimationFrame(raf);
-  }, [controls, focus, size.width, size.height, camera, scene, onFirstFit]);
+  }, [controls, focus, size.width, size.height, camera, scene, onFirstFit, invalidate]);
 
   useFrame(() => {
     const g = goal.current;
@@ -568,6 +538,7 @@ function CameraRig({
     controls.target.lerpVectors(g.tgt0, g.tgt1, k);
     controls.update();
     if (t >= 1) goal.current = null;
+    else invalidate(); // keep drawing only while the glide is in flight
   });
 
   return null;
@@ -578,10 +549,13 @@ export interface TruckDiagramProps {
   axles: ChassisAxle[];
   positions: ChassisPosition[];
   selectedId: string | null;
-  onSelect: (p: ChassisPosition | null) => void;
+  onSelect: (p: ChassisPosition) => void;
+  /** The graphics context died (driver reset, remote desktop…): the caller
+   * falls back to the 2D map. */
+  onContextLost?: () => void;
 }
 
-export function TruckDiagram({ axles, positions, selectedId, onSelect }: TruckDiagramProps) {
+export function TruckDiagram({ axles, positions, selectedId, onSelect, onContextLost }: TruckDiagramProps) {
   const [ready, setReady] = useState(false);
   const onFirstFit = useMemo(() => () => setReady(true), []);
   const axleZ = useMemo(() => makeAxleZ(axles), [axles]);
@@ -611,36 +585,15 @@ export function TruckDiagram({ axles, positions, selectedId, onSelect }: TruckDi
 
   const detail = !!focusPair;
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape" || e.defaultPrevented) return;
-      // Never deselect while focus is inside a form control — the inspector
-      // forms are keyed by selection, so a global Escape would unmount them
-      // and destroy everything typed (Radix Selects also close via Escape
-      // without stopping propagation to window).
-      const t = e.target as HTMLElement | null;
-      if (
-        t &&
-        (t.tagName === "INPUT" ||
-          t.tagName === "TEXTAREA" ||
-          t.tagName === "SELECT" ||
-          t.isContentEditable ||
-          t.closest('[role="listbox"],[role="dialog"],[role="combobox"]'))
-      ) {
-        return;
-      }
-      onSelect(null);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onSelect]);
-
   return (
     <Canvas
       shadows
-      dpr={[1, 2]}
+      frameloop="demand"
+      dpr={[1, 1.5]}
       camera={{ fov: FOV, position: [18, 11, -12], near: 0.4, far: 400 }}
-      onPointerMissed={() => onSelect(null)}
+      onCreated={({ gl }) => {
+        gl.domElement.addEventListener("webglcontextlost", () => onContextLost?.(), { once: true });
+      }}
       className="rounded-lg"
       style={{ opacity: ready ? 1 : 0, transition: "opacity 180ms ease-out" }}
     >
@@ -649,7 +602,7 @@ export function TruckDiagram({ axles, positions, selectedId, onSelect }: TruckDi
         position={[9, 14, -7]}
         intensity={1.6}
         castShadow
-        shadow-mapSize={[2048, 2048]}
+        shadow-mapSize={[1024, 1024]}
         shadow-bias={-0.0002}
         shadow-camera-left={-16}
         shadow-camera-right={16}
@@ -702,7 +655,22 @@ export function TruckDiagram({ axles, positions, selectedId, onSelect }: TruckDi
         })}
       </group>
 
-      <ContactShadows position={[0, 0.005, 3.4]} scale={38} resolution={1024} blur={2.3} opacity={0.36} far={5} color="#0f172a" />
+      {/* Baked ONCE (`frames={1}`), not every frame. Hidden in the pair view,
+          where the body it was baked from is not drawn; coming back remounts
+          it and bakes again. */}
+      {!detail && (
+        <ContactShadows
+          key={positions.map((p) => (p.tire_id ? "1" : "0")).join("")}
+          frames={1}
+          position={[0, 0.005, 3.4]}
+          scale={38}
+          resolution={512}
+          blur={2.3}
+          opacity={0.36}
+          far={5}
+          color="#0f172a"
+        />
+      )}
       <Grid
         position={[0, -0.002, 3.4]}
         args={[60, 60]}
@@ -716,14 +684,6 @@ export function TruckDiagram({ axles, positions, selectedId, onSelect }: TruckDi
         fadeStrength={2.2}
         infiniteGrid
       />
-      {/* AO grounds the wheels against the body; bloom only catches the
-          selection halos (toneMapped: false pushes them past the threshold);
-          multisampling keeps the technical-illustration edges crisp. */}
-      <EffectComposer multisampling={4}>
-        <N8AO aoRadius={0.5} intensity={2.4} distanceFalloff={0.7} quality="medium" />
-        <Bloom mipmapBlur intensity={0.35} luminanceThreshold={0.95} luminanceSmoothing={0.2} />
-        <Vignette eskil={false} offset={0.24} darkness={0.38} />
-      </EffectComposer>
       <OrbitControls
         makeDefault
         enableDamping

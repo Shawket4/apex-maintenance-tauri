@@ -1,308 +1,246 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { PackagePlus, Plus, Trash2 } from "lucide-react";
+import { ChevronLeft, Search, X } from "lucide-react";
 
-import { commands, unwrap, type LegacyTireInput } from "@/shared/api/client";
-import { useDomainMutation, useStock, useTires } from "@/shared/api/queries";
-import { notifyError, notifySuccess } from "@/shared/lib/notify";
-import { fmtAgo } from "@/shared/lib/time";
-import { fmtNumber } from "@/shared/lib/numbers";
+import { commands, unwrap, type TireRow } from "@/shared/api/client";
+import { keys } from "@/shared/api/queries";
+import { fmtKm, fmtNumber } from "@/shared/lib/numbers";
 import { TIRE_BADGE } from "@/shared/lib/status";
-import { cn } from "@/shared/lib/cn";
-import { StatusChip } from "@/shared/ui/status-chip";
+import { useDebouncedValue } from "@/shared/lib/useDebouncedValue";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/shared/ui/dialog";
 import { Input } from "@/shared/ui/input";
-import { Skeleton } from "@/shared/ui/skeleton";
-import { EmptyState, ListCard, PageShell, Section } from "@/widgets/layout/PageShell";
+import { Label } from "@/shared/ui/label";
+import { QueryState } from "@/shared/ui/query-state";
+import { StatusChip } from "@/shared/ui/status-chip";
+import { PageShell } from "@/widgets/layout/PageShell";
+import { StockPanel } from "@/widgets/stock/StockPanel";
+import { LegacyIntakeDialog } from "@/widgets/tires/LegacyIntakeDialog";
+import { tireName } from "@/widgets/tires/lib";
+import { Chip, Heading, PositionLabel } from "@/widgets/tires/parts";
+
+const STATUS_FILTERS = ["all", "mounted", "in_stock_used", "in_repair", "retreading", "scrapped"] as const;
+type StatusFilter = (typeof STATUS_FILTERS)[number];
+const PAGE = 60;
 
 export const Route = createFileRoute("/_app/tires/")({
   // Filter + search live in the URL so back-navigation (e.g. from a tire
   // file) restores the exact list state.
   validateSearch: (s: Record<string, unknown>): { status?: string; q?: string } => ({
-    ...(typeof s.status === "string" && s.status !== "all" && s.status ? { status: s.status } : {}),
+    ...(typeof s.status === "string" && s.status !== "all" && (STATUS_FILTERS as readonly string[]).includes(s.status)
+      ? { status: s.status }
+      : {}),
     ...(typeof s.q === "string" && s.q ? { q: s.q } : {}),
   }),
   component: TiresPage,
 });
 
-const STATUS_FILTERS = ["all", "mounted", "in_stock_used", "in_repair", "retreading", "scrapped"] as const;
-
 function TiresPage() {
   const { t, i18n } = useTranslation();
+  const lang = i18n.language;
   const search = Route.useSearch();
   const navigate = Route.useNavigate();
-  const status = search.status ?? "all";
+  const status = (search.status ?? "all") as StatusFilter;
   const q = search.q ?? "";
-  const setStatus = (v: string) =>
-    void navigate({
-      search: (prev) => ({ ...prev, status: v === "all" ? undefined : v }),
-      replace: true,
-    });
-  const setQ = (v: string) =>
-    void navigate({ search: (prev) => ({ ...prev, q: v || undefined }), replace: true });
-  const stock = useStock();
-  const tires = useTires(status === "all" ? undefined : status, q || undefined);
+  const [intake, setIntake] = useState(false);
+  const [shown, setShown] = useState(PAGE);
 
-  // A shipment credited on the dashboard was invisible until someone found
-  // the Settings refresh. Refresh opportunistically when the snapshot is
-  // over an hour old (best-effort; offline just keeps the local numbers).
-  const fetchedAt = stock.data?.tires[0]?.fetched_at ?? stock.data?.oil[0]?.fetched_at ?? null;
-  const stale =
-    fetchedAt == null || Date.now() - new Date(fetchedAt).getTime() > 60 * 60 * 1000;
-  const refreshStock = useDomainMutation(() => unwrap(commands.stockRefresh()), {});
-  const shouldAutoRefresh = stale && !stock.isLoading && !refreshStock.isPending && !refreshStock.isError;
-  useEffect(() => {
-    if (shouldAutoRefresh) refreshStock.mutate();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shouldAutoRefresh]);
+  const setStatus = (v: StatusFilter) => {
+    setShown(PAGE);
+    void navigate({ search: (prev) => ({ ...prev, status: v === "all" ? undefined : v }), replace: true });
+  };
+  const setQ = (v: string) => {
+    setShown(PAGE);
+    void navigate({ search: (prev) => ({ ...prev, q: v || undefined }), replace: true });
+  };
+
+  // One read for every status (so the chips can show counts); the search
+  // text goes to the app's own matcher (brand, model, size, DOT, plate).
+  // The previous answer stays on screen while the next one loads, so typing
+  // does not flash a skeleton.
+  const dq = useDebouncedValue(q.trim(), 200);
+  const tires = useQuery({
+    queryKey: keys.tires(undefined, dq || undefined),
+    queryFn: () => unwrap(commands.tiresList(null, dq || null)),
+    placeholderData: keepPreviousData,
+  });
 
   return (
-    <PageShell title={t("tires.title")} actions={<LegacyIntakeDialog />}>
-      {/* Fungible stock — projected on-hand with pending debits visible. */}
-      <Section
-        title={t("tires.stock.title")}
-        action={
-          fetchedAt ? (
-            <span className="text-xs text-muted-foreground">
-              {t("tires.stock.updatedAgo", { ago: fmtAgo(fetchedAt, i18n.language) })}
-            </span>
-          ) : undefined
-        }
-      >
-        {stock.isLoading ? (
-          <Skeleton className="h-16" />
-        ) : (stock.data?.tires ?? []).length === 0 ? (
-          <EmptyState className="p-6">{t("tires.stock.empty")}</EmptyState>
-        ) : (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {(stock.data?.tires ?? []).map((line) => (
-              <div key={line.id} className="rounded-xl border bg-card p-3.5 shadow-sm">
-                <div className="font-semibold" dir="ltr">
-                  {line.brand} {line.model ?? ""}
-                </div>
-                <div className="text-xs text-muted-foreground" dir="ltr">
-                  {line.size ?? ""}
-                </div>
-                <div className="mt-2 flex items-baseline gap-2">
-                  <span
-                    className={cn(
-                      "text-2xl font-bold tabular",
-                      line.projected_qty <= 0 && "text-status-overdue",
-                      line.projected_qty > 0 && line.low_stock && "text-status-due_soon",
-                    )}
-                  >
-                    {fmtNumber(line.projected_qty, i18n.language)}
-                  </span>
-                  <span className="text-xs text-muted-foreground">{t("tires.stock.projected")}</span>
-                  {line.pending_debits > 0 && (
-                    <span className="text-xs text-info tabular">
-                      −{fmtNumber(line.pending_debits, i18n.language)} {t("tires.stock.pending")}
-                    </span>
-                  )}
-                </div>
-              </div>
-            ))}
-            <div className="rounded-xl border border-dashed p-3.5">
-              <div className="text-xs text-muted-foreground">{t("tires.stock.usedPool")}</div>
-              <div className="mt-2 text-2xl font-bold tabular">
-                {fmtNumber(stock.data?.used_pool_count ?? 0, i18n.language)}
-              </div>
-            </div>
-          </div>
-        )}
-      </Section>
+    <PageShell title={t("tires.title")}>
+      <StockPanel />
 
-      {/* Individual assets */}
-      <Section
-        title={t("tires.assets.title")}
-        action={
-          <Input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder={t("tires.assets.searchPlaceholder")}
-            className="h-8 w-56"
-            dir="auto"
-          />
-        }
-      >
-        <div className="mb-3 flex flex-wrap gap-1.5">
-          {STATUS_FILTERS.map((s) => (
-            <button
-              key={s}
-              onClick={() => setStatus(s)}
-              className={cn(
-                "rounded-full border px-3 py-1 text-xs transition",
-                status === s
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : "bg-card hover:bg-accent",
-              )}
-            >
-              {s === "all" ? t("common.all") : t(`tires.status.${s}`)}
-            </button>
-          ))}
+      <section aria-labelledby="tires-heading">
+        <Heading
+          action={
+            <Button variant="outline" onClick={() => setIntake(true)}>
+              {t("tires.intake.open")}
+            </Button>
+          }
+        >
+          <span id="tires-heading">{t("tires.assets.title")}</span>
+        </Heading>
+
+        <div className="mb-3 space-y-1.5">
+          <Label htmlFor="tire-search">{t("tires.assets.searchLabel")}</Label>
+          <div className="relative">
+            <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              id="tire-search"
+              type="search"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder={t("tires.assets.searchPlaceholder")}
+              className="ps-9 pe-12 [&::-webkit-search-cancel-button]:hidden"
+              dir="auto"
+              autoComplete="off"
+            />
+            {q && (
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={t("tires.assets.clearSearch")}
+                className="absolute end-0 top-1/2 -translate-y-1/2"
+                onClick={() => setQ("")}
+              >
+                <X />
+              </Button>
+            )}
+          </div>
         </div>
 
-        {tires.isLoading ? (
-          <Skeleton className="h-40 rounded-xl" />
-        ) : (tires.data ?? []).length === 0 ? (
-          <EmptyState className="p-10">{t("tires.assets.empty")}</EmptyState>
-        ) : (
-          <ListCard>
-            <table className="w-full text-sm">
-              <thead className="bg-background/70 text-xs text-muted-foreground">
-                <tr>
-                  <th className="px-3 py-2 text-start">{t("tires.dot")}</th>
-                  <th className="px-3 py-2 text-start">{t("tires.brand")}</th>
-                  <th className="px-3 py-2 text-start">{t("tires.totalKm")}</th>
-                  <th className="px-3 py-2 text-start">{t("tires.mountedOn")}</th>
-                  <th className="px-3 py-2 text-start" />
-                </tr>
-              </thead>
-              <tbody>
-                {(tires.data ?? []).map((tire) => (
-                  <tr key={tire.id} className="border-t transition hover:bg-primary/[0.03]">
-                    <td className="px-3 py-2">
-                      <Link
-                        to="/tires/$tireId"
-                        params={{ tireId: tire.id }}
-                        className="font-medium text-primary hover:underline"
-                        dir="ltr"
+        <QueryState query={tires}>
+          {(all) => {
+            const counts: Record<string, number> = {};
+            for (const tire of all) counts[tire.status] = (counts[tire.status] ?? 0) + 1;
+            const list = status === "all" ? all : all.filter((tire) => tire.status === status);
+            return (
+              <>
+                <div role="group" aria-label={t("tires.assets.filterLabel")} className="mb-3 flex flex-wrap gap-2">
+                  {STATUS_FILTERS.map((s) => (
+                    <Chip key={s} active={status === s} onClick={() => setStatus(s)}>
+                      {s === "all" ? t("common.all") : t(`tires.status.${s}`)}
+                      <span className="tabular opacity-80">
+                        {fmtNumber(s === "all" ? all.length : (counts[s] ?? 0), lang)}
+                      </span>
+                    </Chip>
+                  ))}
+                </div>
+
+                {list.length === 0 ? (
+                  <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
+                    <p>
+                      {q.trim()
+                        ? t("tires.assets.noMatch")
+                        : status !== "all"
+                          ? t("tires.assets.noneInStatus")
+                          : t("tires.assets.empty")}
+                    </p>
+                    {(q.trim() || status !== "all") && (
+                      <Button
+                        variant="outline"
+                        className="mt-3"
+                        onClick={() => {
+                          setShown(PAGE);
+                          void navigate({ search: {}, replace: true });
+                        }}
                       >
-                        {tire.dot_code ?? "—"}
-                      </Link>
-                    </td>
-                    <td className="px-3 py-2" dir="ltr">
-                      {tire.brand} {tire.model ?? ""}
-                    </td>
-                    <td className="px-3 py-2 tabular">{fmtNumber(tire.total_km, i18n.language)}</td>
-                    <td className="px-3 py-2">
-                      {tire.mounted_plate ? (
-                        <span>
-                          {tire.mounted_plate}
-                          <span className="ms-1 text-xs text-muted-foreground" dir="ltr">
-                            {tire.mounted_position_code}
-                          </span>
-                        </span>
-                      ) : (
-                        "—"
-                      )}
-                    </td>
-                    <td className="px-3 py-2">
-                      <StatusChip tone={TIRE_BADGE[tire.status]}>
-                        {t(`tires.status.${tire.status}`)}
-                      </StatusChip>
-                      {tire.pending && (
-                        <Badge variant="outline" className="ms-1 text-[10px]">
-                          {t("wo.pending")}
-                        </Badge>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </ListCard>
-        )}
-      </Section>
+                        {t("tires.assets.showAll")}
+                      </Button>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    <ul className="divide-y overflow-hidden rounded-xl border bg-card shadow-sm">
+                      {list.slice(0, shown).map((tire) => (
+                        <li key={tire.id}>
+                          <TireCard tire={tire} />
+                        </li>
+                      ))}
+                    </ul>
+                    {list.length > shown && (
+                      <div className="mt-3 flex flex-col items-center gap-1">
+                        <Button variant="outline" onClick={() => setShown((n) => n + PAGE)}>
+                          {t("tires.assets.showMore")}
+                        </Button>
+                        <p className="text-sm text-muted-foreground">
+                          {t("tires.assets.shownOf", {
+                            shown: fmtNumber(shown, lang),
+                            total: fmtNumber(list.length, lang),
+                          })}
+                        </p>
+                      </div>
+                    )}
+                  </>
+                )}
+              </>
+            );
+          }}
+        </QueryState>
+      </section>
+
+      {intake && <LegacyIntakeDialog open onOpenChange={setIntake} />}
     </PageShell>
   );
 }
 
-/** Bulk intake of used tires sitting in the yard → individuated used stock. */
-function LegacyIntakeDialog() {
-  const { t } = useTranslation();
-  const [open, setOpen] = useState(false);
-  const empty = { brand: "", model: null, size: null, dot_code: null, estimated_km: null };
-  const [rows, setRows] = useState<LegacyTireInput[]>([{ ...empty }]);
-
-  const set = (i: number, patch: Partial<LegacyTireInput>) =>
-    setRows((r) => r.map((row, j) => (j === i ? { ...row, ...patch } : row)));
-
-  const valid = rows.filter((r) => r.brand.trim());
-  const submit = useDomainMutation(() => unwrap(commands.intakeLegacy(valid)), {
-    onSuccess: () => {
-      notifySuccess(t("tires.intake.done"));
-      setOpen(false);
-      setRows([{ ...empty }]);
-    },
-    onError: notifyError,
-  });
-
+/** One tire. The whole card opens the tire file — a tire with no DOT used to
+ * be reachable only by clicking a dash. */
+function TireCard({ tire }: { tire: TireRow }) {
+  const { t, i18n } = useTranslation();
+  const lang = i18n.language;
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="secondary">
-          <PackagePlus className="h-4 w-4" />
-          {t("tires.intake.title")}
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>{t("tires.intake.title")}</DialogTitle>
-        </DialogHeader>
-        <p className="text-sm text-muted-foreground">{t("tires.intake.subtitle")}</p>
-        <div className="max-h-80 space-y-2 overflow-y-auto">
-          {rows.map((row, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <Input
-                placeholder={t("tires.brand")}
-                value={row.brand}
-                onChange={(e) => set(i, { brand: e.target.value })}
-                dir="ltr"
-              />
-              <Input
-                placeholder={t("tires.size")}
-                value={row.size ?? ""}
-                onChange={(e) => set(i, { size: e.target.value || null })}
-                dir="ltr"
-                className="w-32"
-              />
-              <Input
-                placeholder={t("tires.dot")}
-                value={row.dot_code ?? ""}
-                onChange={(e) => set(i, { dot_code: e.target.value || null })}
-                dir="ltr"
-                className="w-36"
-              />
-              <Input
-                placeholder={t("tires.intake.estimatedKm")}
-                inputMode="numeric"
-                className="w-28 tabular"
-                value={row.estimated_km ?? ""}
-                onChange={(e) => {
-                  const digits = e.target.value.replace(/[^0-9]/g, "");
-                  set(i, { estimated_km: digits ? Number(digits) : null });
-                }}
-              />
-              <button
-                aria-label={t("common.delete")}
-                onClick={() => setRows((r) => r.filter((_, j) => j !== i))}
-                className="shrink-0 rounded p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
+    <Link
+      to="/tires/$tireId"
+      params={{ tireId: tire.id }}
+      className="flex items-center gap-3 px-4 py-3.5 transition hover:bg-primary/[0.04] focus-visible:bg-primary/[0.06] focus-visible:outline-none"
+    >
+      <div className="grid min-w-0 flex-1 gap-x-6 gap-y-1.5 md:grid-cols-[minmax(0,1.3fr)_minmax(0,1.2fr)_minmax(0,1fr)] md:items-center">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <bdi className="font-semibold">{tireName(tire)}</bdi>
+            <StatusChip tone={TIRE_BADGE[tire.status] ?? ""}>{t(`tires.status.${tire.status}`)}</StatusChip>
+            {tire.pending && <Badge variant="outline">{t("tires.pending")}</Badge>}
+          </div>
+          <div className="text-sm text-muted-foreground">
+            {tire.dot_code ? (
+              <>
+                {t("tires.dotShort")} <bdi dir="ltr">{tire.dot_code}</bdi>
+              </>
+            ) : (
+              t("tires.noDot")
+            )}
+          </div>
+        </div>
+
+        <div className="min-w-0 text-sm">
+          {tire.mounted_plate ? (
+            <>
+              <span className="text-muted-foreground">{t("tires.onTruck")}</span>{" "}
+              <bdi className="font-semibold">{tire.mounted_plate}</bdi>
+              <PositionLabel code={tire.mounted_position_code} className="block text-muted-foreground" />
+            </>
+          ) : (
+            <span className="text-muted-foreground">{t(`tires.where.${tire.status}`, t("tires.where.other"))}</span>
+          )}
+        </div>
+
+        <div className="text-sm">
+          <span className="font-semibold tabular">{fmtKm(tire.total_km, lang)}</span>
+          {tire.km_incomplete && (
+            <span className="ms-1.5 rounded-full bg-status-due_soon-soft px-2 py-0.5 text-xs font-semibold text-status-due_soon">
+              {t("tires.approx")}
+            </span>
+          )}
+          {tire.retread_count > 0 && (
+            <div className="text-muted-foreground">
+              {t("tires.retreadCount", { n: fmtNumber(tire.retread_count, lang) })}
             </div>
-          ))}
+          )}
         </div>
-        <div className="flex items-center justify-between">
-          <Button variant="ghost" size="sm" onClick={() => setRows((r) => [...r, { ...empty }])}>
-            <Plus className="h-4 w-4" />
-            {t("tires.intake.addRow")}
-          </Button>
-          <Button disabled={valid.length === 0 || submit.isPending} onClick={() => submit.mutate()}>
-            {t("tires.intake.submit", { count: valid.length })}
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+      <ChevronLeft className="h-5 w-5 flex-none text-muted-foreground ltr:-scale-x-100" aria-hidden />
+    </Link>
   );
 }

@@ -1,0 +1,191 @@
+{
+  "title": "Truck tires",
+  "woTitle": "Tire work on truck",
+  "backToWo": "Back to the work order",
+  "codeLabel": "Code:",
+  "selectHint": "Press any wheel on the drawing to see it or work on it",
+  "spare": "Spare",
+  "firstTime": "No tires are recorded on this truck yet. Press any empty wheel and choose “Register a tire that is already on the truck” — you can fill every empty wheel in one go.",
+  "legend": {
+    "mounted": "Tire fitted",
+    "empty": "Empty",
+    "spare": "Spare with a tire",
+    "pending": "Still sending"
+  },
+  "view": {
+    "label": "View",
+    "2d": "Simple drawing",
+    "3d": "3D view",
+    "unsupported": "This device cannot show the 3D view, so you are back on the simple drawing — everything works from it.",
+    "failed": "The 3D view stopped, so you are back on the simple drawing — everything works from it.",
+    "hint3d": "Drag to turn the truck, press a wheel to choose it. If it is slow on this device, go back to the simple drawing."
+  },
+  "pos": {
+    "side": {
+      "left": "left",
+      "right": "right"
+    },
+    "depth": {
+      "outer": "outer",
+      "inner": "inner"
+    },
+    "spare": "Spare {{n}}",
+    "steer": "Front {{side}}",
+    "plainDual": "Axle {{n}}, {{side}} {{depth}}",
+    "plainSingle": "Axle {{n}}, {{side}}",
+    "tractorDual": "Tractor axle {{n}}, {{side}} {{depth}}",
+    "tractorSingle": "Tractor axle {{n}}, {{side}}",
+    "trailerDual": "Trailer axle {{n}}, {{side}} {{depth}}",
+    "trailerSingle": "Trailer axle {{n}}, {{side}}"
+  },
+  "map": {
+    "front": "Front",
+    "frontOfTruck": "▲ Front of truck",
+    "axle": "Axle {{n}}",
+    "lifted": "lifted",
+    "spares": "Spares",
+    "tractor": "Tractor",
+    "trailer": "Trailer",
+    "ariaEmpty": "{{pos}} — empty",
+    "ariaMounted": "{{pos}} — tire fitted: {{tire}}",
+    "ariaPending": "{{pos}} — tire fitted: {{tire}}, still sending"
+  },
+  "tire": {
+    "unknownBrand": "Tire with no brand",
+    "dot": "DOT:",
+    "noDot": "No DOT number",
+    "file": "Open the tire's file",
+    "kmOnTruck": "Run on this truck",
+    "kmUnknown": "Not known",
+    "totalKm": "Total run",
+    "mountedSince": "Fitted since",
+    "mountedOdo": "Odometer when fitted",
+    "how": "How it was fitted"
+  },
+  "intent": {
+    "prompt": "What do you want to do with this wheel?",
+    "fit": "Fit a tire",
+    "fitDesc": "A new tire from stock or a used one. Recorded inside an open work order and counted against stock.",
+    "register": "Register a tire that is already on the truck",
+    "registerDesc": "The tire is already fitted. Nothing leaves stock and no work order is needed. For first-time setup only."
+  },
+  "needWo": {
+    "closed": "This work order is closed, so tires cannot be fitted or taken off in it. Reopen it if there is still work to do.",
+    "reopen": "Reopen the work order",
+    "reopened": "The work order is open again",
+    "hasOpenFit": "Fitting a tire is recorded inside a work order. This truck has an open one — continue there.",
+    "hasOpenDismount": "Taking a tire off is recorded inside a work order. This truck has an open one — continue there.",
+    "goOpen": "Go to the open work order, at this wheel",
+    "noneFit": "Fitting a tire must be recorded inside an open work order, and this truck has none right now. Open one from the truck's page, then open the truck's tires from inside it.",
+    "noneDismount": "Taking a tire off must be recorded inside an open work order, and this truck has none right now. Open one from the truck's page, then open the truck's tires from inside it.",
+    "goTruck": "Go to the truck's page to open a work order"
+  },
+  "field": {
+    "odometerNow": "Truck odometer now (km)",
+    "odometerMissing": "Without the odometer we cannot tell how far the tire runs.",
+    "dot": "DOT number (if any)",
+    "dotHint": "Printed on the tire's sidewall after the letters DOT. Leave it empty if you cannot read it.",
+    "model": "Model (if known)"
+  },
+  "mount": {
+    "sourceLabel": "Where the tire comes from",
+    "fromNew": "New from stock",
+    "fromUsed": "Used",
+    "newExplain": "One tire will be taken from the type you choose.",
+    "pickLine": "Choose the type from stock",
+    "onHand": "In stock: {{n}}",
+    "onHandNone": "None left (in stock: {{n}})",
+    "sameSize": "Same size as the truck",
+    "zeroWarn": "The recorded stock of this type has run out. If the tire is really in front of you, carry on — the count goes below zero until stock is corrected.",
+    "noStock": "No types are recorded in new stock. Type the tire's details and carry on.",
+    "customBrand": "Tire not one of the stock types? Type its details",
+    "pickFromStock": "Back to choosing from stock",
+    "customWarn": "This type is not recorded in stock, so its count will be negative until it is.",
+    "search": "Search by brand, size or DOT",
+    "noMatch": "Nothing matches that search.",
+    "pickUsed": "Choose the tire",
+    "noSize": "no size",
+    "ran": "ran {{km}}",
+    "kmAtLeast": "(at least)",
+    "retreaded": "retreads: {{n}}",
+    "notRetreaded": "never retreaded",
+    "justOff": "Just taken off this truck",
+    "sizeDiffers": "This tire's size differs from the truck's ({{size}}). Check before fitting.",
+    "reason": "Why is it being fitted?",
+    "why": {
+      "replacement": "Replacing a tire that came off",
+      "rotation": "Rotation (swapping places)",
+      "repair_return": "Back from repair or retreading"
+    },
+    "noUsed": "No used tire is ready to fit",
+    "noUsedHow": "A tire gets here when it is taken off a truck for “Rotation” or “Other”, when it comes back from repair or retreading, or when you record used tires lying in the workshop from the “Tires & stock” page.",
+    "goTires": "Open Tires & stock",
+    "submitNew": "Fit the new tire",
+    "submitUsed": "Fit the used tire",
+    "done": "Tire fitted"
+  },
+  "dismount": {
+    "title": "Take the tire off",
+    "reasonPrompt": "Why is it coming off? The reason decides where the tire goes.",
+    "pickFirst": "Choose the reason first.",
+    "submit": "Take the tire off",
+    "submitScrap": "Take off and scrap",
+    "backwards": "This is lower than the odometer when it was fitted ({{km}} km). Check the reading.",
+    "mountedAt": "Odometer when fitted: {{km}} km",
+    "scrapTitle": "The tire will be scrapped — are you sure?",
+    "scrapBody": "“{{reason}}” means {{tire}} is recorded as scrap, leaves the books and cannot be fitted again. If it is still usable, go back and choose another reason.",
+    "scrapConfirm": "Yes, scrap it",
+    "done": {
+      "scrapped": "Tire taken off and scrapped. If that was a mistake, put it back from the list below.",
+      "in_stock_used": "Tire taken off, now in used stock. If that was a mistake, put it back from the list below.",
+      "in_repair": "Tire taken off, now in repair. If that was a mistake, put it back from the list below.",
+      "retreading": "Tire taken off, now at the retreader. If that was a mistake, put it back from the list below."
+    }
+  },
+  "outcome": {
+    "scrapped": "Recorded as scrap and leaves stock — cannot be fitted again",
+    "in_repair": "Goes to repair, then back to used stock",
+    "retreading": "Goes to the retreader, then back to used stock",
+    "in_stock_used": "Goes back to used stock and can be fitted again"
+  },
+  "onboard": {
+    "ranKm": "How far has the tire already run? (roughly)",
+    "ranKmHint": "Leave it empty if you do not know — counting starts from zero.",
+    "odometerRequired": "Enter the truck's odometer — without it the tires' run cannot be counted from today.",
+    "sameForAll": "Record the same details on every empty wheel (wheels: {{n}})",
+    "sameForAllHint": "The DOT number is recorded for this wheel only. Other empty spare slots are not included.",
+    "submitOne": "Register the tire",
+    "submitMany": "Register the tires (count: {{n}})",
+    "confirmTitle": "Register all of these tires? (count: {{n}})",
+    "confirmBody": "{{brand}} will be recorded on every empty wheel — wheels: {{n}} — at truck odometer {{km}} km. Nothing leaves stock. If some wheel carries a different brand, cancel and register it on its own.",
+    "confirmYes": "Yes, register (count: {{n}})",
+    "doneOne": "Tire registered",
+    "doneMany": "Tires registered — count: {{n}}",
+    "partial": "Only some were registered before the problem — count: {{n}}"
+  },
+  "undoMount": {
+    "heading": "Fitted by mistake?",
+    "explain": "If this tire was recorded on this wheel by mistake, you can cancel the fitting as if it never happened.",
+    "button": "Fitted by mistake — cancel the fitting",
+    "title": "Cancel the fitting?",
+    "backToNew": "{{tire}} comes off this wheel and goes back into new stock, as if it was never fitted.",
+    "backToUsed": "{{tire}} comes off this wheel and goes back to used stock.",
+    "forget": "The record of {{tire}} on this wheel is removed entirely. Stock does not change.",
+    "confirm": "Cancel the fitting",
+    "done": "Fitting cancelled"
+  },
+  "taken": {
+    "title": "Taken off in this work order",
+    "hint": "If a tire was taken off by mistake, put it back from here.",
+    "from": "from {{where}}",
+    "undo": "Put it back",
+    "undoTitle": "Put the tire back?",
+    "undoBody": "The tire goes back on {{where}} as if it was never taken off.",
+    "undone": "The tire is back on its wheel"
+  },
+  "discard": {
+    "title": "Leave what you typed?",
+    "body": "What you typed for this wheel has not been saved and will be lost.",
+    "confirm": "Leave it"
+  }
+}

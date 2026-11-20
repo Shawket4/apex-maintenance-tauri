@@ -962,7 +962,7 @@ base_km: number; notes: string | null;
  * lower than the truth. Shown, so the number is not taken as exact.
  */
 km_incomplete: boolean; pending: boolean }
-export type TruckRow = { id: number; plate: string; car_type: string | null; class_id: string | null; class_name_ar: string | null; odometer: OdoTruth | null; open_wo_count: number; overdue_count: number; due_soon_count: number; 
+export type TruckRow = { id: number; plate: string; car_type: string | null; class_id: string | null; class_name_ar: string | null; class_name_en: string | null; odometer: OdoTruth | null; open_wo_count: number; overdue_count: number; due_soon_count: number; 
 /**
  * Plans that apply to this truck and have never been recorded as done.
  */

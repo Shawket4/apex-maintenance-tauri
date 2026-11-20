@@ -10,11 +10,27 @@ import en from "./en.json";
 // (parity.test.ts checks every pair has the same keys).
 const areaFiles = import.meta.glob<Record<string, unknown>>("./locales/*.json", { eager: true, import: "default" });
 
-function withAreas(base: Record<string, unknown>, lang: "ar" | "en") {
-  const out: Record<string, unknown> = { ...base };
+type Dict = Record<string, unknown>;
+
+/** Deep merge: an area file adds to (and wins over) the shared section, key
+ * by key — a nested group in an area file must not wipe its siblings. */
+function deepMerge(base: Dict, extra: Dict): Dict {
+  const out: Dict = { ...base };
+  for (const [k, v] of Object.entries(extra)) {
+    const b = out[k];
+    out[k] =
+      v && typeof v === "object" && !Array.isArray(v) && b && typeof b === "object" && !Array.isArray(b)
+        ? deepMerge(b as Dict, v as Dict)
+        : v;
+  }
+  return out;
+}
+
+function withAreas(base: Dict, lang: "ar" | "en") {
+  let out: Dict = { ...base };
   for (const [path, content] of Object.entries(areaFiles)) {
     const m = /\/([a-zA-Z0-9_-]+)\.(ar|en)\.json$/.exec(path);
-    if (m && m[2] === lang) out[m[1]] = { ...((out[m[1]] as object) ?? {}), ...content };
+    if (m && m[2] === lang) out = deepMerge(out, { [m[1]]: content });
   }
   return out;
 }
