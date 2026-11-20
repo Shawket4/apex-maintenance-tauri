@@ -134,7 +134,8 @@ export function TireProductPicker({
           const p = products.find((x) => tireKey(x) === key);
           onChange(p ? { brand: p.brand, model: p.model, size: p.size } : null);
         }}
-        placeholder={value ? tireLabel(value) : t("catalog.tire.placeholder")}
+        valueLabel={value ? tireLabel(value) : undefined}
+        placeholder={t("catalog.tire.placeholder")}
         searchPlaceholder={t("catalog.tire.search")}
       />
       <button

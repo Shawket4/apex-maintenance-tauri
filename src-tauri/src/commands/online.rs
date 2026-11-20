@@ -48,6 +48,16 @@ pub(crate) async fn reference_refresh_inner(state: &AppState) -> CmdResult<()> {
     Ok(())
 }
 
+/// The pickers' lists alone: cheap, so it follows every send and every pull
+/// (a type typed a minute ago becomes a confirmed entry without a restart).
+pub(crate) async fn catalog_refresh_inner(state: &AppState) {
+    if let Ok(v) = get_json(state, "/catalog").await {
+        if let Err(e) = refdata::replace_catalog(&state.db, &v) {
+            tracing::warn!(error = ?e, "catalog refresh failed");
+        }
+    }
+}
+
 /// A JSON array, or an error. These answers REPLACE a local mirror: anything
 /// that is not a list (an error envelope, a portal page) must not empty it.
 async fn get_array(state: &AppState, path: &str) -> AppResult<Vec<Value>> {
@@ -70,6 +80,11 @@ pub(crate) async fn stock_refresh_inner(state: &AppState) -> CmdResult<()> {
     let oil = get_array(state, "/stock/oil").await?;
     refdata::replace_tire_stock(&state.db, &tires)?;
     refdata::replace_oil_stock(&state.db, &oil)?;
+    // Reading stock is when the server learns product names from Falcon's
+    // ledger, so the catalog may have just grown.
+    if let Ok(v) = get_json(state, "/catalog").await {
+        refdata::replace_catalog(&state.db, &v)?;
+    }
     Ok(())
 }
 

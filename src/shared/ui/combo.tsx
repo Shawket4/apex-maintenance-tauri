@@ -32,6 +32,7 @@ export function Combo({
   options,
   value,
   onChange,
+  valueLabel,
   placeholder,
   searchPlaceholder,
   emptyText,
@@ -47,6 +48,9 @@ export function Combo({
   options: ComboOption[];
   value: string | null;
   onChange: (value: string, option: ComboOption | null) => void;
+  /** What to show for a value that is not one of the options (default: the
+   * value itself). */
+  valueLabel?: string;
   placeholder?: string;
   searchPlaceholder?: string;
   emptyText?: string;
@@ -103,7 +107,7 @@ export function Combo({
           )}
         >
           <span className="min-w-0 flex-1 truncate" dir="auto">
-            {selected ? selected.label : value ? value : (placeholder ?? t("combo.placeholder"))}
+            {selected ? selected.label : value ? (valueLabel ?? value) : (placeholder ?? t("combo.placeholder"))}
           </span>
           <ChevronsUpDown className="h-4 w-4 flex-none opacity-50" />
         </button>

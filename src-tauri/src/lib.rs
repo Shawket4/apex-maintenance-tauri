@@ -222,13 +222,21 @@ pub fn run() {
                         if s.auth_paused {
                             continue;
                         }
+                        let signed_in = session_store::read_jwt(&boot_state.data_dir).ok().flatten().is_some();
                         if s.pending > 0 {
-                            let _ = engine.drain().await;
+                            let sent = engine.drain().await.is_ok();
+                            // What was just sent may have added a tire or oil
+                            // type to the lists.
+                            if sent && signed_in {
+                                commands::online::catalog_refresh_inner(&boot_state).await;
+                            }
                         }
                         if !s.online || tick % pull_every == 0 {
                             // Offline: a pull is also the probe that brings
                             // the engine back online.
-                            let _ = engine.pull().await;
+                            if engine.pull().await.is_ok() && signed_in {
+                                commands::online::catalog_refresh_inner(&boot_state).await;
+                            }
                         }
                         if tick % mirrors_every == 0
                             && session_store::read_jwt(&boot_state.data_dir).ok().flatten().is_some()
