@@ -7,6 +7,7 @@ import "./index.css";
 import "./shared/i18n";
 import { Providers } from "./app/providers";
 import { routeTree } from "./routeTree.gen";
+import { RouteError, RouteNotFound } from "./widgets/shell/RouteFallbacks";
 
 // Hash history: works identically under the vite dev server and the tauri://
 // custom protocol in production builds, and gives real back/forward + linkable
@@ -15,6 +16,10 @@ const router = createRouter({
   routeTree,
   history: createHashHistory(),
   defaultPreload: "intent",
+  // A screen that throws (an IPC error, a WebGL failure) or a link that goes
+  // nowhere must say so in the user's language, with a way back.
+  defaultErrorComponent: RouteError,
+  defaultNotFoundComponent: RouteNotFound,
 });
 
 declare module "@tanstack/react-router" {

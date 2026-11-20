@@ -5,10 +5,13 @@ import type { CmdError, Result } from "./bindings";
 
 export class ApiError extends Error {
   readonly kind: string;
+  /** Stable machine code (a rule the app enforces, or the server's refusal). */
+  readonly code: string | null;
   constructor(e: CmdError) {
     super(e.message);
     this.name = "ApiError";
     this.kind = e.kind;
+    this.code = e.code ?? null;
   }
 }
 

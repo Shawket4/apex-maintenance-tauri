@@ -605,9 +605,43 @@ async stockRefresh() : Promise<Result<null, CmdError>> {
  * Upsert a fleet-wide service plan (server-authoritative, perm ≥3), then
  * refresh the local mirror so the due board recomputes immediately.
  */
-async planUpsert(classId: string, categoryId: string, triggerType: string, intervalKm: number | null, intervalDays: number | null, isActive: boolean | null) : Promise<Result<null, CmdError>> {
+async planUpsert(classId: string, categoryId: string, intervalKm: number | null, intervalDays: number | null, leadWarnKm: number | null, leadWarnDays: number | null) : Promise<Result<null, CmdError>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("plan_upsert", { classId, categoryId, triggerType, intervalKm, intervalDays, isActive }) };
+    return { status: "ok", data: await TAURI_INVOKE("plan_upsert", { classId, categoryId, intervalKm, intervalDays, leadWarnKm, leadWarnDays }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Retire a plan (perm ≥3): it leaves the due board on every device.
+ */
+async planDelete(id: string) : Promise<Result<null, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("plan_delete", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Receive new tires into stock (perm ≥4). `ref_id` is minted by the caller
+ * once per form submission, so a retry or a double click credits once.
+ */
+async stockCreditTires(brand: string, model: string | null, size: string | null, qty: number, refId: string, note: string | null) : Promise<Result<null, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("stock_credit_tires", { brand, model, size, qty, refId, note }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Receive oil into stock (perm ≥4). See `stock_credit_tires` for `ref_id`.
+ */
+async stockCreditOil(oilType: string, liters: number, refId: string, note: string | null) : Promise<Result<null, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("stock_credit_oil", { oilType, liters, refId, note }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -669,14 +703,12 @@ async stockMovements(kind: string | null, from: string | null, limit: number | n
 }
 },
 /**
- * Pull the latest window of movements from maint-rust and upsert the local
- * mirror. Online; best-effort (the view still works offline on the last
- * mirror). Server clamps the page at 200 — a generous recent horizon for
- * this fleet.
+ * Mirror the movements of the last `days` days (default 90) from the server.
+ * Online; the view keeps working offline on the last mirror.
  */
-async stockMovementsRefresh() : Promise<Result<number, CmdError>> {
+async stockMovementsRefresh(days: number | null) : Promise<Result<number, CmdError>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("stock_movements_refresh") };
+    return { status: "ok", data: await TAURI_INVOKE("stock_movements_refresh", { days }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -860,7 +892,11 @@ update_required: boolean }
  * oil_credit | adjustment; tires carry qty, oil carries liters; a debit
  * resolves the consuming work order's plate.
  */
-export type StockMovementRow = { id: string; kind: string; brand: string | null; model: string | null; size: string | null; oil_type: string | null; qty: number | null; liters: number | null; work_order_id: string | null; plate: string | null; created_at: string; mirrored: boolean }
+export type StockMovementRow = { id: string; kind: string; brand: string | null; model: string | null; size: string | null; oil_type: string | null; qty: number | null; liters: number | null; work_order_id: string | null; plate: string | null; created_at: string; mirrored: boolean; note: string | null; 
+/**
+ * Set when the fleet system refused this movement (its counts do not include it).
+ */
+mirror_error: string | null }
 export type StockOilLine = { id: string; oil_type: string; snapshot_liters: number; pending_liters: number; projected_liters: number; low_stock: boolean; fetched_at: string | null }
 export type StockTireLine = { id: string; brand: string; model: string | null; size: string | null; snapshot_qty: number; pending_debits: number; projected_qty: number; 
 /**

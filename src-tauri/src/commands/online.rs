@@ -171,6 +171,43 @@ pub async fn class_create(
     reference_refresh_inner(&state).await
 }
 
+/// Receive new tires into stock (perm ≥4). `ref_id` is minted by the caller
+/// once per form submission, so a retry or a double click credits once.
+#[tauri::command]
+#[specta::specta]
+pub async fn stock_credit_tires(
+    state: State<'_, AppState>,
+    brand: String,
+    model: Option<String>,
+    size: Option<String>,
+    qty: i64,
+    ref_id: String,
+    note: Option<String>,
+) -> CmdResult<()> {
+    let body = json!({ "brand": brand, "model": model, "size": size, "qty": qty, "ref_id": ref_id, "note": note });
+    state.http.maint_post_raw("/stock/tires/credit", &body).await?;
+    stock_refresh_inner(&state).await?;
+    let _ = movements_refresh_inner(&state, 7).await;
+    Ok(())
+}
+
+/// Receive oil into stock (perm ≥4). See `stock_credit_tires` for `ref_id`.
+#[tauri::command]
+#[specta::specta]
+pub async fn stock_credit_oil(
+    state: State<'_, AppState>,
+    oil_type: String,
+    liters: f64,
+    ref_id: String,
+    note: Option<String>,
+) -> CmdResult<()> {
+    let body = json!({ "oil_type": oil_type, "liters": liters, "ref_id": ref_id, "note": note });
+    state.http.maint_post_raw("/stock/oil/credit", &body).await?;
+    stock_refresh_inner(&state).await?;
+    let _ = movements_refresh_inner(&state, 7).await;
+    Ok(())
+}
+
 /// The AI search box. Service-history lookups go to apex-rust's advisor
 /// search (Claude-expanded hybrid search, permission 1+); aggregate fleet
 /// questions — and any advisor failure or empty result — go to maint-rust's
