@@ -13,6 +13,7 @@ import { ConfirmDialog } from "@/shared/ui/confirm-dialog";
 import { Input } from "@/shared/ui/input";
 import { Label } from "@/shared/ui/label";
 import { NumberInput } from "@/shared/ui/number-input";
+import { TireProductPicker, tireLabel, type TireSpec } from "@/widgets/catalog/pickers";
 
 import { Note } from "./Workbench";
 
@@ -40,9 +41,7 @@ export function OnboardForm({
   const { t, i18n } = useTranslation();
   const lang = i18n.language;
   const qc = useQueryClient();
-  const [brand, setBrand] = useState("");
-  const [model, setModel] = useState("");
-  const [size, setSize] = useState("");
+  const [spec, setSpec] = useState<TireSpec | null>(null);
   const [dot, setDot] = useState("");
   const [ranKm, setRanKm] = useState("");
   const [odometer, setOdometer] = useState(defaultOdometer != null ? String(defaultOdometer) : "");
@@ -55,7 +54,7 @@ export function OnboardForm({
   const km = parseIntInput(odometer);
   const odometerNeeded = applyAll && km == null;
 
-  const dirty = !!(brand.trim() || model.trim() || size.trim() || dot.trim() || ranKm.trim());
+  const dirty = !!(spec || dot.trim() || ranKm.trim());
   useEffect(() => {
     onDirtyChange?.(dirty);
   }, [dirty, onDirtyChange]);
@@ -69,9 +68,9 @@ export function OnboardForm({
             commands.onboardPosition({
               position_id: p.id,
               vehicle_id: vehicleId,
-              brand: brand.trim(),
-              model: model.trim() || null,
-              size: size.trim() || null,
+              brand: spec!.brand.trim(),
+              model: spec!.model.trim() || null,
+              size: spec!.size.trim() || null,
               // A DOT belongs to ONE tire — never copied to the others.
               dot_code: p.id === position.id ? dot.trim() || null : null,
               estimated_km: parseIntInput(ranKm),
@@ -103,7 +102,8 @@ export function OnboardForm({
     },
   );
 
-  const ready = !!brand.trim() && !odometerNeeded;
+  const typeChosen = !!spec?.brand.trim();
+  const ready = typeChosen && !odometerNeeded;
   const submit = () => {
     if (!ready) return;
     if (applyAll && targets.length > 1) setConfirmAll(true);
@@ -114,16 +114,17 @@ export function OnboardForm({
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1.5 sm:col-span-2">
-          <Label htmlFor="ob-brand">{t("tires.brand")}</Label>
-          <Input id="ob-brand" dir="ltr" value={brand} onChange={(e) => setBrand(e.target.value)} />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="ob-size">{t("tires.size")}</Label>
-          <Input id="ob-size" dir="ltr" value={size} onChange={(e) => setSize(e.target.value)} />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="ob-model">{t("diagram.field.model")}</Label>
-          <Input id="ob-model" dir="ltr" value={model} onChange={(e) => setModel(e.target.value)} />
+          <Label id="ob-type-label" htmlFor="ob-type">
+            {t("diagram.field.tireType")}
+          </Label>
+          <TireProductPicker
+            id="ob-type"
+            aria-labelledby="ob-type-label"
+            disabled={onboard.isPending}
+            value={spec}
+            onChange={setSpec}
+          />
+          {!typeChosen && <Note>{t("diagram.field.tireTypeRequired")}</Note>}
         </div>
         <div className="space-y-1.5 sm:col-span-2">
           <Label htmlFor="ob-dot">{t("diagram.field.dot")}</Label>
@@ -182,7 +183,7 @@ export function OnboardForm({
         title={t("diagram.onboard.confirmTitle", { n: fmtNumber(targets.length, lang) })}
         description={t("diagram.onboard.confirmBody", {
           n: fmtNumber(targets.length, lang),
-          brand: [brand.trim(), model.trim(), size.trim()].filter(Boolean).join(" "),
+          brand: spec ? tireLabel(spec) : "",
           km: fmtNumber(km, lang),
         })}
         confirmLabel={t("diagram.onboard.confirmYes", { n: fmtNumber(targets.length, lang) })}

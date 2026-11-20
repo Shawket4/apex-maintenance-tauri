@@ -54,8 +54,8 @@
     "subtitle": "For used tires you already have that are not registered — so they can be fitted later. This is not receiving a shipment: new tires are recorded with “Receive stock”.",
     "rowTitle": "Tire {{n}}",
     "removeRow": "Remove tire {{n}}",
-    "brand": "Brand (required)",
-    "brandRequired": "Type the brand",
+    "brand": "Tire type (required)",
+    "brandRequired": "Choose the tire type",
     "km": "Roughly how many km it has run (if known)",
     "estimatedKm": "Estimated km",
     "addRow": "Add another tire",
@@ -68,8 +68,6 @@
     "doneCount": "{{n}} used tires registered in stock"
   },
   "form": {
-    "model": "Model (if known)",
-    "size": "Size (if known)",
     "dot": "DOT code written on the tire (if any)",
     "notes": "Notes",
     "kmBad": "Not a valid number — type a number up to 9,999,999"

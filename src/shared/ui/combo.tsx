@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Check, ChevronsUpDown, Plus } from "lucide-react";
+import { Check, ChevronsUpDown, Plus, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { cn } from "@/shared/lib/cn";
@@ -36,6 +36,7 @@ export function Combo({
   searchPlaceholder,
   emptyText,
   allowCustom = false,
+  clearable = false,
   customLabel,
   disabled,
   id,
@@ -50,6 +51,9 @@ export function Combo({
   searchPlaceholder?: string;
   emptyText?: string;
   allowCustom?: boolean;
+  /** Offer "clear" at the top of the list when something is chosen
+   * (`onChange("")`). */
+  clearable?: boolean;
   /** Text of the "use what I typed" row; receives the typed text. */
   customLabel?: (text: string) => React.ReactNode;
   disabled?: boolean;
@@ -126,6 +130,12 @@ export function Combo({
               </CommandEmpty>
             )}
             <CommandGroup>
+              {clearable && value && !typed && (
+                <CommandItem value="__clear__" onSelect={() => pick("", null)} className="min-h-11 text-muted-foreground">
+                  <X className="h-4 w-4 flex-none" />
+                  <span>{t("combo.clear")}</span>
+                </CommandItem>
+              )}
               {allowCustom && typed && !twin && (
                 <CommandItem
                   value={`__custom__${typed}`}

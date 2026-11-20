@@ -40,6 +40,11 @@ pub(crate) async fn reference_refresh_inner(state: &AppState) -> CmdResult<()> {
         Err(AppError::Status { status: 404, .. }) => {}
         Err(e) => return Err(e.into()),
     }
+    match get_array(state, "/legacy-events").await {
+        Ok(rows) => refdata::replace_legacy_events(&state.db, &rows)?,
+        Err(AppError::Status { status: 404, .. }) => {}
+        Err(e) => return Err(e.into()),
+    }
     Ok(())
 }
 

@@ -502,7 +502,8 @@
     "search": "Type to search…",
     "empty": "Nothing by that name",
     "use": "Use “{{text}}”",
-    "more": "There are more — keep typing to narrow down"
+    "more": "There are more — keep typing to narrow down",
+    "clear": "Clear the choice"
   },
   "catalog": {
     "tire": {

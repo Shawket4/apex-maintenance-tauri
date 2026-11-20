@@ -18,8 +18,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/shared/ui/dialog";
-import { Input } from "@/shared/ui/input";
 import { Label } from "@/shared/ui/label";
+import { JobPicker } from "@/widgets/catalog/pickers";
 import { ListCard, Section } from "@/widgets/layout/PageShell";
 
 import { useCategoryName } from "./lib";
@@ -240,6 +240,13 @@ function AddTask({ woId }: { woId: string }) {
     },
   );
 
+  // A standard job brings its maintenance type with it (the type can still
+  // be changed or cleared after); typed text leaves the type alone.
+  const pickJob = (description: string, categoryId?: string | null) => {
+    setText(description);
+    if (categoryId !== undefined) setCategory(categoryId ?? "");
+  };
+
   const description = text.trim() || (category ? arabicName(category) : "");
   const canAdd = description.length > 0 && !add.isPending;
   const submit = () => {
@@ -257,14 +264,7 @@ function AddTask({ woId }: { woId: string }) {
     >
       <div className="min-w-0 space-y-1">
         <Label htmlFor="wo-task-text">{t("wo.taskText")}</Label>
-        <Input
-          id="wo-task-text"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder={t("wo.addTaskPlaceholder")}
-          dir="auto"
-          className="bg-card"
-        />
+        <JobPicker id="wo-task-text" value={text} onChange={pickJob} disabled={add.isPending} />
       </div>
       <div className="min-w-0 space-y-1">
         <Label htmlFor="wo-task-category">{t("wo.taskCategory")}</Label>
@@ -319,11 +319,14 @@ function EditTaskDialog({ task, onClose }: { task: TaskRow; onClose: () => void 
         >
           <div className="space-y-1.5">
             <Label htmlFor="wo-edit-task-text">{t("wo.taskText")}</Label>
-            <Input
+            <JobPicker
               id="wo-edit-task-text"
               value={text}
-              onChange={(e) => setText(e.target.value)}
-              dir="auto"
+              onChange={(description, categoryId) => {
+                setText(description);
+                if (categoryId !== undefined) setCategory(categoryId ?? "");
+              }}
+              disabled={save.isPending}
             />
           </div>
           <div className="space-y-1.5">

@@ -20,7 +20,7 @@ export function tireLabel(t: { brand: string; model?: string | null; size?: stri
   return [t.brand, t.model, t.size].map((x) => (x ?? "").trim()).filter(Boolean).join(" · ");
 }
 
-const tireKey = (t: TireSpec) => `${norm(t.brand)}|${norm(t.model)}|${norm(t.size)}`;
+export const tireKey = (t: TireSpec) => `${norm(t.brand)}|${norm(t.model)}|${norm(t.size)}`;
 
 /** Choose a tire type from the catalog, or describe one that is not on it.
  *
@@ -234,12 +234,14 @@ export function JobPicker({
       value={value || null}
       onChange={(v, o) => {
         const job = o ? jobs.find((j) => j.name_ar === o.value) : undefined;
-        if (job) onChange(job.name_ar, job.category_id);
+        // A job with no maintenance type leaves the chosen type alone.
+        if (job) onChange(job.name_ar, job.category_id ?? undefined);
         else onChange(v.trim());
       }}
       placeholder={t("catalog.job.placeholder")}
       searchPlaceholder={t("catalog.job.search")}
       allowCustom
+      clearable
       customLabel={(text) => t("catalog.job.useNew", { text })}
     />
   );

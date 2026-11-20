@@ -24,6 +24,16 @@ CREATE TABLE IF NOT EXISTS standard_jobs (
     category_id  TEXT,
     uses         INTEGER NOT NULL DEFAULT 0
 );
+-- Work recorded in the office's old service invoices, recognised by the
+-- server as a maintenance type: counts toward the due clock like a ticked task.
+CREATE TABLE IF NOT EXISTS legacy_events (
+    id           INTEGER PRIMARY KEY,
+    vehicle_id   INTEGER NOT NULL,
+    category_id  TEXT NOT NULL,
+    done_at      TEXT NOT NULL,
+    km           INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_legacy_events_vehicle ON legacy_events(vehicle_id, category_id);
 ALTER TABLE tires            ADD COLUMN tire_product_id TEXT;
 ALTER TABLE oil_changes      ADD COLUMN oil_product_id  TEXT;
 ALTER TABLE work_order_tasks ADD COLUMN standard_job_id TEXT;

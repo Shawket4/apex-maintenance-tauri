@@ -171,3 +171,21 @@ pub fn replace_catalog(pool: &DbPool, v: &Value) -> AppResult<()> {
     tx.commit()?;
     Ok(())
 }
+
+/// Replace the old-invoice history mirror from GET /legacy-events.
+pub fn replace_legacy_events(pool: &DbPool, rows: &[Value]) -> AppResult<()> {
+    let mut conn = pool.get()?;
+    let tx = conn.transaction()?;
+    tx.execute("DELETE FROM legacy_events", [])?;
+    for r in rows {
+        let (Some(id), Some(vehicle), Some(cat), Some(at)) = (i(r, "id"), i(r, "vehicle_id"), s(r, "category_id"), s(r, "done_at")) else {
+            continue;
+        };
+        tx.execute(
+            "INSERT OR REPLACE INTO legacy_events (id, vehicle_id, category_id, done_at, km) VALUES (?1,?2,?3,?4,?5)",
+            params![id, vehicle, cat, at, i(r, "km")],
+        )?;
+    }
+    tx.commit()?;
+    Ok(())
+}

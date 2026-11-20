@@ -19,13 +19,14 @@ import {
 import { Input } from "@/shared/ui/input";
 import { Label } from "@/shared/ui/label";
 import { NumberInput } from "@/shared/ui/number-input";
+import { TireProductPicker, type TireSpec } from "@/widgets/catalog/pickers";
 
 const MAX_ROWS = 200; // the app refuses more in one go
 const MAX_KM = 5_000_000;
 
-type Row = { key: number; brand: string; model: string; size: string; dot: string; km: string };
+type Row = { key: number; tire: TireSpec | null; dot: string; km: string };
 
-const isBlank = (r: Row) => !r.brand.trim() && !r.model.trim() && !r.size.trim() && !r.dot.trim() && !r.km.trim();
+const isBlank = (r: Row) => !r.tire && !r.dot.trim() && !r.km.trim();
 
 /** Register used tires that are already lying in the workshop, one record per
  * tire, so they can be fitted later. This does NOT add to the new-tire stock:
@@ -35,8 +36,7 @@ export function LegacyIntakeDialog({ open, onOpenChange }: { open: boolean; onOp
   const lang = i18n.language;
   const uid = useId();
   const nextKey = useRef(1);
-  const blank = (): Row => ({ key: nextKey.current++, brand: "", model: "", size: "", dot: "", km: "" });
-  const [rows, setRows] = useState<Row[]>(() => [{ key: 0, brand: "", model: "", size: "", dot: "", km: "" }]);
+  const [rows, setRows] = useState<Row[]>(() => [{ key: 0, tire: null, dot: "", km: "" }]);
   const [touched, setTouched] = useState(false);
   const [confirming, setConfirming] = useState(false);
 
@@ -44,21 +44,21 @@ export function LegacyIntakeDialog({ open, onOpenChange }: { open: boolean; onOp
     setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)));
 
   // A card left completely empty is ignored; a card with anything typed in it
-  // must have a brand and a sensible km.
+  // must have a tire type and a sensible km.
   const filled = rows.filter((r) => !isBlank(r));
-  const brandMissing = (r: Row) => !isBlank(r) && !r.brand.trim();
+  const typeMissing = (r: Row) => !isBlank(r) && !r.tire?.brand.trim();
   const kmBad = (r: Row) => {
     if (!r.km.trim()) return false;
     const n = parseIntInput(r.km);
     return n == null || n > MAX_KM;
   };
-  const valid = filled.length > 0 && filled.length <= MAX_ROWS && !filled.some((r) => brandMissing(r) || kmBad(r));
+  const valid = filled.length > 0 && filled.length <= MAX_ROWS && !filled.some((r) => typeMissing(r) || kmBad(r));
 
   const payload = (): LegacyTireInput[] =>
     filled.map((r) => ({
-      brand: r.brand.trim(),
-      model: r.model.trim() || null,
-      size: r.size.trim() || null,
+      brand: r.tire!.brand.trim(),
+      model: r.tire!.model.trim() || null,
+      size: r.tire!.size.trim() || null,
       dot_code: r.dot.trim() || null,
       estimated_km: parseIntInput(r.km),
     }));
@@ -75,12 +75,11 @@ export function LegacyIntakeDialog({ open, onOpenChange }: { open: boolean; onOp
     },
   });
 
-  // Same make again: copy the last card's brand/model/size, not its DOT or km.
-  const addRow = () =>
-    setRows((rs) => {
-      const last = rs[rs.length - 1];
-      return [...rs, { ...blank(), brand: last?.brand ?? "", model: last?.model ?? "", size: last?.size ?? "" }];
-    });
+  // Same make again: copy the last card's tire type, not its DOT or km.
+  const addRow = () => {
+    const key = nextKey.current++;
+    setRows((rs) => [...rs, { key, tire: rs[rs.length - 1]?.tire ?? null, dot: "", km: "" }]);
+  };
 
   return (
     <Dialog open={open} onOpenChange={(o) => !submit.isPending && onOpenChange(o)}>
@@ -102,7 +101,7 @@ export function LegacyIntakeDialog({ open, onOpenChange }: { open: boolean; onOp
           <ol className="space-y-3">
             {rows.map((row, i) => {
               const id = (name: string) => `${uid}-${row.key}-${name}`;
-              const noBrand = touched && brandMissing(row);
+              const noType = touched && typeMissing(row);
               const badKm = touched && kmBad(row);
               return (
                 <li key={row.key} className="rounded-xl border bg-card p-3.5">
@@ -123,40 +122,22 @@ export function LegacyIntakeDialog({ open, onOpenChange }: { open: boolean; onOp
                     )}
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="space-y-1.5">
-                      <Label htmlFor={id("brand")}>{t("tires.intake.brand")}</Label>
-                      <Input
-                        id={id("brand")}
-                        dir="auto"
-                        value={row.brand}
-                        onChange={(e) => set(row.key, { brand: e.target.value })}
-                        aria-invalid={noBrand}
-                        aria-describedby={id("brand-err")}
+                    <div className="space-y-1.5 sm:col-span-2">
+                      <Label id={id("type-label")} htmlFor={id("type")}>
+                        {t("tires.intake.brand")}
+                      </Label>
+                      <TireProductPicker
+                        id={id("type")}
+                        aria-labelledby={id("type-label")}
+                        disabled={submit.isPending}
+                        value={row.tire}
+                        onChange={(tire) => set(row.key, { tire })}
                       />
-                      {noBrand && (
-                        <p id={id("brand-err")} className="text-sm text-status-overdue">
+                      {noType && (
+                        <p role="alert" className="text-sm text-status-overdue">
                           {t("tires.intake.brandRequired")}
                         </p>
                       )}
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor={id("model")}>{t("tires.form.model")}</Label>
-                      <Input
-                        id={id("model")}
-                        dir="auto"
-                        value={row.model}
-                        onChange={(e) => set(row.key, { model: e.target.value })}
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor={id("size")}>{t("tires.form.size")}</Label>
-                      <Input
-                        id={id("size")}
-                        dir="ltr"
-                        className="text-start"
-                        value={row.size}
-                        onChange={(e) => set(row.key, { size: e.target.value })}
-                      />
                     </div>
                     <div className="space-y-1.5">
                       <Label htmlFor={id("dot")}>{t("tires.form.dot")}</Label>
@@ -168,7 +149,7 @@ export function LegacyIntakeDialog({ open, onOpenChange }: { open: boolean; onOp
                         onChange={(e) => set(row.key, { dot: e.target.value })}
                       />
                     </div>
-                    <div className="space-y-1.5 sm:col-span-2">
+                    <div className="space-y-1.5">
                       <Label htmlFor={id("km")}>{t("tires.intake.km")}</Label>
                       <NumberInput
                         id={id("km")}

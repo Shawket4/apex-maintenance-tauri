@@ -3,7 +3,8 @@ import { useTranslation } from "react-i18next";
 import { Droplets, Loader2, Pencil, Trash2, TriangleAlert } from "lucide-react";
 
 import { commands, unwrap, type OilRow, type WoDetail } from "@/shared/api/client";
-import { useDomainMutation, useStock } from "@/shared/api/queries";
+import { useCatalog, useDomainMutation, useStock } from "@/shared/api/queries";
+import { norm } from "@/shared/lib/normalize";
 import { notifyError, notifySuccess } from "@/shared/lib/notify";
 import { fmtKm, fmtLiters, fmtNumber, parseDecimalInput } from "@/shared/lib/numbers";
 import { fmtCairo } from "@/shared/lib/time";
@@ -17,16 +18,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/shared/ui/dialog";
-import { Input } from "@/shared/ui/input";
 import { Label } from "@/shared/ui/label";
 import { NumberInput } from "@/shared/ui/number-input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/shared/ui/select";
+import { OilProductPicker } from "@/widgets/catalog/pickers";
 import { ListCard, Section } from "@/widgets/layout/PageShell";
 
 import { OIL_BAND_MAX, OIL_BAND_MIN, parseOilDraft, type OilDraft } from "./lib";
@@ -153,52 +147,38 @@ function OilFields({
 }) {
   const { t, i18n } = useTranslation();
   const stock = useStock();
-  const lines = stock.data?.oil ?? [];
-  // An empty stock list (first day, or never refreshed) must not block
-  // recording oil — the type is typed by hand then.
-  const freeText = lines.length === 0;
-  const typeOptions = lines.map((l) => l.oil_type);
-  if (original && !typeOptions.includes(original.oil_type)) typeOptions.unshift(original.oil_type);
+  const catalog = useCatalog();
+  // The same oil under another spelling is the same oil ("Shell 15W40" /
+  // "shell 15w-40"), so types are compared the way the catalog compares them.
+  const typeKey = norm(draft.oilType);
+  const product = typeKey
+    ? catalog.data?.oil_products.find((p) => norm(p.name) === typeKey)
+    : undefined;
+  const line = typeKey
+    ? stock.data?.oil.find((l) => norm(l.oil_type) === typeKey)
+    : undefined;
+  // What is left of this type: the stock line when this device has one, else
+  // the count that came with the catalog. null = this type is not in stock.
+  const onHand = line?.projected_liters ?? product?.on_hand ?? null;
+  const known = product != null || line != null;
 
   const liters = parseDecimalInput(draft.liters);
   const outsideBand = liters != null && liters > 0 && (liters < OIL_BAND_MIN || liters > OIL_BAND_MAX);
-  const line = lines.find((l) => l.oil_type === draft.oilType.trim());
   // What this save takes out of stock on top of what is already counted.
-  const alreadyTaken = original && original.oil_type === draft.oilType.trim() ? original.liters : 0;
+  const alreadyTaken = original && norm(original.oil_type) === typeKey ? original.liters : 0;
   const extra = liters != null ? liters - alreadyTaken : 0;
-  const goesNegative = line != null && extra > 0 && line.projected_liters - extra < 0;
+  const goesNegative = onHand != null && extra > 0 && onHand - extra < 0;
 
   return (
     <div className="space-y-3">
       <div className="grid gap-3 sm:grid-cols-3">
         <div className="min-w-0 space-y-1.5">
           <Label htmlFor={`${idPrefix}-type`}>{t("wo.oilType")}</Label>
-          {freeText ? (
-            <Input
-              id={`${idPrefix}-type`}
-              dir="ltr"
-              className="bg-card text-start"
-              placeholder={t("wo.oilTypePlaceholder")}
-              value={draft.oilType}
-              onChange={(e) => onChange({ ...draft, oilType: e.target.value })}
-            />
-          ) : (
-            <Select value={draft.oilType} onValueChange={(v) => onChange({ ...draft, oilType: v })}>
-              <SelectTrigger
-                id={`${idPrefix}-type`}
-                className="w-full bg-card data-[size=default]:h-10 pointer-coarse:min-h-11"
-              >
-                <SelectValue placeholder={t("wo.oilTypePick")} />
-              </SelectTrigger>
-              <SelectContent>
-                {typeOptions.map((type) => (
-                  <SelectItem key={type} value={type}>
-                    <bdi>{type}</bdi>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
+          <OilProductPicker
+            id={`${idPrefix}-type`}
+            value={draft.oilType}
+            onChange={(name) => onChange({ ...draft, oilType: name })}
+          />
         </div>
         <div className="min-w-0 space-y-1.5">
           <Label htmlFor={`${idPrefix}-liters`}>{t("wo.oilLiters")}</Label>
@@ -221,11 +201,16 @@ function OilFields({
         </div>
       </div>
 
-      {freeText && <p className="text-xs text-muted-foreground">{t("wo.oilNoStockHint")}</p>}
-      {line && (
+      {onHand != null ? (
         <p className="text-sm text-muted-foreground">
-          {t("wo.oilStockOnHand", { liters: fmtLiters(line.projected_liters, i18n.language) })}
+          {t("wo.oilStockOnHand", { liters: fmtLiters(onHand, i18n.language) })}
         </p>
+      ) : (
+        typeKey !== "" && (
+          <p className="text-sm text-muted-foreground">
+            {known ? t("wo.oilNotInStock") : t("wo.oilNewTypeHint")}
+          </p>
+        )
       )}
       {goesNegative && (
         <p className="flex items-start gap-2 rounded-lg bg-status-due_soon-soft px-3 py-2 text-sm text-status-due_soon">
