@@ -89,14 +89,30 @@ export function movementItemLabel(
   return [m.brand, m.model, m.size].filter(Boolean).join(" ") || "—";
 }
 
-export type MovementTotals = { tiresIn: number; tiresOut: number; oilIn: number; oilOut: number };
+export type MovementTotals = {
+  tiresIn: number;
+  tiresOut: number;
+  oilIn: number;
+  oilOut: number;
+  /** Net effect of stock counts (corrections): + added, − taken off. Kept
+   * out of in/out, which mean "received" and "used". */
+  tiresCounted: number;
+  oilCounted: number;
+};
 
-/** In/out totals over a set of rows (tires counted, oil in liters). */
-export function movementTotals(rows: readonly MovementFacts[]): MovementTotals {
-  const totals: MovementTotals = { tiresIn: 0, tiresOut: 0, oilIn: 0, oilOut: 0 };
+/** Received / used totals over a set of rows (tires counted, oil in liters).
+ * A stock count is neither a delivery nor a use, so it is summed apart. */
+export function movementTotals(
+  rows: readonly (MovementFacts & Partial<Pick<StockMovementRow, "is_count">>)[],
+): MovementTotals {
+  const totals: MovementTotals = { tiresIn: 0, tiresOut: 0, oilIn: 0, oilOut: 0, tiresCounted: 0, oilCounted: 0 };
   for (const row of rows) {
     const info = describeMovement(row);
-    if (info.item === "tire") {
+    if (row.is_count || info.adjustment) {
+      const signed = info.direction === "in" ? info.amount : -info.amount;
+      if (info.item === "tire") totals.tiresCounted += signed;
+      else totals.oilCounted += signed;
+    } else if (info.item === "tire") {
       if (info.direction === "in") totals.tiresIn += info.amount;
       else totals.tiresOut += info.amount;
     } else if (info.direction === "in") totals.oilIn += info.amount;
@@ -105,5 +121,6 @@ export function movementTotals(rows: readonly MovementFacts[]): MovementTotals {
   // Liters are stored to two decimals; do not let float noise leak out.
   totals.oilIn = Math.round(totals.oilIn * 100) / 100;
   totals.oilOut = Math.round(totals.oilOut * 100) / 100;
+  totals.oilCounted = Math.round(totals.oilCounted * 100) / 100;
   return totals;
 }

@@ -61,7 +61,9 @@ impl AppConfig {
 
         let cfg = AppConfig {
             backend: BackendConfig {
-                base_url: env_or("APEX_BASE_URL", "https://apextransport.ddns.net"),
+                // A test build can bake in another server (the phone has no
+                // environment to set): APEX_BASE_URL_DEFAULT at compile time.
+                base_url: env_or("APEX_BASE_URL", option_env!("APEX_BASE_URL_DEFAULT").unwrap_or("https://apextransport.ddns.net")),
                 falcon_prefix: env_or("APEX_FALCON_PREFIX", "/api/go"),
                 maint_prefix: env_or("APEX_MAINT_PREFIX", "/api/maint"),
                 rust_prefix: env_or("APEX_RUST_PREFIX", "/api/rust"),

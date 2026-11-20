@@ -8,6 +8,7 @@
     "core:window:default",
     "core:app:default",
     "core:event:default",
-    "os:default"
+    "os:default",
+    "print-sheet:allow-print"
   ]
 }

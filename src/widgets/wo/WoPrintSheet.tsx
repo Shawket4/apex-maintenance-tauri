@@ -6,13 +6,13 @@ import { fmtKm, fmtLiters } from "@/shared/lib/numbers";
 import { fmtCairo, nowUtcIso } from "@/shared/lib/time";
 import { Button } from "@/shared/ui/button";
 
-import { canPrint, useCategoryName } from "./lib";
+import { canPrint, printPage, useCategoryName } from "./lib";
 
 export function PrintButton() {
   const { t } = useTranslation();
   if (!canPrint()) return null;
   return (
-    <Button variant="outline" className="w-full sm:w-auto" onClick={() => window.print()}>
+    <Button variant="outline" className="w-full sm:w-auto" onClick={() => void printPage(t("wo.print.action"))}>
       <Printer />
       {t("wo.print.action")}
     </Button>

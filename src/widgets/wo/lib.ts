@@ -1,3 +1,4 @@
+import { invoke } from "@tauri-apps/api/core";
 import { useTranslation } from "react-i18next";
 
 import { useCategories } from "@/shared/api/queries";
@@ -25,11 +26,17 @@ export function odometerDoubt(
   return null;
 }
 
-/** Printing works in the desktop app's window; in the Android app
- * `window.print` does nothing, so the Print button is not offered there. */
+/** Is there a way to print here at all? */
 export function canPrint(): boolean {
-  if (typeof window === "undefined" || typeof window.print !== "function") return false;
-  return !/android/i.test(window.navigator.userAgent);
+  return typeof window !== "undefined";
+}
+
+/** Print the page. A desktop window prints by itself; the Android app has no
+ * `window.print`, so the app's own print plugin opens the system print screen
+ * (a printer, or "save as PDF"). */
+export async function printPage(title: string): Promise<void> {
+  const opened = await invoke<boolean>("plugin:print-sheet|print", { title }).catch(() => false);
+  if (!opened && typeof window.print === "function") window.print();
 }
 
 /** Category name in the UI language (the task row only carries the Arabic one). */

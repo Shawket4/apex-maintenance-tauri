@@ -1,6 +1,6 @@
 [package]
 name = "apex-maintenance"
-version = "0.3.0"
+version = "0.3.1"
 description = "Apex Transport — maintenance, chassis & tire management desktop client"
 authors = ["Apex Transport"]
 edition = "2021"
@@ -65,7 +65,9 @@ specta-typescript = "0.0.9"
 tauri-specta = { version = "=2.0.0-rc.21", features = ["derive", "typescript"] }
 
 tauri-plugin-dialog = "2"
+tauri-plugin-print-sheet = { path = "plugins/print-sheet" }
 rust_xlsxwriter = "0.79"
+tauri-plugin-fs = "2"
 
 [features]
 default = ["custom-protocol"]

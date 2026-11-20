@@ -81,6 +81,7 @@
     "refreshed": "السجل اتحدّث",
     "export": "نزّل ملف Excel",
     "exportFile": "سجل-صيانة",
+    "exportSaved": "ملف الإكسل اتحفظ",
     "exportTitle": "سجل صيانة العربية {{plate}}",
     "exportFiltered": "بحث: {{q}}",
     "colDate": "التاريخ",
