@@ -22,6 +22,7 @@ import { Label } from "@/shared/ui/label";
 import { NumberInput } from "@/shared/ui/number-input";
 
 import { PendingBadge, StatusBadge } from "./parts";
+import { PrintButton } from "./WoPrintSheet";
 
 /** Who/what/when of the work order, its odometer, and the three things that
  * can happen to the order itself: close (the normal end), reopen, delete. */
@@ -78,6 +79,7 @@ export function WoHeader({ d }: { d: WoDetail }) {
 
       <div className="flex flex-wrap items-center gap-2 border-t pt-4">
         {isOpen ? <CloseButton d={d} /> : <ReopenButton woId={wo.id} />}
+        <PrintButton />
         <DeleteButton d={d} />
       </div>
     </div>

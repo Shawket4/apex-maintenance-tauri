@@ -29,10 +29,14 @@
     "usedOn": "Used on",
     "used": "Taken out of stock",
     "adjustIn": "Stock count correction — added",
-    "adjustOut": "Stock count correction — removed"
+    "adjustOut": "Stock count correction — removed",
+    "count": "Stock count:",
+    "countMore": "more was counted than recorded",
+    "countLess": "fewer were counted than recorded"
   },
   "note": "Note:",
   "notMirrored": "Not recorded in the fleet system",
   "notMirroredWhy": "(press for the reason)",
-  "notMirroredHelp": "This movement is recorded here only; the stock numbers in the fleet system do not include it. Give these details to whoever looks after the system:"
+  "notMirroredHelp": "This movement is recorded here only; the stock numbers in the fleet system do not include it. Give these details to whoever looks after the system:",
+  "by": "By:"
 }

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { AlertTriangle, ArrowDownLeft, ArrowUpRight, CloudOff, Loader2, RefreshCw } from "lucide-react";
+import { AlertTriangle, ArrowDownLeft, ArrowUpRight, ClipboardCheck, CloudOff, Loader2, RefreshCw } from "lucide-react";
 
 import { commands, isOffline, unwrap, type StockMovementRow } from "@/shared/api/client";
 import { useStockMovementsRefresh, useSyncStatus } from "@/shared/api/queries";
@@ -298,6 +298,9 @@ function MovementRow({ m }: { m: StockMovementRow }) {
   const lang = i18n.language;
   const info = describeMovement(m);
   const isIn = info.direction === "in";
+  // A count correction ("we counted N") is neither a delivery nor a use.
+  const isCount = m.is_count;
+  const signed = `${isIn ? "+" : "−"}${fmtNumber(info.amount, lang)}`;
 
   return (
     <li className="flex items-start gap-3 px-4 py-3">
@@ -305,10 +308,20 @@ function MovementRow({ m }: { m: StockMovementRow }) {
         aria-hidden
         className={cn(
           "mt-0.5 flex h-9 w-9 flex-none items-center justify-center rounded-full",
-          isIn ? "bg-status-ok-soft text-status-ok" : "bg-status-overdue-soft text-status-overdue",
+          isCount
+            ? "bg-info-soft text-info"
+            : isIn
+              ? "bg-status-ok-soft text-status-ok"
+              : "bg-status-overdue-soft text-status-overdue",
         )}
       >
-        {isIn ? <ArrowDownLeft className="h-4 w-4" /> : <ArrowUpRight className="h-4 w-4" />}
+        {isCount ? (
+          <ClipboardCheck className="h-4 w-4" />
+        ) : isIn ? (
+          <ArrowDownLeft className="h-4 w-4" />
+        ) : (
+          <ArrowUpRight className="h-4 w-4" />
+        )}
       </span>
 
       <div className="min-w-0 flex-1">
@@ -325,7 +338,21 @@ function MovementRow({ m }: { m: StockMovementRow }) {
         </div>
 
         <p className="mt-0.5 text-sm">
-          {info.adjustment ? (
+          {isCount ? (
+            <>
+              <span className="font-semibold">
+                {t("movements.what.count")}{" "}
+                <bdi dir="ltr" className="tabular">
+                  {signed}
+                </bdi>
+                {info.item === "oil" && ` ${t("common.liters")}`}
+              </span>
+              <span className="text-muted-foreground">
+                {" — "}
+                {t(isIn ? "movements.what.countMore" : "movements.what.countLess")}
+              </span>
+            </>
+          ) : info.adjustment ? (
             t(isIn ? "movements.what.adjustIn" : "movements.what.adjustOut")
           ) : isIn ? (
             t("movements.what.received")
@@ -348,7 +375,15 @@ function MovementRow({ m }: { m: StockMovementRow }) {
             t("movements.what.used")
           )}
         </p>
-        <p className="text-sm text-muted-foreground tabular">{fmtCairo(m.created_at, "YYYY/MM/DD HH:mm", lang)}</p>
+        <p className="text-sm text-muted-foreground">
+          <span className="tabular">{fmtCairo(m.created_at, "YYYY/MM/DD HH:mm", lang)}</span>
+          {m.user_name?.trim() && (
+            <>
+              {" · "}
+              {t("movements.by")} <bdi className="font-medium text-foreground">{m.user_name.trim()}</bdi>
+            </>
+          )}
+        </p>
 
         {m.note && (
           <p className="mt-1 text-sm">
@@ -370,10 +405,14 @@ function MovementRow({ m }: { m: StockMovementRow }) {
         )}
       </div>
 
-      <div className={cn("flex-none text-end font-bold", isIn ? "text-status-ok" : "text-status-overdue")}>
+      <div
+        className={cn(
+          "flex-none text-end font-bold",
+          isCount ? "text-info" : isIn ? "text-status-ok" : "text-status-overdue",
+        )}
+      >
         <span dir="ltr" className="text-base tabular">
-          {isIn ? "+" : "−"}
-          {fmtNumber(info.amount, lang)}
+          {signed}
         </span>
         {info.item === "oil" && <span className="ms-1 text-sm font-semibold">{t("common.liters")}</span>}
       </div>

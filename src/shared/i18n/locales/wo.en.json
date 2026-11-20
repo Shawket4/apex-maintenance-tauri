@@ -134,5 +134,29 @@
     "due_soon": "Due soon",
     "never_done": "Never done",
     "unknown": "Unknown — no odometer reading"
+  },
+  "print": {
+    "action": "Print",
+    "sheetTitle": "Work order",
+    "plate": "Truck plate",
+    "status": "Status",
+    "opened": "Opened",
+    "closed": "Closed",
+    "notClosed": "Still open",
+    "printedOn": "Printed: {{date}}",
+    "colDone": "Done?",
+    "colTask": "Work",
+    "colType": "Maintenance type",
+    "colDoneAt": "Done on",
+    "notDone": "Not yet",
+    "colOilType": "Oil type",
+    "colLiters": "Amount",
+    "colDate": "Date",
+    "colOdometer": "Odometer",
+    "colPosition": "Position",
+    "colTire": "Tire",
+    "colWhat": "What was done",
+    "none": "None",
+    "subject": "Subject"
   }
 }
