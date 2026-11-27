@@ -42,7 +42,7 @@ pub(crate) fn current_user_id(state: &AppState) -> AppResult<i64> {
 pub(crate) fn kick(engine: &EngineState) {
     let eng = engine.0.clone();
     tauri::async_runtime::spawn(async move {
-        let _ = eng.drain().await;
+        let _ = eng.send_now().await;
     });
 }
 

@@ -1,7 +1,7 @@
 import * as React from "react";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { CalendarCheck, CalendarOff, ChevronLeft, ChevronRight, LogOut, MoreHorizontal, Search, UserPlus } from "lucide-react";
+import { CalendarCheck, ChevronLeft, ChevronRight, LogIn, LogOut, MoreHorizontal, Search, UserPlus } from "lucide-react";
 
 import { commands, unwrap } from "@/shared/api/client";
 import type { AttendanceDayRow, AttendanceDayView, AttendanceMarkInput } from "@/shared/api/client";
@@ -10,7 +10,6 @@ import { cn } from "@/shared/lib/cn";
 import { matches } from "@/shared/lib/normalize";
 import { fmtNumber } from "@/shared/lib/numbers";
 import { notifyError, notifySuccess } from "@/shared/lib/notify";
-import { nowUtcIso } from "@/shared/lib/time";
 import { Button } from "@/shared/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/shared/ui/dialog";
 import { Input } from "@/shared/ui/input";
@@ -19,14 +18,16 @@ import { StatusChip } from "@/shared/ui/status-chip";
 import { EmptyState, ListCard } from "@/widgets/layout/PageShell";
 import { PendingBadge } from "@/widgets/wo/parts";
 
+import { ClockDialog, type ClockTarget } from "./ClockDialog";
 import { DayDialog, type DayTarget } from "./DayDialog";
-import { KIND_TONE, addDays, cairoInstant, dayTitle, fmtDuration, timeOf } from "./lib";
+import { KIND_TONE, addDays, cairoInstant, dayTitle, nowCairoHhmm, timeOf } from "./lib";
 
 /** The day's register: the day bar, the counts, the bulk actions, one row per worker. */
 export function DayRegister({ v, onGoTo }: { v: AttendanceDayView; onGoTo: (date: string) => void }) {
   const { t, i18n } = useTranslation();
   const lang = i18n.language;
   const [target, setTarget] = React.useState<DayTarget | null>(null);
+  const [clock, setClock] = React.useState<ClockTarget | null>(null);
   const [bulkOpen, setBulkOpen] = React.useState(false);
   const [search, setSearch] = React.useState("");
   const [busy, setBusy] = React.useState<string | null>(null);
@@ -50,30 +51,21 @@ export function DayRegister({ v, onGoTo }: { v: AttendanceDayView; onGoTo: (date
       note: r.note,
     });
 
-  const quick = (r: AttendanceDayRow, status: "present" | "absent") => {
+  const absent = (r: AttendanceDayRow) => {
     setBusy(r.worker_id);
     mark.mutate({
       worker_id: r.worker_id,
       work_date: v.date,
-      status,
-      check_in_at: status === "present" ? (v.is_today ? nowUtcIso() : cairoInstant(v.date, v.settings.work_start)) : null,
+      status: "absent",
+      check_in_at: null,
       check_out_at: null,
       note: r.note,
     });
   };
 
-  const checkOut = (r: AttendanceDayRow) => {
-    if (!v.is_today) return edit(r);
-    setBusy(r.worker_id);
-    mark.mutate({
-      worker_id: r.worker_id,
-      work_date: v.date,
-      status: "present",
-      check_in_at: r.check_in_at,
-      check_out_at: nowUtcIso(),
-      note: r.note,
-    });
-  };
+  // Checking in or out always asks for the time (it starts from now).
+  const checkIn = (r: AttendanceDayRow) => setClock({ mode: "in", row: r, date: v.date });
+  const checkOut = (r: AttendanceDayRow) => setClock({ mode: "out", row: r, date: v.date });
 
   const n = (x: number) => fmtNumber(x, lang);
   const unmarked = v.rows.filter((r) => r.status == null);
@@ -81,11 +73,9 @@ export function DayRegister({ v, onGoTo }: { v: AttendanceDayView; onGoTo: (date
   const total = v.rows.length;
   const pills: { key: string; count: number }[] = [
     { key: "present", count: v.counts.present },
-    { key: "late", count: v.counts.late },
     { key: "absent", count: v.counts.absent },
     { key: "leave", count: v.counts.leave },
     { key: "sick", count: v.counts.sick },
-    { key: "off", count: v.counts.off },
     { key: "unmarked", count: v.counts.unmarked },
   ].filter((p) => p.count > 0 || p.key === "present");
 
@@ -127,13 +117,6 @@ export function DayRegister({ v, onGoTo }: { v: AttendanceDayView; onGoTo: (date
           )}
         </div>
       </div>
-
-      {v.is_weekly_off && (
-        <p className="flex items-center gap-2 rounded-lg bg-muted px-4 py-2.5 text-sm text-muted-foreground">
-          <CalendarOff className="h-4 w-4 flex-none" />
-          {t("attendance.day.weeklyOff", { day: t(`attendance.weekday.${v.weekday}`) })}
-        </p>
-      )}
 
       {!v.has_workers ? (
         <EmptyState className="space-y-4 p-10">
@@ -201,8 +184,8 @@ export function DayRegister({ v, onGoTo }: { v: AttendanceDayView; onGoTo: (date
                   isToday={v.is_today}
                   busy={busy === r.worker_id}
                   onEdit={() => edit(r)}
-                  onPresent={() => quick(r, "present")}
-                  onAbsent={() => quick(r, "absent")}
+                  onCheckIn={() => checkIn(r)}
+                  onAbsent={() => absent(r)}
                   onCheckOut={() => checkOut(r)}
                 />
               ))}
@@ -211,7 +194,8 @@ export function DayRegister({ v, onGoTo }: { v: AttendanceDayView; onGoTo: (date
         </>
       )}
 
-      <DayDialog target={target} settings={v.settings} onOpenChange={(o) => !o && setTarget(null)} />
+      <DayDialog target={target} onOpenChange={(o) => !o && setTarget(null)} />
+      <ClockDialog target={clock} onClose={() => setClock(null)} />
       <BulkDialog open={bulkOpen} v={v} unmarked={unmarked} onClose={() => setBulkOpen(false)} />
     </div>
   );
@@ -222,7 +206,7 @@ function WorkerDayRow({
   isToday,
   busy,
   onEdit,
-  onPresent,
+  onCheckIn,
   onAbsent,
   onCheckOut,
 }: {
@@ -230,20 +214,18 @@ function WorkerDayRow({
   isToday: boolean;
   busy: boolean;
   onEdit: () => void;
-  onPresent: () => void;
+  onCheckIn: () => void;
   onAbsent: () => void;
   onCheckOut: () => void;
 }) {
   const { t, i18n } = useTranslation();
   const lang = i18n.language;
-  const late = r.status === "present" && r.late_minutes > 0;
-  const kind = r.status == null ? "unmarked" : late ? "late" : r.status;
+  const kind = r.status ?? "unmarked";
 
   const details: string[] = [];
   if (r.status === "present") {
     details.push(r.check_in_at ? t("attendance.day.inAt", { time: timeOf(r.check_in_at, lang) }) : t("attendance.day.noIn"));
     if (r.check_out_at) details.push(t("attendance.day.outAt", { time: timeOf(r.check_out_at, lang) }));
-    if (r.worked_minutes != null) details.push(t("attendance.day.worked", { d: fmtDuration(r.worked_minutes, t, lang) }));
   } else if (r.job) {
     details.push(r.job);
   }
@@ -279,11 +261,12 @@ function WorkerDayRow({
         {r.status == null ? (
           <>
             <Button
-              onClick={onPresent}
+              onClick={onCheckIn}
               disabled={busy}
               className="min-w-24 flex-1 bg-status-ok text-white hover:bg-status-ok/90 sm:flex-none"
             >
-              {t("attendance.day.present")}
+              <LogIn className="rtl:-scale-x-100" />
+              {t("attendance.day.checkIn")}
             </Button>
             <Button
               variant="outline"
@@ -302,11 +285,6 @@ function WorkerDayRow({
             <StatusChip tone={KIND_TONE[r.status] ?? ""} size="md">
               {t(`attendance.status.${r.status}`)}
             </StatusChip>
-            {late && (
-              <StatusChip tone={KIND_TONE.late} size="md" className="tabular">
-                {t("attendance.day.lateBy", { d: fmtDuration(r.late_minutes, t, lang) })}
-              </StatusChip>
-            )}
             {r.missing_out && (
               <StatusChip tone={KIND_TONE.unmarked} size="md">
                 {t("attendance.day.missingOut")}
@@ -341,10 +319,10 @@ function BulkDialog({
   onClose: () => void;
 }) {
   const { t, i18n } = useTranslation();
-  const [time, setTime] = React.useState(v.settings.work_start);
+  const [time, setTime] = React.useState(nowCairoHhmm);
   React.useEffect(() => {
-    if (open) setTime(v.settings.work_start);
-  }, [open, v.settings.work_start]);
+    if (open) setTime(nowCairoHhmm());
+  }, [open]);
 
   const run = useDomainMutation(
     () =>

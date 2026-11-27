@@ -1,14 +1,16 @@
 //! Garage attendance: the day register, the month sheet, the worker list.
 //!
-//! The rule (late, worked hours, what a day counts as) lives here and only
-//! here on the device; React renders what this returns. Cairo's calendar and
-//! clock throughout, summer time included — never a fixed offset.
+//! A day is one status (present, absent, leave, sick); a present day keeps
+//! its check-in and check-out times as recorded. No working hours, no
+//! lateness, no hour totals and no days off: the garage works every day. What
+//! a day counts as is decided here and only here on the device; React renders
+//! what this returns. Cairo's calendar throughout.
 
 use std::collections::{HashMap, HashSet};
 
-use chrono::{DateTime, Datelike, NaiveDate, NaiveDateTime, NaiveTime, Utc};
+use chrono::{Datelike, NaiveDate, Utc};
 use chrono_tz::Africa::Cairo;
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{params, Connection};
 use serde::Serialize;
 
 use crate::db::DbPool;
@@ -16,121 +18,9 @@ use crate::AppResult;
 
 use super::*;
 
-pub const DEFAULT_WORK_START: &str = "08:00";
-pub const DEFAULT_WORK_END: &str = "17:00";
-pub const DEFAULT_GRACE_MINUTES: i64 = 15;
-/// Friday.
-pub const DEFAULT_WEEKLY_OFF: &[i64] = &[5];
-
 /// Today in Cairo.
 pub fn cairo_today() -> NaiveDate {
     Utc::now().with_timezone(&Cairo).date_naive()
-}
-
-/// A stored UTC instant as Cairo wall-clock time.
-pub fn cairo_local(iso: &str) -> Option<NaiveDateTime> {
-    DateTime::parse_from_rfc3339(iso).ok().map(|t| t.with_timezone(&Cairo).naive_local())
-}
-
-#[derive(Debug, Clone, Serialize, specta::Type)]
-pub struct AttendanceSettingsView {
-    pub work_start: String,
-    pub work_end: String,
-    pub late_grace_minutes: i64,
-    pub weekly_off_days: Vec<i64>,
-    /// False until someone saves the hours: the defaults are showing.
-    pub saved: bool,
-    pub pending: bool,
-}
-
-impl AttendanceSettingsView {
-    fn start(&self) -> NaiveTime {
-        NaiveTime::parse_from_str(&self.work_start, "%H:%M").unwrap_or(NaiveTime::from_hms_opt(8, 0, 0).unwrap())
-    }
-    fn end(&self) -> NaiveTime {
-        NaiveTime::parse_from_str(&self.work_end, "%H:%M").unwrap_or(NaiveTime::from_hms_opt(17, 0, 0).unwrap())
-    }
-    /// Length of the working day in minutes (an end before the start wraps
-    /// past midnight).
-    fn day_minutes(&self) -> i64 {
-        let m = (self.end() - self.start()).num_minutes();
-        if m <= 0 { m + 24 * 60 } else { m }
-    }
-    fn is_off(&self, d: NaiveDate) -> bool {
-        self.weekly_off_days.contains(&(d.weekday().number_from_monday() as i64))
-    }
-}
-
-fn load_settings(conn: &Connection) -> AppResult<AttendanceSettingsView> {
-    let row: Option<(Option<String>, Option<String>, Option<i64>, Option<String>)> = conn
-        .query_row(
-            "SELECT work_start, work_end, late_grace_minutes, weekly_off_days
-               FROM attendance_settings WHERE id = 1 AND deleted_at IS NULL",
-            [],
-            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
-        )
-        .optional()?;
-    let pending = pending_ids(conn, "attendance_settings")?.contains("1");
-    Ok(match row {
-        None => AttendanceSettingsView {
-            work_start: DEFAULT_WORK_START.into(),
-            work_end: DEFAULT_WORK_END.into(),
-            late_grace_minutes: DEFAULT_GRACE_MINUTES,
-            weekly_off_days: DEFAULT_WEEKLY_OFF.to_vec(),
-            saved: false,
-            pending,
-        },
-        Some((s, e, g, off)) => AttendanceSettingsView {
-            work_start: s.unwrap_or_else(|| DEFAULT_WORK_START.into()),
-            work_end: e.unwrap_or_else(|| DEFAULT_WORK_END.into()),
-            late_grace_minutes: g.unwrap_or(DEFAULT_GRACE_MINUTES),
-            weekly_off_days: off
-                .map(|o| o.split(',').filter_map(|d| d.trim().parse().ok()).collect())
-                .unwrap_or_else(|| DEFAULT_WEEKLY_OFF.to_vec()),
-            saved: true,
-            pending,
-        },
-    })
-}
-
-pub fn attendance_settings(pool: &DbPool) -> AppResult<AttendanceSettingsView> {
-    let conn = pool.get()?;
-    load_settings(&conn)
-}
-
-// ── the rule ────────────────────────────────────────────────────────────────
-
-/// What one marked day amounts to.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DayFigures {
-    /// Minutes after the start of the working day; 0 within the grace.
-    pub late_minutes: i64,
-    /// Check-out minus check-in; None without both.
-    pub worked_minutes: Option<i64>,
-    /// Worked beyond the length of the working day.
-    pub extra_minutes: i64,
-}
-
-/// No one is late on the weekly day off: whoever came in, came in extra.
-pub fn day_figures(
-    s: &AttendanceSettingsView,
-    work_date: NaiveDate,
-    check_in_at: Option<&str>,
-    check_out_at: Option<&str>,
-) -> DayFigures {
-    let cin = check_in_at.and_then(cairo_local);
-    let cout = check_out_at.and_then(cairo_local);
-    let late_minutes = cin
-        .filter(|_| !s.is_off(work_date))
-        .map(|i| (i - work_date.and_time(s.start())).num_minutes())
-        .filter(|m| *m > s.late_grace_minutes)
-        .unwrap_or(0);
-    let worked_minutes = match (cin, cout) {
-        (Some(i), Some(o)) if o > i => Some((o - i).num_minutes()),
-        _ => None,
-    };
-    let extra_minutes = worked_minutes.map(|w| (w - s.day_minutes()).max(0)).unwrap_or(0);
-    DayFigures { late_minutes, worked_minutes, extra_minutes }
 }
 
 // ── workers ─────────────────────────────────────────────────────────────────
@@ -271,8 +161,6 @@ pub struct AttendanceDayRow {
     pub check_in_at: Option<String>,
     pub check_out_at: Option<String>,
     pub note: Option<String>,
-    pub late_minutes: i64,
-    pub worked_minutes: Option<i64>,
     /// A present day in the past with no check-out.
     pub missing_out: bool,
     pub pending: bool,
@@ -281,11 +169,9 @@ pub struct AttendanceDayRow {
 #[derive(Debug, Clone, Default, Serialize, specta::Type)]
 pub struct AttendanceCounts {
     pub present: i64,
-    pub late: i64,
     pub absent: i64,
     pub leave: i64,
     pub sick: i64,
-    pub off: i64,
     pub unmarked: i64,
 }
 
@@ -295,9 +181,7 @@ pub struct AttendanceDayView {
     /// ISO weekday, 1 = Monday.
     pub weekday: i64,
     pub is_today: bool,
-    pub is_weekly_off: bool,
     pub today: String,
-    pub settings: AttendanceSettingsView,
     pub rows: Vec<AttendanceDayRow>,
     pub counts: AttendanceCounts,
     /// Workers exist at all (an empty day may just be before anyone joined).
@@ -309,7 +193,6 @@ pub fn attendance_day(pool: &DbPool, date: &str) -> AppResult<AttendanceDayView>
     let today = cairo_today();
     let d = NaiveDate::parse_from_str(date.trim(), "%Y-%m-%d").unwrap_or(today).min(today);
     let key = d.format("%Y-%m-%d").to_string();
-    let settings = load_settings(&conn)?;
     let workers = load_workers(&conn)?;
     let days: HashMap<String, DayRec> =
         load_days(&conn, &key, &key)?.into_iter().map(|r| (r.worker_id.clone(), r)).collect();
@@ -326,19 +209,12 @@ pub fn attendance_day(pool: &DbPool, date: &str) -> AppResult<AttendanceDayView>
             Some(r) => (Some(r.status.clone()), r.check_in_at.clone(), r.check_out_at.clone(), r.note.clone(), pending.contains(&r.id)),
             None => (None, None, None, None, false),
         };
-        let fig = day_figures(&settings, d, cin.as_deref(), cout.as_deref());
         let present = status.as_deref() == Some("present");
         match status.as_deref() {
-            Some("present") => {
-                counts.present += 1;
-                if fig.late_minutes > 0 {
-                    counts.late += 1;
-                }
-            }
+            Some("present") => counts.present += 1,
             Some("absent") => counts.absent += 1,
             Some("leave") => counts.leave += 1,
             Some("sick") => counts.sick += 1,
-            Some("off") => counts.off += 1,
             _ => counts.unmarked += 1,
         }
         rows.push(AttendanceDayRow {
@@ -350,8 +226,6 @@ pub fn attendance_day(pool: &DbPool, date: &str) -> AppResult<AttendanceDayView>
             check_in_at: cin,
             check_out_at: cout,
             note,
-            late_minutes: fig.late_minutes,
-            worked_minutes: fig.worked_minutes,
             pending: pend,
         });
     }
@@ -359,9 +233,7 @@ pub fn attendance_day(pool: &DbPool, date: &str) -> AppResult<AttendanceDayView>
         date: key,
         weekday: d.weekday().number_from_monday() as i64,
         is_today: d == today,
-        is_weekly_off: settings.is_off(d),
         today: today.format("%Y-%m-%d").to_string(),
-        settings,
         rows,
         counts,
         has_workers: !workers.is_empty(),
@@ -375,53 +247,37 @@ pub struct AttendanceMonthDay {
     pub date: String,
     pub day: i64,
     pub weekday: i64,
-    pub is_weekly_off: bool,
     pub is_today: bool,
     pub is_future: bool,
 }
 
-/// What one square of the sheet shows: present, late, absent, leave, sick,
-/// off (marked), weekly_off, unmarked, future, outside (before joining /
-/// after leaving).
+/// What one square of the sheet shows: present, absent, leave, sick,
+/// unmarked, future, outside (before joining / after leaving).
 #[derive(Debug, Clone, Serialize, specta::Type)]
 pub struct AttendanceMonthCell {
     pub kind: String,
     pub check_in_at: Option<String>,
     pub check_out_at: Option<String>,
     pub note: Option<String>,
-    pub late_minutes: i64,
-    pub worked_minutes: Option<i64>,
     pub pending: bool,
 }
 
 #[derive(Debug, Clone, Default, Serialize, specta::Type)]
 pub struct AttendanceTotals {
-    /// Present days, late ones included.
     pub present: i64,
-    pub late: i64,
-    pub late_minutes: i64,
     pub absent: i64,
     pub leave: i64,
     pub sick: i64,
-    /// Marked off for the day, not the weekly day off.
-    pub off: i64,
     pub unmarked: i64,
-    pub worked_minutes: i64,
-    pub extra_minutes: i64,
 }
 
 impl AttendanceTotals {
     fn add(&mut self, o: &AttendanceTotals) {
         self.present += o.present;
-        self.late += o.late;
-        self.late_minutes += o.late_minutes;
         self.absent += o.absent;
         self.leave += o.leave;
         self.sick += o.sick;
-        self.off += o.off;
         self.unmarked += o.unmarked;
-        self.worked_minutes += o.worked_minutes;
-        self.extra_minutes += o.extra_minutes;
     }
 }
 
@@ -444,7 +300,6 @@ pub struct AttendanceMonthView {
     pub days: Vec<AttendanceMonthDay>,
     pub workers: Vec<AttendanceMonthWorker>,
     pub totals: AttendanceTotals,
-    pub settings: AttendanceSettingsView,
 }
 
 fn month_bounds(month: &str) -> Option<(NaiveDate, NaiveDate)> {
@@ -463,7 +318,6 @@ pub fn attendance_month(pool: &DbPool, month: &str) -> AppResult<AttendanceMonth
     let (first, last) = month_bounds(month).unwrap_or_else(|| {
         month_bounds(&today.format("%Y-%m").to_string()).expect("this month has bounds")
     });
-    let settings = load_settings(&conn)?;
     let workers = load_workers(&conn)?;
     let from = first.format("%Y-%m-%d").to_string();
     let to = last.format("%Y-%m-%d").to_string();
@@ -480,7 +334,6 @@ pub fn attendance_month(pool: &DbPool, month: &str) -> AppResult<AttendanceMonth
             date: d.format("%Y-%m-%d").to_string(),
             day: d.day() as i64,
             weekday: d.weekday().number_from_monday() as i64,
-            is_weekly_off: settings.is_off(*d),
             is_today: *d == today,
             is_future: *d > today,
         })
@@ -499,34 +352,18 @@ pub fn attendance_month(pool: &DbPool, month: &str) -> AppResult<AttendanceMonth
             let key = d.format("%Y-%m-%d").to_string();
             let cell = match by_key.get(&(w.id.clone(), key)) {
                 Some(r) => {
-                    let fig = day_figures(&settings, *d, r.check_in_at.as_deref(), r.check_out_at.as_deref());
-                    let kind = match r.status.as_str() {
-                        "present" if fig.late_minutes > 0 => "late",
-                        s => s,
-                    };
                     match r.status.as_str() {
-                        "present" => {
-                            totals.present += 1;
-                            if fig.late_minutes > 0 {
-                                totals.late += 1;
-                                totals.late_minutes += fig.late_minutes;
-                            }
-                            totals.worked_minutes += fig.worked_minutes.unwrap_or(0);
-                            totals.extra_minutes += fig.extra_minutes;
-                        }
+                        "present" => totals.present += 1,
                         "absent" => totals.absent += 1,
                         "leave" => totals.leave += 1,
                         "sick" => totals.sick += 1,
-                        "off" => totals.off += 1,
                         _ => {}
                     }
                     AttendanceMonthCell {
-                        kind: kind.to_string(),
+                        kind: r.status.clone(),
                         check_in_at: r.check_in_at.clone(),
                         check_out_at: r.check_out_at.clone(),
                         note: r.note.clone(),
-                        late_minutes: fig.late_minutes,
-                        worked_minutes: fig.worked_minutes,
                         pending: pending.contains(&r.id),
                     }
                 }
@@ -535,8 +372,6 @@ pub fn attendance_month(pool: &DbPool, month: &str) -> AppResult<AttendanceMonth
                         "future"
                     } else if !w.on_register(*d) {
                         "outside"
-                    } else if settings.is_off(*d) {
-                        "weekly_off"
                     } else {
                         totals.unmarked += 1;
                         "unmarked"
@@ -546,8 +381,6 @@ pub fn attendance_month(pool: &DbPool, month: &str) -> AppResult<AttendanceMonth
                         check_in_at: None,
                         check_out_at: None,
                         note: None,
-                        late_minutes: 0,
-                        worked_minutes: None,
                         pending: false,
                     }
                 }
@@ -565,7 +398,6 @@ pub fn attendance_month(pool: &DbPool, month: &str) -> AppResult<AttendanceMonth
         days,
         workers: out,
         totals: all,
-        settings,
     })
 }
 
@@ -645,48 +477,6 @@ pub fn replace_employees(pool: &DbPool, rows: &[serde_json::Value]) -> AppResult
 mod rule_tests {
     use super::*;
 
-    fn s() -> AttendanceSettingsView {
-        AttendanceSettingsView {
-            work_start: "08:00".into(),
-            work_end: "17:00".into(),
-            late_grace_minutes: 15,
-            weekly_off_days: vec![5],
-            saved: true,
-            pending: false,
-        }
-    }
-    fn d(s: &str) -> NaiveDate {
-        NaiveDate::parse_from_str(s, "%Y-%m-%d").unwrap()
-    }
-
-    #[test]
-    fn late_counts_from_the_start_once_past_the_grace() {
-        // Winter: Cairo is UTC+2. 08:15 is within the grace, 08:16 is late by 16.
-        assert_eq!(day_figures(&s(), d("2026-01-10"), Some("2026-01-10T06:15:00Z"), None).late_minutes, 0);
-        assert_eq!(day_figures(&s(), d("2026-01-10"), Some("2026-01-10T06:16:00Z"), None).late_minutes, 16);
-        // Summer time: Cairo is UTC+3, so 05:30 UTC is 08:30 local: late by 30.
-        assert_eq!(day_figures(&s(), d("2026-07-11"), Some("2026-07-11T05:30:00Z"), None).late_minutes, 30);
-        // Early is not negative lateness.
-        assert_eq!(day_figures(&s(), d("2026-01-10"), Some("2026-01-10T05:00:00Z"), None).late_minutes, 0);
-        // Friday is the day off: coming in at noon is not lateness.
-        assert_eq!(day_figures(&s(), d("2026-01-09"), Some("2026-01-09T10:00:00Z"), None).late_minutes, 0);
-    }
-
-    #[test]
-    fn worked_and_extra_minutes_cross_midnight() {
-        let f = day_figures(&s(), d("2026-01-10"), Some("2026-01-10T06:00:00Z"), Some("2026-01-10T22:30:00Z"));
-        assert_eq!(f.worked_minutes, Some(16 * 60 + 30));
-        assert_eq!(f.extra_minutes, 16 * 60 + 30 - 9 * 60);
-        let f = day_figures(&s(), d("2026-01-10"), Some("2026-01-10T06:00:00Z"), None);
-        assert_eq!((f.worked_minutes, f.extra_minutes), (None, 0));
-    }
-
-    #[test]
-    fn friday_is_the_default_day_off() {
-        assert!(s().is_off(d("2026-11-27")));
-        assert!(!s().is_off(d("2026-11-28")));
-    }
-
     #[test]
     fn garage_types_are_recognised() {
         assert!(looks_garage("garage"));
@@ -701,7 +491,7 @@ mod rule_tests {
 #[cfg(test)]
 mod flow_tests {
     use super::*;
-    use crate::services::domain::{self, AttendanceMarkInput, AttendanceSettingsInput, WorkerInput};
+    use crate::services::domain::{self, AttendanceMarkInput, WorkerInput};
 
     fn pool() -> DbPool {
         let dir = std::env::temp_dir().join(format!("apex-att-{}", uuid::Uuid::new_v4()));
@@ -834,10 +624,20 @@ mod flow_tests {
         assert_eq!(code(e), "attendance_too_long");
         let e = domain::attendance_mark(&p, &mark(&w, "2026-01-10", "napping", None, None), 7).unwrap_err();
         assert_eq!(code(e), "validation");
+        // The garage has no days off.
+        let e = domain::attendance_mark(&p, &mark(&w, "2026-01-10", "off", None, None), 7).unwrap_err();
+        assert_eq!(code(e), "validation");
+        // A check-out after midnight belongs to the day it started.
+        domain::attendance_mark(
+            &p,
+            &mark(&w, "2026-01-10", "present", Some("2026-01-10T18:00:00Z"), Some("2026-01-10T23:30:00Z")),
+            7,
+        )
+        .unwrap();
     }
 
     #[test]
-    fn the_day_and_month_follow_join_and_leave_dates_and_the_hours() {
+    fn the_day_and_month_follow_join_and_leave_dates_and_have_no_days_off() {
         let p = pool();
         let mut a = worker("Always");
         a.joined_on = None;
@@ -845,18 +645,6 @@ mod flow_tests {
         let mut late = worker("Joined mid-month");
         late.joined_on = Some("2026-01-15".into());
         let late = domain::worker_add(&p, &late, 7).unwrap();
-        domain::attendance_settings_set(
-            &p,
-            &AttendanceSettingsInput {
-                work_start: "08:00".into(),
-                work_end: "16:00".into(),
-                late_grace_minutes: 10,
-                weekly_off_days: vec![5],
-            },
-            7,
-        )
-        .unwrap();
-        // 08:20 Cairo (winter, UTC+2): late by 20; out 16:30 → 8h10m, 10m extra.
         domain::attendance_mark(
             &p,
             &mark(&a, "2026-01-10", "present", Some("2026-01-10T06:20:00Z"), Some("2026-01-10T14:30:00Z")),
@@ -867,22 +655,17 @@ mod flow_tests {
 
         let day = attendance_day(&p, "2026-01-10").unwrap();
         assert_eq!(day.rows.len(), 1, "the mid-month joiner is not on the list yet");
-        assert_eq!(day.rows[0].late_minutes, 20);
+        assert_eq!(day.rows[0].check_out_at.as_deref(), Some("2026-01-10T14:30:00.000Z"));
         assert_eq!(day.counts.present, 1);
-        assert_eq!(day.counts.late, 1);
 
         let m = attendance_month(&p, "2026-01").unwrap();
         assert_eq!(m.days.len(), 31);
         let wa = m.workers.iter().find(|w| w.worker_id == a).unwrap();
         assert_eq!(wa.totals.present, 1);
-        assert_eq!(wa.totals.late, 1);
-        assert_eq!(wa.totals.late_minutes, 20);
         assert_eq!(wa.totals.sick, 1);
-        assert_eq!(wa.totals.worked_minutes, 8 * 60 + 10);
-        assert_eq!(wa.totals.extra_minutes, 10);
-        // January 2026 has five Fridays; 31 − 5 off − 2 marked = 24 not marked.
-        assert_eq!(wa.totals.unmarked, 24);
-        assert_eq!(wa.cells[8].kind, "weekly_off", "9 January 2026 is a Friday");
+        // Every day is a working day: 31 − 2 marked = 29 not marked.
+        assert_eq!(wa.totals.unmarked, 29);
+        assert_eq!(wa.cells[8].kind, "unmarked", "9 January 2026 is a Friday, not a day off");
         let wl = m.workers.iter().find(|w| w.worker_id == late).unwrap();
         assert_eq!(wl.cells[0].kind, "outside");
         assert_eq!(wl.cells[14].kind, "unmarked");

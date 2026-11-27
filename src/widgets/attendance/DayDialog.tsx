@@ -3,7 +3,6 @@ import { useTranslation } from "react-i18next";
 import { Clock, X } from "lucide-react";
 
 import { commands, unwrap } from "@/shared/api/client";
-import type { AttendanceSettingsView } from "@/shared/api/client";
 import { useDomainMutation } from "@/shared/api/queries";
 import { cn } from "@/shared/lib/cn";
 import { notifyError, notifySuccess } from "@/shared/lib/notify";
@@ -13,7 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/shared/ui/input";
 import { Label } from "@/shared/ui/label";
 
-import { KIND_SOLID, STATUSES, addDays, cairoInstant, dayTitle, hhmmOf, type Status } from "./lib";
+import { KIND_SOLID, STATUSES, addDays, cairoInstant, dayTitle, hhmmOf, nowCairoHhmm, type Status } from "./lib";
 
 export type DayTarget = {
   workerId: string;
@@ -26,20 +25,13 @@ export type DayTarget = {
   note: string | null;
 };
 
-const nowHhmm = () => {
-  const d = new Date();
-  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-};
-
 /** One worker's day: the status, the times (present days only) and a note.
  * Sends the whole day; the Rust side queues only what changed. */
 export function DayDialog({
   target,
-  settings,
   onOpenChange,
 }: {
   target: DayTarget | null;
-  settings: AttendanceSettingsView;
   onOpenChange: (open: boolean) => void;
 }) {
   const { t, i18n } = useTranslation();
@@ -52,13 +44,12 @@ export function DayDialog({
   React.useEffect(() => {
     if (!target) return;
     setStatus((target.status as Status | null) ?? "present");
-    // A day not marked yet starts from "now" today, and from the start of the
-    // working day for a past day. A present day saved without a time stays so.
-    const fresh = target.date === todayCairoYmd() ? nowHhmm() : settings.work_start;
-    setInTime(target.checkInAt ? hhmmOf(target.checkInAt) : target.status === "present" ? "" : fresh);
+    // A day not marked yet starts from Cairo's time now. A present day saved
+    // without a time stays so.
+    setInTime(target.checkInAt ? hhmmOf(target.checkInAt) : target.status === "present" ? "" : nowCairoHhmm());
     setOutTime(target.checkOutAt ? hhmmOf(target.checkOutAt) : "");
     setNote(target.note ?? "");
-  }, [target, settings.work_start]);
+  }, [target]);
 
   const isToday = target?.date === todayCairoYmd();
   // A check-out earlier in the day than the check-in is the next morning.
@@ -108,7 +99,7 @@ export function DayDialog({
         >
           <fieldset className="space-y-2">
             <legend className="mb-2 text-sm font-medium">{t("attendance.dialog.status")}</legend>
-            <div role="radiogroup" className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+            <div role="radiogroup" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               {STATUSES.map((s) => {
                 const on = status === s;
                 return (
@@ -137,14 +128,14 @@ export function DayDialog({
                 label={t("attendance.dialog.in")}
                 value={inTime}
                 onChange={setInTime}
-                onNow={isToday ? () => setInTime(nowHhmm()) : undefined}
+                onNow={isToday ? () => setInTime(nowCairoHhmm()) : undefined}
               />
               <TimeField
                 id="att-out"
                 label={t("attendance.dialog.out")}
                 value={outTime}
                 onChange={setOutTime}
-                onNow={isToday ? () => setOutTime(nowHhmm()) : undefined}
+                onNow={isToday ? () => setOutTime(nowCairoHhmm()) : undefined}
                 onClear={outTime ? () => setOutTime("") : undefined}
               />
               {outNextDay && (

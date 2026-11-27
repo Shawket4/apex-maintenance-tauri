@@ -168,17 +168,6 @@ pub const ENTITIES: &[EntityMeta] = &[
         bool_cols: &[],
         fk_cols: &["worker_id"],
     },
-    EntityMeta {
-        entity: "attendance_settings",
-        pk: "id",
-        columns: &[
-            "id", "work_start", "work_end", "late_grace_minutes", "weekly_off_days",
-            "created_at", "updated_at", "deleted_at", "created_by_user_id", "updated_by_user_id",
-            "sync_version",
-        ],
-        bool_cols: &[],
-        fk_cols: &[],
-    },
 ];
 
 pub fn meta(entity: &str) -> Option<&'static EntityMeta> {
@@ -239,7 +228,6 @@ mod tests {
                 "tire_status_events",
                 "attendance_workers",
                 "attendance_days",
-                "attendance_settings",
             ]
         );
     }

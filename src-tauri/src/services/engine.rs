@@ -473,6 +473,29 @@ impl SyncEngine {
         Ok(())
     }
 
+    /// A change was just made: send it now. Whatever wait an earlier failed
+    /// request set is lifted, so a write never sits in the queue while the
+    /// network is there; offline, the one attempt fails fast and the wait
+    /// comes back.
+    pub async fn send_now(&self) -> AppResult<()> {
+        self.gate_until.store(0, Ordering::SeqCst);
+        self.drain().await
+    }
+
+    /// Send whatever is due, from inside a pull (the lock is already held):
+    /// a pull of every stream takes a while, and a change made meanwhile
+    /// must not wait for the end of it.
+    async fn push_due_locked(&self) -> AppResult<()> {
+        let due = {
+            let conn = self.db.get()?;
+            outbox::has_due(&conn, outbox::now_ms())?
+        };
+        if due {
+            self.drain_locked().await?;
+        }
+        Ok(())
+    }
+
     /// Send the outbox. Single-flight; safe to call from anywhere, any time.
     pub async fn drain(&self) -> AppResult<()> {
         let _guard = self.drain_lock.lock().await;
@@ -759,6 +782,11 @@ impl SyncEngine {
                 if !has_more {
                     break;
                 }
+            }
+            // Not during a resync: a row sent now would be missing from
+            // `seen` below and look like a leftover.
+            if !full {
+                self.push_due_locked().await?;
             }
 
             if full {

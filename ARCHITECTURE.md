@@ -39,7 +39,8 @@ edit an applied migration).
   `chassis_positions`, `vehicle_class_assignments`,
   `vehicle_odometer_overrides`, and garage attendance: `attendance_workers`,
   `attendance_days` (one row per worker per day, id = UUID v5 of
-  `worker_id:date`), `attendance_settings` (one row). Rows are soft-deleted (`deleted_at`) and carry
+  `worker_id:date`; present, absent, leave or sick, a present day with its
+  check-in and check-out times; no working hours, no days off). Rows are soft-deleted (`deleted_at`) and carry
   the server's `sync_version`.
 - Mirrors (replaced by a refresh, never written by the user): `vehicles_cache`,
   `drivers_cache`, `service_invoices_cache` (+ items), `vehicle_classes`,
@@ -58,7 +59,10 @@ The session (token + user) is two files in the app data directory, mode 0600.
 1. A write changes the local table and adds a row to `outbox` in the same
    transaction. Inserts queue the row; updates queue only the columns that
    changed. Rows from one action share a `group_id`.
-2. The engine sends rows oldest-first to `POST /sync/push`. Each row goes
+2. The engine sends rows oldest-first to `POST /sync/push`, at once: every
+   write sends right away (lifting the wait an earlier failed request set),
+   a pull stops between streams to send what was queued meanwhile, and the
+   network coming back sends straight away. Each row goes
    with its own `op_id`, so the server applies it at most once however often
    it is sent. A group is applied all-or-nothing.
 3. A row that has been sent is never changed. A later edit of the same

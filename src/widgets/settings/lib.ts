@@ -168,8 +168,6 @@ export function changeKey(entityType: string, op: string, payload: Payload | nul
     case "attendance_workers":
       if (removal) return "workerDelete";
       return op === "insert" ? "workerAdd" : "workerEdit";
-    case "attendance_settings":
-      return "attendanceHours";
     default:
       if (CHASSIS.has(entityType)) {
         if (removal) return "chassisDelete";

@@ -1,8 +1,10 @@
+import * as React from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { AlertTriangle, Check, CloudOff, CloudUpload, KeyRound, ShieldOff } from "lucide-react";
 
 import { performLogout } from "@/shared/api/auth";
+import { commands } from "@/shared/api/client";
 import { useSyncStatus } from "@/shared/api/queries";
 import { cn } from "@/shared/lib/cn";
 import { fmtNumber } from "@/shared/lib/numbers";
@@ -17,6 +19,12 @@ export function SyncIndicator() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const { data } = useSyncStatus();
+  // The network is back: send what is queued now, not at the next heartbeat.
+  React.useEffect(() => {
+    const send = () => void commands.syncNow().catch(() => null);
+    window.addEventListener("online", send);
+    return () => window.removeEventListener("online", send);
+  }, []);
   if (!data) return null;
   const n = (v: number) => fmtNumber(v, i18n.language);
   const base =
