@@ -22,6 +22,9 @@ pub struct BackendConfig {
     pub maint_prefix: String,
     /// apex-rust behind the same nginx (the advisor's history search).
     pub rust_prefix: String,
+    /// The route fee lookup service (falcon-fees) behind the same nginx.
+    pub fees_prefix: String,
+    pub fees_url: Option<String>,
     pub request_timeout: Duration,
 }
 
@@ -67,6 +70,10 @@ impl AppConfig {
                 falcon_prefix: env_or("APEX_FALCON_PREFIX", "/api/go"),
                 maint_prefix: env_or("APEX_MAINT_PREFIX", "/api/maint"),
                 rust_prefix: env_or("APEX_RUST_PREFIX", "/api/rust"),
+                // APEX_FEES_URL (a whole base) points the fee lookup elsewhere,
+                // e.g. at a local mock for a test walk.
+                fees_prefix: env_or("APEX_FEES_PREFIX", "/public/distance-fetcher/api"),
+                fees_url: std::env::var("APEX_FEES_URL").ok().filter(|u| !u.trim().is_empty()),
                 request_timeout: Duration::from_secs(env_u64("APEX_REQUEST_TIMEOUT_SECS", 30)),
             },
             cache: CacheConfig {

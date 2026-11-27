@@ -34,7 +34,8 @@
     "menu": "Open menu",
     "workOrders": "Work orders",
     "attendance": "Attendance",
-    "batteries": "Batteries"
+    "batteries": "Batteries",
+    "fees": "Route fees"
   },
   "login": {
     "title": "Sign in",

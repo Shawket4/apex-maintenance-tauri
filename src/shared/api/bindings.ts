@@ -956,6 +956,18 @@ async stockCountBatteries(spec: BatterySpecInput, counted: number, refId: string
 }
 },
 /**
+ * One GET to the route fee lookup service, with this user's FalconGo token
+ * (it decides who sees fees). Online only.
+ */
+async feeApi(path: string) : Promise<Result<FeeApiAnswer, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("fee_api", { path }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
  * Create/rename a vehicle class (server-authoritative, perm ≥3), then
  * refresh the reference mirror so the Settings selects update immediately.
  */
@@ -1252,6 +1264,11 @@ export type FallbackReason =
  * Advisor answered but found nothing.
  */
 "no_hits"
+/**
+ * What the fee service answered, as it is: the shared fee finder reads the
+ * status and the JSON body itself.
+ */
+export type FeeApiAnswer = { status: number; body: string }
 /**
  * One service line the advisor found.
  */

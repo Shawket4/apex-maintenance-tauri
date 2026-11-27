@@ -14,6 +14,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppIndexRouteImport } from './routes/_app.index'
 import { Route as AppAiRouteImport } from './routes/_app.ai'
 import { Route as AppDueRouteImport } from './routes/_app.due'
+import { Route as AppFeesRouteImport } from './routes/_app.fees'
 import { Route as AppSettingsRouteImport } from './routes/_app.settings'
 import { Route as AppAttendanceIndexRouteImport } from './routes/_app.attendance.index'
 import { Route as AppAttendanceMonthRouteImport } from './routes/_app.attendance.month'
@@ -55,6 +56,11 @@ const AppAiRoute = AppAiRouteImport.update({
 const AppDueRoute = AppDueRouteImport.update({
   id: '/due',
   path: '/due',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppFeesRoute = AppFeesRouteImport.update({
+  id: '/fees',
+  path: '/fees',
   getParentRoute: () => AppRoute,
 } as any)
 const AppSettingsRoute = AppSettingsRouteImport.update({
@@ -154,6 +160,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/ai': typeof AppAiRoute
   '/due': typeof AppDueRoute
+  '/fees': typeof AppFeesRoute
   '/settings': typeof AppSettingsRoute
   '/attendance/month': typeof AppAttendanceMonthRoute
   '/attendance/workers': typeof AppAttendanceWorkersRoute
@@ -177,6 +184,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/ai': typeof AppAiRoute
   '/due': typeof AppDueRoute
+  '/fees': typeof AppFeesRoute
   '/settings': typeof AppSettingsRoute
   '/': typeof AppIndexRoute
   '/attendance/month': typeof AppAttendanceMonthRoute
@@ -202,6 +210,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/_app/ai': typeof AppAiRoute
   '/_app/due': typeof AppDueRoute
+  '/_app/fees': typeof AppFeesRoute
   '/_app/settings': typeof AppSettingsRoute
   '/_app/': typeof AppIndexRoute
   '/_app/attendance/month': typeof AppAttendanceMonthRoute
@@ -229,6 +238,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/ai'
     | '/due'
+    | '/fees'
     | '/settings'
     | '/attendance/month'
     | '/attendance/workers'
@@ -252,6 +262,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/ai'
     | '/due'
+    | '/fees'
     | '/settings'
     | '/'
     | '/attendance/month'
@@ -276,6 +287,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/_app/ai'
     | '/_app/due'
+    | '/_app/fees'
     | '/_app/settings'
     | '/_app/'
     | '/_app/attendance/month'
@@ -337,6 +349,13 @@ declare module '@tanstack/react-router' {
       path: '/due'
       fullPath: '/due'
       preLoaderRoute: typeof AppDueRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/fees': {
+      id: '/_app/fees'
+      path: '/fees'
+      fullPath: '/fees'
+      preLoaderRoute: typeof AppFeesRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/settings': {
@@ -490,6 +509,7 @@ const AppTrucksTruckIdRouteWithChildren =
 interface AppRouteChildren {
   AppAiRoute: typeof AppAiRoute
   AppDueRoute: typeof AppDueRoute
+  AppFeesRoute: typeof AppFeesRoute
   AppSettingsRoute: typeof AppSettingsRoute
   AppIndexRoute: typeof AppIndexRoute
   AppAttendanceMonthRoute: typeof AppAttendanceMonthRoute
@@ -509,6 +529,7 @@ interface AppRouteChildren {
 const AppRouteChildren: AppRouteChildren = {
   AppAiRoute: AppAiRoute,
   AppDueRoute: AppDueRoute,
+  AppFeesRoute: AppFeesRoute,
   AppSettingsRoute: AppSettingsRoute,
   AppIndexRoute: AppIndexRoute,
   AppAttendanceMonthRoute: AppAttendanceMonthRoute,
