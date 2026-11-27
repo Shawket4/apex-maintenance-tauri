@@ -72,7 +72,7 @@
   "tasksEmpty": "لسه مفيش بنود في الأمر ده.",
   "taskText": "الشغل المطلوب",
   "taskCategory": "نوع الصيانة",
-  "typePlaceholder": "اختار نوع الصيانة أو اكتبه",
+  "typePlaceholder": "اختار أو اكتب النوع",
   "typeSearch": "اكتب نوع الصيانة…",
   "typeUseNew": "نوع صيانة جديد: «{{text}}»",
   "typeNewHint": "«{{name}}» نوع صيانة جديد: هيتضاف للقايمة عند الكل.",

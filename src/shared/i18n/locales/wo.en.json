@@ -72,7 +72,7 @@
   "tasksEmpty": "No tasks on this order yet.",
   "taskText": "Work to do",
   "taskCategory": "Maintenance type",
-  "typePlaceholder": "Choose or type the type",
+  "typePlaceholder": "Choose or type one",
   "typeSearch": "Type the maintenance type…",
   "typeUseNew": "New maintenance type: “{{text}}”",
   "typeNewHint": "“{{name}}” is a new maintenance type: it is added to the list for everyone.",

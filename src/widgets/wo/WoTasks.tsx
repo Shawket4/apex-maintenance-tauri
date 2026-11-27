@@ -291,7 +291,7 @@ function AddTask({ woId }: { woId: string }) {
 
   return (
     <form
-      className="grid gap-3 bg-background/70 px-4 py-3 sm:grid-cols-[14rem_1fr_auto] sm:items-end"
+      className="grid gap-3 bg-background/70 px-4 py-3 sm:grid-cols-[minmax(0,2fr)_minmax(0,3fr)_auto] sm:items-end"
       onSubmit={(e) => {
         e.preventDefault();
         submit();
