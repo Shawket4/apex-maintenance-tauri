@@ -1,6 +1,6 @@
 [package]
 name = "apex-maintenance"
-version = "0.4.1"
+version = "0.4.2"
 description = "Apex Transport — maintenance, chassis & tire management desktop client"
 authors = ["Apex Transport"]
 edition = "2021"
