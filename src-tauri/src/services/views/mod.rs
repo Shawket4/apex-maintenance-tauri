@@ -24,7 +24,9 @@ mod chassis;
 mod reference;
 mod search;
 mod catalog;
+mod attendance;
 
+pub use attendance::*;
 pub use catalog::*;
 pub use chassis::*;
 pub use common::*;

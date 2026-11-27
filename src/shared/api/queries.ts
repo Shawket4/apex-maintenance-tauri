@@ -33,6 +33,11 @@ export const keys = {
   outbox: ["outbox"] as const,
   invoices: (vehicleId: number) => ["invoices", vehicleId] as const,
   invoice: (id: number) => ["invoice", id] as const,
+  attendanceDay: (date: string) => ["attendance", "day", date] as const,
+  attendanceMonth: (month: string) => ["attendance", "month", month] as const,
+  attendanceWorkers: ["attendance", "workers"] as const,
+  attendanceSettings: ["attendance", "settings"] as const,
+  attendanceEmployees: ["attendance", "employees"] as const,
 };
 
 // ── reads ────────────────────────────────────────────────────────────────────
@@ -191,6 +196,23 @@ export const useInvoice = (id: number | null) =>
     enabled: id != null,
   });
 
+// ── attendance ───────────────────────────────────────────────────────────────
+
+export const useAttendanceDay = (date: string) =>
+  useQuery({ queryKey: keys.attendanceDay(date), queryFn: () => unwrap(commands.attendanceDay(date)) });
+
+export const useAttendanceMonth = (month: string) =>
+  useQuery({ queryKey: keys.attendanceMonth(month), queryFn: () => unwrap(commands.attendanceMonth(month)) });
+
+export const useAttendanceWorkers = () =>
+  useQuery({ queryKey: keys.attendanceWorkers, queryFn: () => unwrap(commands.attendanceWorkers()) });
+
+export const useAttendanceSettings = () =>
+  useQuery({ queryKey: keys.attendanceSettings, queryFn: () => unwrap(commands.attendanceSettings()) });
+
+export const useAttendanceEmployees = () =>
+  useQuery({ queryKey: keys.attendanceEmployees, queryFn: () => unwrap(commands.attendanceEmployees()) });
+
 // ── mutations ────────────────────────────────────────────────────────────────
 
 /** Invalidate everything the owned domain can touch — local reads are cheap.
@@ -200,6 +222,7 @@ function invalidateDomain(qc: ReturnType<typeof useQueryClient>, withSync = true
   for (const k of [
     "home", "trucks", "truck", "due", "wos", "wo", "tires", "tire", "stock",
     "chassis", "plans", "categories", "classes", "outbox", "sync-issues", "search", "catalog",
+    "attendance",
   ]) {
     void qc.invalidateQueries({ queryKey: [k] });
   }

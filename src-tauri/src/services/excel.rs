@@ -313,6 +313,10 @@ impl ExcelExporter {
                         cell_fmt = cell_fmt.set_num_format("#,##0");
                         write_cell(ws, raw_val, &cell_fmt)?;
                     },
+                    Some("decimal") => {
+                        cell_fmt = cell_fmt.set_num_format("#,##0.0");
+                        write_cell(ws, raw_val, &cell_fmt)?;
+                    },
                     Some("date") | Some("dateTime") => {
                         // Without a number format a date cell shows its serial number.
                         cell_fmt = cell_fmt.set_num_format(if col_def.r#type.as_deref() == Some("dateTime") {

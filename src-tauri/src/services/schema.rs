@@ -146,6 +146,39 @@ pub const ENTITIES: &[EntityMeta] = &[
         bool_cols: &[],
         fk_cols: &["tire_id", "work_order_id"],
     },
+    EntityMeta {
+        entity: "attendance_workers",
+        pk: "id",
+        columns: &[
+            "id", "name", "job", "phone", "falcon_employee_id", "joined_on", "left_on", "sort_order",
+            "notes", "created_at", "updated_at", "deleted_at", "created_by_user_id", "updated_by_user_id",
+            "sync_version",
+        ],
+        bool_cols: &[],
+        fk_cols: &[],
+    },
+    EntityMeta {
+        entity: "attendance_days",
+        pk: "id",
+        columns: &[
+            "id", "worker_id", "work_date", "status", "check_in_at", "check_out_at", "note",
+            "created_at", "updated_at", "deleted_at", "created_by_user_id", "updated_by_user_id",
+            "sync_version",
+        ],
+        bool_cols: &[],
+        fk_cols: &["worker_id"],
+    },
+    EntityMeta {
+        entity: "attendance_settings",
+        pk: "id",
+        columns: &[
+            "id", "work_start", "work_end", "late_grace_minutes", "weekly_off_days",
+            "created_at", "updated_at", "deleted_at", "created_by_user_id", "updated_by_user_id",
+            "sync_version",
+        ],
+        bool_cols: &[],
+        fk_cols: &[],
+    },
 ];
 
 pub fn meta(entity: &str) -> Option<&'static EntityMeta> {
@@ -168,6 +201,7 @@ pub fn fk_target(col: &str) -> Option<&'static str> {
         "position_id" => Some("chassis_positions"),
         "work_order_id" | "dismount_work_order_id" => Some("work_orders"),
         "tire_id" | "parent_tire_id" => Some("tires"),
+        "worker_id" => Some("attendance_workers"),
         _ => None,
     }
 }
@@ -203,6 +237,9 @@ mod tests {
                 "tires",
                 "tire_assignments",
                 "tire_status_events",
+                "attendance_workers",
+                "attendance_days",
+                "attendance_settings",
             ]
         );
     }
@@ -220,6 +257,7 @@ mod tests {
                 "position_id" => "chassis_positions",
                 "work_order_id" | "dismount_work_order_id" => "work_orders",
                 "tire_id" | "parent_tire_id" => "tires",
+                "worker_id" => "attendance_workers",
                 other => panic!("unmapped fk col {other}"),
             }
         };

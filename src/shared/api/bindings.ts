@@ -150,6 +150,113 @@ async exportToExcel(config: ExcelExportConfig) : Promise<Result<boolean, CmdErro
     else return { status: "error", error: e  as any };
 }
 },
+async attendanceDay(date: string) : Promise<Result<AttendanceDayView, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("attendance_day", { date }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async attendanceMonth(month: string) : Promise<Result<AttendanceMonthView, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("attendance_month", { month }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async attendanceWorkers() : Promise<Result<AttendanceWorkerRow[], CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("attendance_workers") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async attendanceSettings() : Promise<Result<AttendanceSettingsView, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("attendance_settings") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async attendanceEmployees() : Promise<Result<AttendanceEmployeeRow[], CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("attendance_employees") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Fetch Falcon's employees (id, name, type, active) into the local list.
+ */
+async attendanceEmployeesRefresh() : Promise<Result<EmployeesRefresh, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("attendance_employees_refresh") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async attendanceMark(input: AttendanceMarkInput) : Promise<Result<null, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("attendance_mark", { input }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async attendanceMarkMany(inputs: AttendanceMarkInput[]) : Promise<Result<number, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("attendance_mark_many", { inputs }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async attendanceSettingsSet(input: AttendanceSettingsInput) : Promise<Result<null, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("attendance_settings_set", { input }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async workerAdd(input: WorkerInput) : Promise<Result<string, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("worker_add", { input }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async workersAddMany(inputs: WorkerInput[]) : Promise<Result<string[], CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("workers_add_many", { inputs }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async workerUpdate(id: string, input: WorkerInput) : Promise<Result<null, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("worker_update", { id, input }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async workerDelete(id: string) : Promise<Result<null, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("worker_delete", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async syncStatus() : Promise<Result<SyncStatus, CmdError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("sync_status") };
@@ -830,6 +937,88 @@ async stockMovementsRefresh(days: number | null) : Promise<Result<number, CmdErr
  */
 export type AiSearchResult = { source: "advisor"; variants: string[]; plate_number: string | null; hits: HistoryHit[] } | { source: "ai_query"; answer: string; rows: JsonValue[]; fallback: FallbackReason | null }
 export type AppVersion = { name: string; version: string; tauri_version: string }
+export type AttendanceCounts = { present: number; late: number; absent: number; leave: number; sick: number; off: number; unmarked: number }
+export type AttendanceDayRow = { worker_id: string; name: string; job: string | null; 
+/**
+ * None = not marked yet.
+ */
+status: string | null; check_in_at: string | null; check_out_at: string | null; note: string | null; late_minutes: number; worked_minutes: number | null; 
+/**
+ * A present day in the past with no check-out.
+ */
+missing_out: boolean; pending: boolean }
+export type AttendanceDayView = { date: string; 
+/**
+ * ISO weekday, 1 = Monday.
+ */
+weekday: number; is_today: boolean; is_weekly_off: boolean; today: string; settings: AttendanceSettingsView; rows: AttendanceDayRow[]; counts: AttendanceCounts; 
+/**
+ * Workers exist at all (an empty day may just be before anyone joined).
+ */
+has_workers: boolean }
+export type AttendanceEmployeeRow = { id: number; name: string; kind: string | null; is_active: boolean; 
+/**
+ * Already on the garage's list.
+ */
+added: boolean; 
+/**
+ * Falcon's free-text type reads like a garage job.
+ */
+looks_garage: boolean }
+/**
+ * What a day should say. Quick buttons and the edit dialog both send the
+ * whole day; only what changed is queued.
+ */
+export type AttendanceMarkInput = { worker_id: string; 
+/**
+ * YYYY-MM-DD, Cairo's calendar.
+ */
+work_date: string; status: string; 
+/**
+ * RFC 3339 UTC. Present days only.
+ */
+check_in_at: string | null; check_out_at: string | null; note: string | null }
+/**
+ * What one square of the sheet shows: present, late, absent, leave, sick,
+ * off (marked), weekly_off, unmarked, future, outside (before joining /
+ * after leaving).
+ */
+export type AttendanceMonthCell = { kind: string; check_in_at: string | null; check_out_at: string | null; note: string | null; late_minutes: number; worked_minutes: number | null; pending: boolean }
+export type AttendanceMonthDay = { date: string; day: number; weekday: number; is_weekly_off: boolean; is_today: boolean; is_future: boolean }
+export type AttendanceMonthView = { 
+/**
+ * YYYY-MM
+ */
+month: string; first: string; last: string; is_current: boolean; days: AttendanceMonthDay[]; workers: AttendanceMonthWorker[]; totals: AttendanceTotals; settings: AttendanceSettingsView }
+export type AttendanceMonthWorker = { worker_id: string; name: string; job: string | null; cells: AttendanceMonthCell[]; totals: AttendanceTotals }
+export type AttendanceSettingsInput = { 
+/**
+ * HH:MM, Cairo time.
+ */
+work_start: string; work_end: string; late_grace_minutes: number; 
+/**
+ * ISO weekdays, 1 = Monday … 7 = Sunday.
+ */
+weekly_off_days: number[] }
+export type AttendanceSettingsView = { work_start: string; work_end: string; late_grace_minutes: number; weekly_off_days: number[]; 
+/**
+ * False until someone saves the hours: the defaults are showing.
+ */
+saved: boolean; pending: boolean }
+export type AttendanceTotals = { 
+/**
+ * Present days, late ones included.
+ */
+present: number; late: number; late_minutes: number; absent: number; leave: number; sick: number; 
+/**
+ * Marked off for the day, not the weekly day off.
+ */
+off: number; unmarked: number; worked_minutes: number; extra_minutes: number }
+export type AttendanceWorkerRow = { id: string; name: string; job: string | null; phone: string | null; falcon_employee_id: number | null; joined_on: string | null; left_on: string | null; notes: string | null; 
+/**
+ * On the register today (not before joining, not after leaving).
+ */
+current: boolean; day_count: number; pending: boolean }
 export type AxleRow = { id: string; section: string; section_index: number; axle_type: string; is_steering: boolean; is_lifted: boolean }
 export type CacheFreshnessRow = { cache_name: string; fetched_at: string; ttl_seconds: number; is_stale: boolean }
 export type CatalogView = { tire_products: TireProductOption[]; oil_products: OilProductOption[]; standard_jobs: JobOption[] }
@@ -884,6 +1073,12 @@ days_remaining: number | null;
  * overdue | never_done | due_soon | unknown | ok
  */
 status: string }
+export type EmployeesRefresh = { count: number; 
+/**
+ * False when Falcon would not list its employees for this account
+ * (below permission 3): workers can still be typed in by name.
+ */
+available: boolean }
 export type ExcelColumn = { key: string; header: string; type: string | null; width: number | null; total: boolean | null }
 export type ExcelExportConfig = { filename: string; sheets: ExcelSheetConfig[]; meta: string | null; creator: string | null }
 export type ExcelSheetConfig = { name: string; title: string; subtitle: string | null; isRtl: boolean; columns: ExcelColumn[]; rows: JsonValue[]; stats: ExcelStat[] | null; totals: boolean | null }
@@ -1118,6 +1313,14 @@ task_count: number; done_count: number; notes: string | null; opened_by_user_id:
  * True while any part of this WO is still queued/unacked in the outbox.
  */
 pending: boolean }
+/**
+ * A garage worker. Only the name is required.
+ */
+export type WorkerInput = { name: string; job: string | null; phone: string | null; 
+/**
+ * Set when the worker was picked from Falcon's employees.
+ */
+falcon_employee_id: number | null; joined_on: string | null; left_on: string | null; notes: string | null }
 
 /** tauri-specta globals **/
 

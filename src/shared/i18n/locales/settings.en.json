@@ -97,7 +97,12 @@
     "chassisDelete": "Deleting a tire diagram",
     "otherAdd": "Adding",
     "otherEdit": "Editing",
-    "otherDelete": "Deleting"
+    "otherDelete": "Deleting",
+    "attendanceMark": "Marking a worker's day",
+    "workerAdd": "Adding a worker",
+    "workerEdit": "Editing a worker",
+    "workerDelete": "Deleting a worker",
+    "attendanceHours": "Working hours"
   },
   "field": {
     "vehicle_id": "Truck",

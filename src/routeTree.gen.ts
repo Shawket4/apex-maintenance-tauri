@@ -15,6 +15,9 @@ import { Route as AppIndexRouteImport } from './routes/_app.index'
 import { Route as AppAiRouteImport } from './routes/_app.ai'
 import { Route as AppDueRouteImport } from './routes/_app.due'
 import { Route as AppSettingsRouteImport } from './routes/_app.settings'
+import { Route as AppAttendanceIndexRouteImport } from './routes/_app.attendance.index'
+import { Route as AppAttendanceMonthRouteImport } from './routes/_app.attendance.month'
+import { Route as AppAttendanceWorkersRouteImport } from './routes/_app.attendance.workers'
 import { Route as AppStockMovementsRouteImport } from './routes/_app.stock.movements'
 import { Route as AppTiresIndexRouteImport } from './routes/_app.tires.index'
 import { Route as AppTiresTireIdRouteImport } from './routes/_app.tires.$tireId'
@@ -55,6 +58,21 @@ const AppDueRoute = AppDueRouteImport.update({
 const AppSettingsRoute = AppSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAttendanceIndexRoute = AppAttendanceIndexRouteImport.update({
+  id: '/attendance/',
+  path: '/attendance/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAttendanceMonthRoute = AppAttendanceMonthRouteImport.update({
+  id: '/attendance/month',
+  path: '/attendance/month',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAttendanceWorkersRoute = AppAttendanceWorkersRouteImport.update({
+  id: '/attendance/workers',
+  path: '/attendance/workers',
   getParentRoute: () => AppRoute,
 } as any)
 const AppStockMovementsRoute = AppStockMovementsRouteImport.update({
@@ -124,9 +142,12 @@ export interface FileRoutesByFullPath {
   '/ai': typeof AppAiRoute
   '/due': typeof AppDueRoute
   '/settings': typeof AppSettingsRoute
+  '/attendance/month': typeof AppAttendanceMonthRoute
+  '/attendance/workers': typeof AppAttendanceWorkersRoute
   '/stock/movements': typeof AppStockMovementsRoute
   '/tires/$tireId': typeof AppTiresTireIdRoute
   '/trucks/$truckId': typeof AppTrucksTruckIdRouteWithChildren
+  '/attendance/': typeof AppAttendanceIndexRoute
   '/tires/': typeof AppTiresIndexRoute
   '/trucks/': typeof AppTrucksIndexRoute
   '/wo/': typeof AppWoIndexRoute
@@ -143,8 +164,11 @@ export interface FileRoutesByTo {
   '/due': typeof AppDueRoute
   '/settings': typeof AppSettingsRoute
   '/': typeof AppIndexRoute
+  '/attendance/month': typeof AppAttendanceMonthRoute
+  '/attendance/workers': typeof AppAttendanceWorkersRoute
   '/stock/movements': typeof AppStockMovementsRoute
   '/tires/$tireId': typeof AppTiresTireIdRoute
+  '/attendance': typeof AppAttendanceIndexRoute
   '/tires': typeof AppTiresIndexRoute
   '/trucks': typeof AppTrucksIndexRoute
   '/wo': typeof AppWoIndexRoute
@@ -163,9 +187,12 @@ export interface FileRoutesById {
   '/_app/due': typeof AppDueRoute
   '/_app/settings': typeof AppSettingsRoute
   '/_app/': typeof AppIndexRoute
+  '/_app/attendance/month': typeof AppAttendanceMonthRoute
+  '/_app/attendance/workers': typeof AppAttendanceWorkersRoute
   '/_app/stock/movements': typeof AppStockMovementsRoute
   '/_app/tires/$tireId': typeof AppTiresTireIdRoute
   '/_app/trucks/$truckId': typeof AppTrucksTruckIdRouteWithChildren
+  '/_app/attendance/': typeof AppAttendanceIndexRoute
   '/_app/tires/': typeof AppTiresIndexRoute
   '/_app/trucks/': typeof AppTrucksIndexRoute
   '/_app/wo/': typeof AppWoIndexRoute
@@ -184,9 +211,12 @@ export interface FileRouteTypes {
     | '/ai'
     | '/due'
     | '/settings'
+    | '/attendance/month'
+    | '/attendance/workers'
     | '/stock/movements'
     | '/tires/$tireId'
     | '/trucks/$truckId'
+    | '/attendance/'
     | '/tires/'
     | '/trucks/'
     | '/wo/'
@@ -203,8 +233,11 @@ export interface FileRouteTypes {
     | '/due'
     | '/settings'
     | '/'
+    | '/attendance/month'
+    | '/attendance/workers'
     | '/stock/movements'
     | '/tires/$tireId'
+    | '/attendance'
     | '/tires'
     | '/trucks'
     | '/wo'
@@ -222,9 +255,12 @@ export interface FileRouteTypes {
     | '/_app/due'
     | '/_app/settings'
     | '/_app/'
+    | '/_app/attendance/month'
+    | '/_app/attendance/workers'
     | '/_app/stock/movements'
     | '/_app/tires/$tireId'
     | '/_app/trucks/$truckId'
+    | '/_app/attendance/'
     | '/_app/tires/'
     | '/_app/trucks/'
     | '/_app/wo/'
@@ -283,6 +319,27 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof AppSettingsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/attendance/': {
+      id: '/_app/attendance/'
+      path: '/attendance'
+      fullPath: '/attendance/'
+      preLoaderRoute: typeof AppAttendanceIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/attendance/month': {
+      id: '/_app/attendance/month'
+      path: '/attendance/month'
+      fullPath: '/attendance/month'
+      preLoaderRoute: typeof AppAttendanceMonthRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/attendance/workers': {
+      id: '/_app/attendance/workers'
+      path: '/attendance/workers'
+      fullPath: '/attendance/workers'
+      preLoaderRoute: typeof AppAttendanceWorkersRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/stock/movements': {
@@ -394,9 +451,12 @@ interface AppRouteChildren {
   AppDueRoute: typeof AppDueRoute
   AppSettingsRoute: typeof AppSettingsRoute
   AppIndexRoute: typeof AppIndexRoute
+  AppAttendanceMonthRoute: typeof AppAttendanceMonthRoute
+  AppAttendanceWorkersRoute: typeof AppAttendanceWorkersRoute
   AppStockMovementsRoute: typeof AppStockMovementsRoute
   AppTiresTireIdRoute: typeof AppTiresTireIdRoute
   AppTrucksTruckIdRoute: typeof AppTrucksTruckIdRouteWithChildren
+  AppAttendanceIndexRoute: typeof AppAttendanceIndexRoute
   AppTiresIndexRoute: typeof AppTiresIndexRoute
   AppTrucksIndexRoute: typeof AppTrucksIndexRoute
   AppWoIndexRoute: typeof AppWoIndexRoute
@@ -409,9 +469,12 @@ const AppRouteChildren: AppRouteChildren = {
   AppDueRoute: AppDueRoute,
   AppSettingsRoute: AppSettingsRoute,
   AppIndexRoute: AppIndexRoute,
+  AppAttendanceMonthRoute: AppAttendanceMonthRoute,
+  AppAttendanceWorkersRoute: AppAttendanceWorkersRoute,
   AppStockMovementsRoute: AppStockMovementsRoute,
   AppTiresTireIdRoute: AppTiresTireIdRoute,
   AppTrucksTruckIdRoute: AppTrucksTruckIdRouteWithChildren,
+  AppAttendanceIndexRoute: AppAttendanceIndexRoute,
   AppTiresIndexRoute: AppTiresIndexRoute,
   AppTrucksIndexRoute: AppTrucksIndexRoute,
   AppWoIndexRoute: AppWoIndexRoute,

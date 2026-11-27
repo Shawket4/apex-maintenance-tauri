@@ -137,7 +137,9 @@ function IssueCard({
           </div>
           <div>
             <span className="text-muted-foreground">{t("settings.sync.why")} </span>
-            {codeText(issue.code)}
+            {issue.entity_type === "attendance_days" && issue.code === "duplicate"
+              ? t("attendance.issueAlreadyMarked")
+              : codeText(issue.code)}
           </div>
           <div className="text-xs text-muted-foreground tabular">
             {fmtCairo(issue.created_at, WHEN, locale)} ({fmtAgo(issue.created_at, locale)})

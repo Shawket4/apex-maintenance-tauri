@@ -32,7 +32,8 @@
     "movements": "حركة المخزن",
     "main": "القائمة",
     "menu": "افتح القائمة",
-    "workOrders": "أوامر الشغل"
+    "workOrders": "أوامر الشغل",
+    "attendance": "الحضور"
   },
   "login": {
     "title": "تسجيل الدخول",
@@ -460,7 +461,17 @@
       "rejected": "النظام رفضه",
       "forbidden": "مالكش صلاحية تعمل ده",
       "too_many_requests": "طلبات كتير — استنى شوية",
-      "unavailable": "الخدمة مش متاحة دلوقتي"
+      "unavailable": "الخدمة مش متاحة دلوقتي",
+      "bad_time": "الساعة دي مش مظبوطة",
+      "worker_name_required": "اكتب اسم العامل",
+      "worker_dates_order": "تاريخ الخروج قبل تاريخ البداية",
+      "worker_already_added": "الموظف ده متضاف في الكشف قبل كده",
+      "worker_has_days": "العامل ده ليه أيام متسجلة — حط تاريخ خروجه بدل ما تمسحه",
+      "attendance_future_day": "اليوم ده لسه مجاش",
+      "attendance_future_time": "الساعة دي لسه مجتش",
+      "attendance_out_before_in": "الانصراف لازم يبقى بعد الحضور",
+      "attendance_too_long": "أكتر من ١٨ ساعة بين الحضور والانصراف — راجع الساعات",
+      "attendance_grace_range": "السماح لازم يبقى من ٠ لـ ٢٤٠ دقيقة"
     }
   },
   "chassis": {
