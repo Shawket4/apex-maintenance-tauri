@@ -1312,3 +1312,366 @@ pub fn chassis_create(pool: &DbPool, vehicle_id: i64, cfg: &ChassisConfig, user_
         Ok(layout_id)
     })
 }
+
+// ═════════════════════════════ attendance ════════════════════════════════════
+
+/// Namespace of attendance day ids. MUST match maint-rust
+/// `rules::ATTENDANCE_DAY_NAMESPACE`: the server refuses any other id.
+pub const ATTENDANCE_DAY_NAMESPACE: Uuid = Uuid::from_u128(0x510d161b_3155_4560_9a62_cd726bbed9e9);
+
+pub const ATTENDANCE_STATUSES: &[&str] = &["present", "absent", "leave", "sick", "off"];
+
+/// The one id a worker's day may have: two devices marking the same day meet
+/// on it (the first mark stays; the second device is told).
+pub fn attendance_day_id(worker_id: &str, work_date: &str) -> AppResult<String> {
+    let w = Uuid::parse_str(worker_id.trim()).map_err(|_| rule("not_found", "worker not found"))?;
+    Ok(Uuid::new_v5(&ATTENDANCE_DAY_NAMESPACE, format!("{w}:{work_date}").as_bytes()).to_string())
+}
+
+fn check_ymd(d: Option<&str>) -> AppResult<Option<String>> {
+    match clean(d) {
+        None => Ok(None),
+        Some(s) => chrono::NaiveDate::parse_from_str(&s, "%Y-%m-%d")
+            .map(|d| Some(d.format("%Y-%m-%d").to_string()))
+            .map_err(|_| rule("bad_date", "not a date")),
+    }
+}
+
+fn check_hhmm(s: &str) -> AppResult<String> {
+    chrono::NaiveTime::parse_from_str(s.trim(), "%H:%M")
+        .map(|t| t.format("%H:%M").to_string())
+        .map_err(|_| rule("bad_time", "not a time of day"))
+}
+
+fn parse_utc(s: &str) -> AppResult<chrono::DateTime<chrono::Utc>> {
+    chrono::DateTime::parse_from_rfc3339(s.trim())
+        .map(|t| t.with_timezone(&chrono::Utc))
+        .map_err(|_| rule("bad_time", "not a time"))
+}
+
+/// A garage worker. Only the name is required.
+#[derive(Debug, Clone, Deserialize, specta::Type)]
+pub struct WorkerInput {
+    pub name: String,
+    pub job: Option<String>,
+    pub phone: Option<String>,
+    /// Set when the worker was picked from Falcon's employees.
+    pub falcon_employee_id: Option<i64>,
+    pub joined_on: Option<String>,
+    pub left_on: Option<String>,
+    pub notes: Option<String>,
+}
+
+struct CleanWorker {
+    name: String,
+    job: Option<String>,
+    phone: Option<String>,
+    falcon_employee_id: Option<i64>,
+    joined_on: Option<String>,
+    left_on: Option<String>,
+    notes: Option<String>,
+}
+
+fn clean_worker(inp: &WorkerInput) -> AppResult<CleanWorker> {
+    let name = clean(Some(&inp.name)).ok_or_else(|| rule("worker_name_required", "a worker needs a name"))?;
+    let joined_on = check_ymd(inp.joined_on.as_deref())?;
+    let left_on = check_ymd(inp.left_on.as_deref())?;
+    if let (Some(j), Some(l)) = (&joined_on, &left_on) {
+        if l < j {
+            return Err(rule("worker_dates_order", "left before joining"));
+        }
+    }
+    Ok(CleanWorker {
+        name,
+        job: clean(inp.job.as_deref()),
+        phone: clean(inp.phone.as_deref()),
+        falcon_employee_id: inp.falcon_employee_id.filter(|n| *n > 0),
+        joined_on,
+        left_on,
+        notes: clean(inp.notes.as_deref()),
+    })
+}
+
+fn falcon_link_taken(a: &Action<'_>, falcon_id: i64, except: Option<&str>) -> AppResult<bool> {
+    Ok(a.tx.query_row(
+        "SELECT EXISTS (SELECT 1 FROM attendance_workers
+                         WHERE falcon_employee_id = ?1 AND deleted_at IS NULL AND id IS NOT ?2)",
+        params![falcon_id, except],
+        |r| r.get(0),
+    )?)
+}
+
+fn worker_insert(a: &Action<'_>, w: &CleanWorker) -> AppResult<String> {
+    if let Some(fid) = w.falcon_employee_id {
+        if falcon_link_taken(a, fid, None)? {
+            return Err(rule("worker_already_added", "this employee is already on the list"));
+        }
+    }
+    let id = Uuid::new_v4().to_string();
+    let now = now_iso();
+    let sort: i64 = a.tx.query_row(
+        "SELECT COALESCE(MAX(sort_order), 0) + 1 FROM attendance_workers WHERE deleted_at IS NULL",
+        [],
+        |r| r.get(0),
+    )?;
+    a.tx.execute(
+        "INSERT INTO attendance_workers
+           (id, name, job, phone, falcon_employee_id, joined_on, left_on, sort_order, notes,
+            created_at, updated_at, created_by_user_id, updated_by_user_id, sync_version)
+         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?10,?11,?11,1)",
+        params![id, w.name, w.job, w.phone, w.falcon_employee_id, w.joined_on, w.left_on, sort, w.notes, now, a.user_id],
+    )?;
+    a.inserted("attendance_workers", &id)?;
+    Ok(id)
+}
+
+pub fn worker_add(pool: &DbPool, inp: &WorkerInput, user_id: i64) -> AppResult<String> {
+    let w = clean_worker(inp)?;
+    write(pool, user_id, |a| worker_insert(a, &w))
+}
+
+/// Several workers in one action (picked together from Falcon's list).
+/// Employees already on the list are skipped, not refused.
+pub fn workers_add_many(pool: &DbPool, inputs: &[WorkerInput], user_id: i64) -> AppResult<Vec<String>> {
+    let cleaned = inputs.iter().map(clean_worker).collect::<AppResult<Vec<_>>>()?;
+    write(pool, user_id, |a| {
+        let mut ids = Vec::new();
+        for w in &cleaned {
+            if let Some(fid) = w.falcon_employee_id {
+                if falcon_link_taken(a, fid, None)? {
+                    continue;
+                }
+            }
+            ids.push(worker_insert(a, w)?);
+        }
+        Ok(ids)
+    })
+}
+
+pub fn worker_update(pool: &DbPool, id: &str, inp: &WorkerInput, user_id: i64) -> AppResult<()> {
+    let w = clean_worker(inp)?;
+    write(pool, user_id, |a| {
+        type Row = (String, Option<String>, Option<String>, Option<i64>, Option<String>, Option<String>, Option<String>);
+        let before: Row = a
+            .tx
+            .query_row(
+                "SELECT name, job, phone, falcon_employee_id, joined_on, left_on, notes
+                   FROM attendance_workers WHERE id = ?1 AND deleted_at IS NULL",
+                params![id],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?, r.get(6)?)),
+            )
+            .optional()?
+            .ok_or_else(|| rule("not_found", "worker not found"))?;
+        if let Some(fid) = w.falcon_employee_id {
+            if before.3 != Some(fid) && falcon_link_taken(a, fid, Some(id))? {
+                return Err(rule("worker_already_added", "this employee is already on the list"));
+            }
+        }
+        let mut cols: Vec<&str> = Vec::new();
+        if before.0 != w.name { cols.push("name"); }
+        if before.1 != w.job { cols.push("job"); }
+        if before.2 != w.phone { cols.push("phone"); }
+        if before.3 != w.falcon_employee_id { cols.push("falcon_employee_id"); }
+        if before.4 != w.joined_on { cols.push("joined_on"); }
+        if before.5 != w.left_on { cols.push("left_on"); }
+        if before.6 != w.notes { cols.push("notes"); }
+        if cols.is_empty() {
+            return Ok(());
+        }
+        a.tx.execute(
+            "UPDATE attendance_workers SET name=?2, job=?3, phone=?4, falcon_employee_id=?5, joined_on=?6,
+                    left_on=?7, notes=?8, updated_at=?9, updated_by_user_id=?10
+              WHERE id = ?1",
+            params![id, w.name, w.job, w.phone, w.falcon_employee_id, w.joined_on, w.left_on, w.notes, now_iso(), a.user_id],
+        )?;
+        a.updated("attendance_workers", id, &cols)
+    })
+}
+
+/// Remove a worker typed in by mistake. A worker with marked days keeps them:
+/// set the day they left instead (`worker_has_days`).
+pub fn worker_delete(pool: &DbPool, id: &str, user_id: i64) -> AppResult<()> {
+    write(pool, user_id, |a| {
+        let days: i64 = a.tx.query_row(
+            "SELECT COUNT(*) FROM attendance_days WHERE worker_id = ?1 AND deleted_at IS NULL",
+            params![id],
+            |r| r.get(0),
+        )?;
+        if days > 0 {
+            return Err(rule("worker_has_days", "this worker has marked days"));
+        }
+        a.deleted("attendance_workers", id)
+    })
+}
+
+/// What a day should say. Quick buttons and the edit dialog both send the
+/// whole day; only what changed is queued.
+#[derive(Debug, Clone, Deserialize, specta::Type)]
+pub struct AttendanceMarkInput {
+    pub worker_id: String,
+    /// YYYY-MM-DD, Cairo's calendar.
+    pub work_date: String,
+    pub status: String,
+    /// RFC 3339 UTC. Present days only.
+    pub check_in_at: Option<String>,
+    pub check_out_at: Option<String>,
+    pub note: Option<String>,
+}
+
+fn mark_inner(a: &Action<'_>, inp: &AttendanceMarkInput, today: chrono::NaiveDate) -> AppResult<()> {
+    if !ATTENDANCE_STATUSES.contains(&inp.status.as_str()) {
+        return Err(rule("validation", "unknown attendance status"));
+    }
+    let date = chrono::NaiveDate::parse_from_str(inp.work_date.trim(), "%Y-%m-%d")
+        .map_err(|_| rule("bad_date", "not a date"))?;
+    if date > today {
+        return Err(rule("attendance_future_day", "that day has not come yet"));
+    }
+    let work_date = date.format("%Y-%m-%d").to_string();
+    let worker_live: bool = a.tx.query_row(
+        "SELECT EXISTS (SELECT 1 FROM attendance_workers WHERE id = ?1 AND deleted_at IS NULL)",
+        params![inp.worker_id],
+        |r| r.get(0),
+    )?;
+    if !worker_live {
+        return Err(rule("not_found", "worker not found"));
+    }
+    let present = inp.status == "present";
+    let fmt = |t: chrono::DateTime<chrono::Utc>| t.to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+    let cin = if present { clean(inp.check_in_at.as_deref()).map(|s| parse_utc(&s)).transpose()? } else { None };
+    let cout = if present { clean(inp.check_out_at.as_deref()).map(|s| parse_utc(&s)).transpose()? } else { None };
+    if let (Some(i), Some(o)) = (cin, cout) {
+        if o <= i {
+            return Err(rule("attendance_out_before_in", "check-out before check-in"));
+        }
+        if o - i > chrono::Duration::hours(18) {
+            return Err(rule("attendance_too_long", "more than 18 hours"));
+        }
+    }
+    if let Some(o) = cout {
+        if o > chrono::Utc::now() + chrono::Duration::minutes(5) {
+            return Err(rule("attendance_future_time", "that time has not come yet"));
+        }
+    }
+    if let Some(i) = cin {
+        if i > chrono::Utc::now() + chrono::Duration::minutes(5) {
+            return Err(rule("attendance_future_time", "that time has not come yet"));
+        }
+    }
+    let cin = cin.map(fmt);
+    let cout = cout.map(fmt);
+    let note = clean(inp.note.as_deref());
+    let id = attendance_day_id(&inp.worker_id, &work_date)?;
+    let now = now_iso();
+
+    type Row = (String, Option<String>, Option<String>, Option<String>);
+    let before: Option<Row> = a
+        .tx
+        .query_row(
+            "SELECT status, check_in_at, check_out_at, note FROM attendance_days WHERE id = ?1",
+            params![id],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+        )
+        .optional()?;
+    match before {
+        None => {
+            a.tx.execute(
+                "INSERT INTO attendance_days
+                   (id, worker_id, work_date, status, check_in_at, check_out_at, note,
+                    created_at, updated_at, created_by_user_id, updated_by_user_id, sync_version)
+                 VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?8,?9,?9,1)",
+                params![id, inp.worker_id, work_date, inp.status, cin, cout, note, now, a.user_id],
+            )?;
+            a.inserted("attendance_days", &id)
+        }
+        Some(b) => {
+            let mut cols: Vec<&str> = Vec::new();
+            if b.0 != inp.status { cols.push("status"); }
+            if b.1 != cin { cols.push("check_in_at"); }
+            if b.2 != cout { cols.push("check_out_at"); }
+            if b.3 != note { cols.push("note"); }
+            if cols.is_empty() {
+                return Ok(());
+            }
+            a.tx.execute(
+                "UPDATE attendance_days SET status=?2, check_in_at=?3, check_out_at=?4, note=?5,
+                        updated_at=?6, updated_by_user_id=?7
+                  WHERE id = ?1",
+                params![id, inp.status, cin, cout, note, now, a.user_id],
+            )?;
+            a.updated("attendance_days", &id, &cols)
+        }
+    }
+}
+
+pub fn attendance_mark(pool: &DbPool, inp: &AttendanceMarkInput, user_id: i64) -> AppResult<()> {
+    let today = crate::services::views::cairo_today();
+    write(pool, user_id, |a| mark_inner(a, inp, today))
+}
+
+/// Several days in one action ("the rest present").
+pub fn attendance_mark_many(pool: &DbPool, inputs: &[AttendanceMarkInput], user_id: i64) -> AppResult<u32> {
+    let today = crate::services::views::cairo_today();
+    write(pool, user_id, |a| {
+        for inp in inputs {
+            mark_inner(a, inp, today)?;
+        }
+        Ok(inputs.len() as u32)
+    })
+}
+
+#[derive(Debug, Clone, Deserialize, specta::Type)]
+pub struct AttendanceSettingsInput {
+    /// HH:MM, Cairo time.
+    pub work_start: String,
+    pub work_end: String,
+    pub late_grace_minutes: i64,
+    /// ISO weekdays, 1 = Monday … 7 = Sunday.
+    pub weekly_off_days: Vec<i64>,
+}
+
+pub fn attendance_settings_set(pool: &DbPool, inp: &AttendanceSettingsInput, user_id: i64) -> AppResult<()> {
+    let start = check_hhmm(&inp.work_start)?;
+    let end = check_hhmm(&inp.work_end)?;
+    if !(0..=240).contains(&inp.late_grace_minutes) {
+        return Err(rule("attendance_grace_range", "grace must be 0 to 240 minutes"));
+    }
+    let mut days: Vec<i64> = inp.weekly_off_days.iter().copied().filter(|d| (1..=7).contains(d)).collect();
+    days.sort_unstable();
+    days.dedup();
+    let off = days.iter().map(i64::to_string).collect::<Vec<_>>().join(",");
+    write(pool, user_id, |a| {
+        type Row = (Option<String>, Option<String>, Option<i64>, Option<String>);
+        let before: Option<Row> = a
+            .tx
+            .query_row(
+                "SELECT work_start, work_end, late_grace_minutes, weekly_off_days FROM attendance_settings WHERE id = 1",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+            )
+            .optional()?;
+        let now = now_iso();
+        a.tx.execute(
+            "INSERT INTO attendance_settings
+               (id, work_start, work_end, late_grace_minutes, weekly_off_days,
+                created_at, updated_at, created_by_user_id, updated_by_user_id, sync_version)
+             VALUES (1,?1,?2,?3,?4,?5,?5,?6,?6,1)
+             ON CONFLICT(id) DO UPDATE SET
+               work_start=excluded.work_start, work_end=excluded.work_end,
+               late_grace_minutes=excluded.late_grace_minutes, weekly_off_days=excluded.weekly_off_days,
+               updated_at=excluded.updated_at, updated_by_user_id=excluded.updated_by_user_id",
+            params![start, end, inp.late_grace_minutes, off, now, a.user_id],
+        )?;
+        match before {
+            None => a.inserted("attendance_settings", "1"),
+            Some(b) => {
+                let mut cols: Vec<&str> = Vec::new();
+                if b.0.as_deref() != Some(start.as_str()) { cols.push("work_start"); }
+                if b.1.as_deref() != Some(end.as_str()) { cols.push("work_end"); }
+                if b.2 != Some(inp.late_grace_minutes) { cols.push("late_grace_minutes"); }
+                if b.3.as_deref() != Some(off.as_str()) { cols.push("weekly_off_days"); }
+                if cols.is_empty() { Ok(()) } else { a.updated("attendance_settings", "1", &cols) }
+            }
+        }
+    })
+}

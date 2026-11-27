@@ -37,12 +37,15 @@ edit an applied migration).
   `work_order_tasks`, `oil_changes`, `tires`, `tire_assignments`,
   `tire_status_events`, `chassis_layouts`, `chassis_axles`,
   `chassis_positions`, `vehicle_class_assignments`,
-  `vehicle_odometer_overrides`. Rows are soft-deleted (`deleted_at`) and carry
+  `vehicle_odometer_overrides`, and garage attendance: `attendance_workers`,
+  `attendance_days` (one row per worker per day, id = UUID v5 of
+  `worker_id:date`), `attendance_settings` (one row). Rows are soft-deleted (`deleted_at`) and carry
   the server's `sync_version`.
 - Mirrors (replaced by a refresh, never written by the user): `vehicles_cache`,
   `drivers_cache`, `service_invoices_cache` (+ items), `vehicle_classes`,
   `service_plans`, `maintenance_categories`, `tire_stock_cache`,
-  `oil_stock_cache`, `stock_movements_cache`.
+  `oil_stock_cache`, `stock_movements_cache`, `employees_cache` (Falcon's
+  employees, to pick attendance workers from).
 - Engine tables: `outbox`, `sync_state` (pull cursors), `sync_issues`,
   `sync_refresh`.
 

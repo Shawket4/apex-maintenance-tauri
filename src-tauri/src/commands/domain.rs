@@ -31,7 +31,7 @@ use crate::services::views::{
 };
 use crate::{session_store, AppError, AppResult, AppState};
 
-fn current_user_id(state: &AppState) -> AppResult<i64> {
+pub(crate) fn current_user_id(state: &AppState) -> AppResult<i64> {
     let Some(json) = session_store::read_user_json(&state.data_dir)? else {
         return Err(AppError::Unauthorized);
     };
@@ -39,7 +39,7 @@ fn current_user_id(state: &AppState) -> AppResult<i64> {
     v.get("id").and_then(|x| x.as_i64()).ok_or(AppError::Unauthorized)
 }
 
-fn kick(engine: &EngineState) {
+pub(crate) fn kick(engine: &EngineState) {
     let eng = engine.0.clone();
     tauri::async_runtime::spawn(async move {
         let _ = eng.drain().await;

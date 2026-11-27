@@ -97,7 +97,12 @@
     "chassisDelete": "مسح رسمة الكاوتش",
     "otherAdd": "إضافة",
     "otherEdit": "تعديل",
-    "otherDelete": "مسح"
+    "otherDelete": "مسح",
+    "attendanceMark": "تسجيل يوم عامل",
+    "workerAdd": "إضافة عامل",
+    "workerEdit": "تعديل عامل",
+    "workerDelete": "مسح عامل",
+    "attendanceHours": "مواعيد الشغل"
   },
   "field": {
     "vehicle_id": "العربية",

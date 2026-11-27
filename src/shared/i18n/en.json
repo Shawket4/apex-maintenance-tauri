@@ -32,7 +32,8 @@
     "movements": "Stock movements",
     "main": "Menu",
     "menu": "Open menu",
-    "workOrders": "Work orders"
+    "workOrders": "Work orders",
+    "attendance": "Attendance"
   },
   "login": {
     "title": "Sign in",
@@ -460,7 +461,17 @@
       "rejected": "The server refused it",
       "forbidden": "You are not allowed to do that",
       "too_many_requests": "Too many requests — wait a moment",
-      "unavailable": "That service is not available right now"
+      "unavailable": "That service is not available right now",
+      "bad_time": "That time is not valid",
+      "worker_name_required": "Enter the worker's name",
+      "worker_dates_order": "The day they left is before the day they started",
+      "worker_already_added": "That employee is already on the list",
+      "worker_has_days": "This worker has marked days — set the day they left instead of deleting them",
+      "attendance_future_day": "That day has not come yet",
+      "attendance_future_time": "That time has not come yet",
+      "attendance_out_before_in": "Check-out must be after check-in",
+      "attendance_too_long": "More than 18 hours between check-in and check-out — check the times",
+      "attendance_grace_range": "The grace must be 0 to 240 minutes"
     }
   },
   "chassis": {

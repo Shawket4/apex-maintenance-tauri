@@ -12,6 +12,7 @@ import {
   Settings,
   Sparkles,
   Truck,
+  UserCheck,
   Warehouse,
 } from "lucide-react";
 
@@ -39,6 +40,7 @@ const NAV_MAIN = [
   { to: "/due", key: "nav.due", icon: CalendarClock, exact: false },
   { to: "/tires", key: "nav.tires", icon: CircleDot, exact: false },
   { to: "/stock/movements", key: "nav.movements", icon: ArrowLeftRight, exact: false },
+  { to: "/attendance", key: "nav.attendance", icon: UserCheck, exact: false },
 ] as const;
 
 const NAV_TOOLS = [
