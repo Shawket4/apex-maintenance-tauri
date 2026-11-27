@@ -25,7 +25,7 @@ export function WoDue({ d, woId, canAdd }: { d: WoDetail; woId: string; canAdd: 
   const { t, i18n } = useTranslation();
   const isAr = i18n.language.startsWith("ar");
   const add = useDomainMutation(
-    (p: { category: string; label: string }) => unwrap(commands.woAddTask(woId, p.category, p.label)),
+    (p: { category: string; label: string }) => unwrap(commands.woAddTask(woId, p.category, null, p.label)),
     { onError: notifyError },
   );
 

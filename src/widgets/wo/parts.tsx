@@ -4,15 +4,8 @@ import { Lock } from "lucide-react";
 import { useCategories } from "@/shared/api/queries";
 import { cn } from "@/shared/lib/cn";
 import { Badge } from "@/shared/ui/badge";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/shared/ui/select";
-
-import { NO_CATEGORY } from "./lib";
+import { norm } from "@/shared/lib/normalize";
+import { Combo, type ComboOption } from "@/shared/ui/combo";
 
 /** Section heading a person can actually read (the shared one is a small
  * grey label). */
@@ -74,41 +67,52 @@ export function ClosedNote({ className }: { className?: string }) {
   );
 }
 
-/** Category picker with an explicit "no category" choice, so a category can
- * always be taken off again. `value` is the category id or "" for none. */
-export function CategorySelect({
+/** A task's maintenance type, picked FIRST: one on the list, or a name typed
+ * in. A typed name another type already has (in either language, any
+ * spelling) is that type; a new one is created for everyone when the task
+ * reaches the server. `onChange` gets the type's id, or "" and the typed name. */
+export function TaskTypePicker({
   id,
-  value,
+  categoryId,
+  typed,
   onChange,
-  className,
+  disabled,
 }: {
   id: string;
-  value: string;
-  onChange: (categoryId: string) => void;
-  className?: string;
+  categoryId: string;
+  typed: string;
+  onChange: (categoryId: string, typed: string) => void;
+  disabled?: boolean;
 }) {
   const { t, i18n } = useTranslation();
   const categories = useCategories();
+  const ar = i18n.language.startsWith("ar");
+  const list = categories.data ?? [];
+  const options: ComboOption[] = list.map((c) => ({
+    value: c.id,
+    label: (ar ? c.name_ar : c.name_en) || c.name_ar,
+    keywords: `${c.name_ar} ${c.name_en}`,
+  }));
   return (
-    <Select
-      value={value || NO_CATEGORY}
-      onValueChange={(v) => onChange(v === NO_CATEGORY ? "" : v)}
-    >
-      <SelectTrigger
-        id={id}
-        className={cn("w-full bg-card data-[size=default]:h-10 pointer-coarse:min-h-11", className)}
-      >
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value={NO_CATEGORY}>{t("wo.noCategory")}</SelectItem>
-        {(categories.data ?? []).map((c) => (
-          <SelectItem key={c.id} value={c.id}>
-            {i18n.language.startsWith("ar") ? c.name_ar : c.name_en}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+    <Combo
+      id={id}
+      disabled={disabled}
+      options={options}
+      value={categoryId || typed || null}
+      valueLabel={categoryId ? undefined : typed}
+      onChange={(v, o) => {
+        if (o) return onChange(o.value, "");
+        const name = v.trim();
+        const same = name ? list.find((c) => norm(c.name_ar) === norm(name) || norm(c.name_en) === norm(name)) : undefined;
+        if (same) onChange(same.id, "");
+        else onChange("", name);
+      }}
+      placeholder={t("wo.typePlaceholder")}
+      searchPlaceholder={t("wo.typeSearch")}
+      allowCustom
+      clearable
+      customLabel={(text) => t("wo.typeUseNew", { text })}
+    />
   );
 }
 

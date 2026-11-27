@@ -192,11 +192,16 @@ export function OilProductPicker({
   );
 }
 
-/** What a task is: a standard job from the list (which also sets the
- * maintenance type it counts toward), or a sentence typed as it is. */
+/** What a task is: a standard job from the list, or a sentence typed as it is.
+ *
+ * With a maintenance type chosen (`typeId`), only that type's jobs are listed,
+ * and a typed job is kept under the type (offered next time). With none, every
+ * job is listed and picking one brings its type with it. */
 export function JobPicker({
   value,
   onChange,
+  typeId,
+  typeName,
   id,
   disabled,
   "aria-labelledby": labelledBy,
@@ -204,6 +209,11 @@ export function JobPicker({
   value: string;
   /** `categoryId` is given only when a standard job was picked. */
   onChange: (description: string, categoryId?: string | null) => void;
+  /** Only this type's jobs. Absent or "": every job. `null`: a type typed in
+   * just now, which has no jobs yet. */
+  typeId?: string | null;
+  /** The chosen type's name, for the "add it to this type" row. */
+  typeName?: string | null;
   id?: string;
   disabled?: boolean;
   "aria-labelledby"?: string;
@@ -216,9 +226,11 @@ export function JobPicker({
     const c = categories.data?.find((x) => x.id === cid);
     return c ? (ar ? c.name_ar : c.name_en) : null;
   };
-  const jobs = catalog.data?.standard_jobs ?? [];
+  const all = catalog.data?.standard_jobs ?? [];
+  const filtered = typeId !== undefined && typeId !== "";
+  const jobs = !filtered ? all : typeId === null ? [] : all.filter((j) => j.category_id === typeId);
   const options: ComboOption[] = jobs.map((j) => {
-    const cat = catName(j.category_id);
+    const cat = filtered ? null : catName(j.category_id);
     return {
       value: j.name_ar,
       label: ar ? j.name_ar : j.name_en || j.name_ar,
@@ -239,11 +251,14 @@ export function JobPicker({
         if (job) onChange(job.name_ar, job.category_id ?? undefined);
         else onChange(v.trim());
       }}
-      placeholder={t("catalog.job.placeholder")}
+      placeholder={filtered && typeName ? t("catalog.job.placeholderOfType", { type: typeName }) : t("catalog.job.placeholder")}
       searchPlaceholder={t("catalog.job.search")}
+      emptyText={filtered ? t("catalog.job.noneOfType") : undefined}
       allowCustom
       clearable
-      customLabel={(text) => t("catalog.job.useNew", { text })}
+      customLabel={(text) =>
+        filtered && typeName ? t("catalog.job.addToType", { text, type: typeName }) : t("catalog.job.useNew", { text })
+      }
     />
   );
 }

@@ -843,10 +843,8 @@
         let p = pool();
         seed_vehicle(&p, 11, "ف ل ص 11", 50_000);
         let wo = domain::wo_open(&p, 11, None, 9).unwrap();
-        let conn = p.get().unwrap();
-        conn.execute("INSERT INTO maintenance_categories (id, name_ar, name_en, sort_order) VALUES ('greasing', 'تشحيم', 'Greasing', 1)", []).unwrap();
-        drop(conn);
-        // A name a type already has is that type (spacing and letter variants aside).
+        // A name a type already has is that type (spacing and letter variants
+        // aside): the seeded "تشحيم" is 'greasing'.
         let t = domain::wo_add_task(&p, &wo, None, Some("  تشحيم "), "تشحيم كرنك", 9).unwrap();
         let conn = p.get().unwrap();
         let (cat, name): (Option<String>, Option<String>) = conn
@@ -877,6 +875,20 @@
         let conn = p.get().unwrap();
         let listed: i64 = conn.query_row("SELECT COUNT(*) FROM maintenance_categories WHERE id = ?1", [&cat], |r| r.get(0)).unwrap();
         assert_eq!(listed, 1);
+        // A catalog refresh before the task is sent keeps the typed job; once
+        // the server lists it, it is the server's row (no twin).
+        let jobs_named = |p: &DbPool| -> Vec<String> {
+            let conn = p.get().unwrap();
+            let mut stmt = conn.prepare("SELECT id FROM standard_jobs WHERE name_ar = 'تشحيم كرنك'").unwrap();
+            stmt.query_map([], |r| r.get(0)).unwrap().map(Result::unwrap).collect()
+        };
+        let empty = serde_json::json!({"tire_products": [], "oil_products": [], "standard_jobs": []});
+        crate::services::refdata::replace_catalog(&p, &empty).unwrap();
+        assert_eq!(jobs_named(&p).len(), 1);
+        let server = serde_json::json!({"tire_products": [], "oil_products": [],
+            "standard_jobs": [{"id": "77", "name_ar": "تشحيم  كرنك", "category_id": "greasing", "uses": 1}]});
+        crate::services::refdata::replace_catalog(&p, &server).unwrap();
+        assert_eq!(jobs_named(&p), Vec::<String>::new(), "the server's spelling is the one row");
         // The key folds what the server's maint_norm folds.
         assert_eq!(domain::norm_key(" إصلاح  بنشر ٢ "), domain::norm_key("اصلاح بنشر 2"));
     }
