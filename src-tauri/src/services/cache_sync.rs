@@ -286,7 +286,7 @@ pub fn upsert_invoices(pool: &DbPool, invoices: &[CachedInvoice]) -> AppResult<u
                 id, car_id, driver_name, date, meter_reading,
                 plate_number, supervisor, operating_region,
                 raw_payload, source_created_at, source_updated_at, source_deleted_at,
-                fetched_at, fuel_odometer_changed_at, mileage_changed_at
+                fetched_at
              ) VALUES (
                 ?1, ?2, ?3, ?4, ?5,
                 ?6, ?7, ?8,
