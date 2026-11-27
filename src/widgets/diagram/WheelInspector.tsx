@@ -9,7 +9,7 @@ import { notifyError, notifySuccess } from "@/shared/lib/notify";
 import { Button } from "@/shared/ui/button";
 import { ConfirmDialog } from "@/shared/ui/confirm-dialog";
 import { Skeleton } from "@/shared/ui/skeleton";
-import { tireName } from "@/widgets/TruckDiagram/layout";
+import { tireName } from "apex-tire-diagram";
 
 import { DismountForm } from "./DismountSheet";
 import { MountForm } from "./MountSheet";

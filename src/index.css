@@ -66,6 +66,8 @@
 }
 
 @import 'tailwindcss';
+/* The shared wheel diagram is styled with this app's Tailwind classes. */
+@source '../node_modules/apex-tire-diagram/dist';
 @import 'tw-animate-css';
 
 @custom-variant dark (&:is(.dark *));

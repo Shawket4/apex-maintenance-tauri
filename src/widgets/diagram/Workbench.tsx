@@ -9,7 +9,7 @@ import { TIRE_BADGE } from "@/shared/lib/status";
 import { fmtCairo } from "@/shared/lib/time";
 import { Dialog, DialogContent, DialogTitle } from "@/shared/ui/dialog";
 import { StatusChip } from "@/shared/ui/status-chip";
-import { positionLabel, tireName } from "@/widgets/TruckDiagram/layout";
+import { positionLabel, tireName } from "apex-tire-diagram";
 
 import { kmOnTruck } from "./pick";
 
@@ -105,7 +105,7 @@ export function InspectorShell({
       <div className="sticky top-0 z-10 flex items-center gap-3 border-b bg-card px-4 py-3">
         <div className="min-w-0 flex-1">
           <h2 className="text-base font-bold leading-snug">
-            {positionLabel(position, axles, t, (n) => fmtNumber(n, i18n.language))}
+            {positionLabel(position, axles, i18n.language)}
           </h2>
           <div className="text-xs text-muted-foreground">
             {t("diagram.codeLabel")} <bdi dir="ltr">{position.position_code}</bdi>

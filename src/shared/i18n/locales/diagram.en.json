@@ -7,48 +7,7 @@
   "spare": "Spare",
   "firstTime": "No tires are recorded on this truck yet. Press any empty wheel and choose “Register a tire that is already on the truck” — you can fill every empty wheel in one go.",
   "legend": {
-    "mounted": "Tire fitted",
-    "empty": "Empty",
-    "spare": "Spare with a tire",
     "pending": "Still sending"
-  },
-  "view": {
-    "label": "View",
-    "2d": "Simple drawing",
-    "3d": "3D view",
-    "unsupported": "This device cannot show the 3D view, so you are back on the simple drawing — everything works from it.",
-    "failed": "The 3D view stopped, so you are back on the simple drawing — everything works from it.",
-    "hint3d": "Drag to turn the truck, press a wheel to choose it. If it is slow on this device, go back to the simple drawing."
-  },
-  "pos": {
-    "side": {
-      "left": "left",
-      "right": "right"
-    },
-    "depth": {
-      "outer": "outer",
-      "inner": "inner"
-    },
-    "spare": "Spare {{n}}",
-    "steer": "Front {{side}}",
-    "plainDual": "Axle {{n}}, {{side}} {{depth}}",
-    "plainSingle": "Axle {{n}}, {{side}}",
-    "tractorDual": "Tractor axle {{n}}, {{side}} {{depth}}",
-    "tractorSingle": "Tractor axle {{n}}, {{side}}",
-    "trailerDual": "Trailer axle {{n}}, {{side}} {{depth}}",
-    "trailerSingle": "Trailer axle {{n}}, {{side}}"
-  },
-  "map": {
-    "front": "Front",
-    "frontOfTruck": "▲ Front of truck",
-    "axle": "Axle {{n}}",
-    "lifted": "lifted",
-    "spares": "Spares",
-    "tractor": "Tractor",
-    "trailer": "Trailer",
-    "ariaEmpty": "{{pos}} — empty",
-    "ariaMounted": "{{pos}} — tire fitted: {{tire}}",
-    "ariaPending": "{{pos}} — tire fitted: {{tire}}, still sending"
   },
   "tire": {
     "unknownBrand": "Tire with no brand",

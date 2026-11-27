@@ -13,13 +13,11 @@ import {
 } from "@/shared/api/client";
 import { useChassis, useDomainMutation, useTruck, useWos } from "@/shared/api/queries";
 import { notifyError, notifySuccess } from "@/shared/lib/notify";
-import { fmtNumber } from "@/shared/lib/numbers";
 import { Button } from "@/shared/ui/button";
 import { ConfirmDialog } from "@/shared/ui/confirm-dialog";
 import { QueryState } from "@/shared/ui/query-state";
 import { Skeleton } from "@/shared/ui/skeleton";
-import { WheelDiagram } from "@/widgets/TruckDiagram/WheelDiagram";
-import { positionLabel } from "@/widgets/TruckDiagram/layout";
+import { WheelDiagram, positionLabel } from "apex-tire-diagram";
 
 import { ChassisRebuild, ChassisWizard } from "./ChassisWizard";
 import { WheelInspector } from "./WheelInspector";
@@ -63,12 +61,13 @@ export function TruckWheels({ vehicleId, data, pos, onSelectPos }: { vehicleId: 
           <WheelDiagram
             axles={data.axles}
             positions={data.positions}
+            lang={i18n.language}
             selectedId={selected?.id ?? null}
             onSelect={guard.request}
           />
         }
         inspectorTitle={
-          selected ? positionLabel(selected, data.axles, t, (n) => fmtNumber(n, i18n.language)) : t("diagram.title")
+          selected ? positionLabel(selected, data.axles, i18n.language) : t("diagram.title")
         }
         onCloseInspector={() => guard.request(null)}
         inspector={
@@ -161,7 +160,6 @@ function WoWorkbench({
   const { t, i18n } = useTranslation();
   const woId = detail.wo.id;
   const isOpen = detail.wo.status === "open";
-  const fmt = (n: number) => fmtNumber(n, i18n.language);
 
   const selected = data.positions.find((p) => p.id === pos) ?? null;
   const select = (p: PositionRow | null) => onSelectPos(p?.id ?? null);
@@ -190,7 +188,7 @@ function WoWorkbench({
 
   const labelOf = (code: string | null) => {
     const p = data.positions.find((x) => x.position_code === code);
-    return p ? positionLabel(p, data.axles, t, fmt) : (code ?? "");
+    return p ? positionLabel(p, data.axles, i18n.language) : (code ?? "");
   };
 
   return (
@@ -200,11 +198,12 @@ function WoWorkbench({
           <WheelDiagram
             axles={data.axles}
             positions={data.positions}
+            lang={i18n.language}
             selectedId={selected?.id ?? null}
             onSelect={guard.request}
           />
         }
-        inspectorTitle={selected ? positionLabel(selected, data.axles, t, fmt) : t("diagram.title")}
+        inspectorTitle={selected ? positionLabel(selected, data.axles, i18n.language) : t("diagram.title")}
         onCloseInspector={() => guard.request(null)}
         inspector={
           selected ? (

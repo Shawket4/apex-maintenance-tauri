@@ -11,7 +11,7 @@ import { Button } from "@/shared/ui/button";
 import { ConfirmDialog } from "@/shared/ui/confirm-dialog";
 import { Label } from "@/shared/ui/label";
 import { NumberInput } from "@/shared/ui/number-input";
-import { tireName } from "@/widgets/TruckDiagram/layout";
+import { tireName } from "apex-tire-diagram";
 
 import { Note, RadioCard } from "./Workbench";
 
