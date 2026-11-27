@@ -9,34 +9,19 @@
   },
   "status": {
     "present": "Present",
-    "late": "Late",
     "absent": "Absent",
     "leave": "Leave",
     "sick": "Sick",
-    "off": "Off",
     "unmarked": "Not marked",
-    "weekly_off": "Weekly day off",
     "outside": "Not on the list",
     "future": "Not yet"
   },
   "code": {
     "present": "P",
-    "late": "L",
     "absent": "A",
     "leave": "V",
     "sick": "S",
-    "off": "O",
-    "weekly_off": "·",
     "unmarked": "?"
-  },
-  "weekday": {
-    "1": "Monday",
-    "2": "Tuesday",
-    "3": "Wednesday",
-    "4": "Thursday",
-    "5": "Friday",
-    "6": "Saturday",
-    "7": "Sunday"
   },
   "weekdayShort": {
     "1": "M",
@@ -47,25 +32,16 @@
     "6": "S",
     "7": "S"
   },
-  "duration": {
-    "hm": "{{h}}h {{m}}m",
-    "h": "{{h}}h",
-    "m": "{{m}}m"
-  },
   "day": {
     "prev": "Previous day",
     "next": "Next day",
     "today": "Today",
     "pick": "Pick a day",
-    "weeklyOff": "{{day}} is the weekly day off — mark only who worked.",
     "inAt": "In {{time}}",
     "outAt": "Out {{time}}",
     "noIn": "No check-in time",
     "stillHere": "Still at the garage",
-    "lateBy": "Late {{d}}",
-    "worked": "{{d}} worked",
     "missingOut": "No check-out",
-    "present": "Present",
     "absent": "Absent",
     "checkOut": "Check out",
     "more": "Other statuses",
@@ -76,7 +52,8 @@
     "countsLabel": "The day at a glance",
     "searchLabel": "Find a worker",
     "searchPlaceholder": "Worker's name",
-    "noMatch": "No worker by that name"
+    "noMatch": "No worker by that name",
+    "checkIn": "Check in"
   },
   "bulk": {
     "allPresent": "Rest present",
@@ -109,20 +86,14 @@
     "legend": "Key",
     "worker": "Worker",
     "present": "Present",
-    "late": "Late",
-    "lateMinutes": "Late minutes",
     "absent": "Absent",
     "leave": "Leave",
     "sick": "Sick",
-    "off": "Off",
     "unmarked": "Not marked",
-    "hours": "Hours worked",
-    "extra": "Extra hours",
     "total": "Total",
     "empty": "No workers in this month",
     "exportFile": "garage-attendance",
     "exportTitle": "Garage attendance — {{month}}",
-    "exportSubtitle": "Hours {{start}}–{{end}}, {{grace}} minutes' grace",
     "sheetGrid": "Sheet",
     "sheetTotals": "Totals",
     "exportSaved": "Excel file saved",
@@ -183,18 +154,11 @@
     "refresh": "Refresh the list",
     "typeInstead": "Type a name instead"
   },
-  "hours": {
-    "button": "Hours",
-    "title": "Working hours",
-    "subtitle": "Hours worked and lateness are counted from these, for every worker.",
-    "start": "Day starts",
-    "end": "Day ends",
-    "grace": "Grace before late (minutes)",
-    "graceHint": "Arriving more than the grace after the start counts as late, and lateness counts from the start.",
-    "offDays": "Weekly days off",
-    "defaults": "These are default hours until someone saves them.",
-    "saved": "Working hours saved",
-    "save": "Save"
-  },
-  "issueAlreadyMarked": "Another device marked this day first, and the first mark stays. Open the day and change it if needed."
+  "issueAlreadyMarked": "Another device marked this day first, and the first mark stays. Open the day and change it if needed.",
+  "clock": {
+    "inTitle": "Check in — {{name}}",
+    "outTitle": "Check out — {{name}}",
+    "inSaved": "Checked in",
+    "outSaved": "Checked out"
+  }
 }

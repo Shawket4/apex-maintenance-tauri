@@ -101,8 +101,7 @@
     "attendanceMark": "تسجيل يوم عامل",
     "workerAdd": "إضافة عامل",
     "workerEdit": "تعديل عامل",
-    "workerDelete": "مسح عامل",
-    "attendanceHours": "مواعيد الشغل"
+    "workerDelete": "مسح عامل"
   },
   "field": {
     "vehicle_id": "العربية",

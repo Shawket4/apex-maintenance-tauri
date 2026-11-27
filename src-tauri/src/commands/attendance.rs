@@ -9,10 +9,8 @@ use tauri::State;
 use crate::commands::domain::{current_user_id, kick};
 use crate::commands::sync::EngineState;
 use crate::error::CmdResult;
-use crate::services::domain::{self, AttendanceMarkInput, AttendanceSettingsInput, WorkerInput};
-use crate::services::views::{
-    self, AttendanceDayView, AttendanceEmployeeRow, AttendanceMonthView, AttendanceSettingsView, AttendanceWorkerRow,
-};
+use crate::services::domain::{self, AttendanceMarkInput, WorkerInput};
+use crate::services::views::{self, AttendanceDayView, AttendanceEmployeeRow, AttendanceMonthView, AttendanceWorkerRow};
 use crate::{AppError, AppState};
 
 // ── reads ────────────────────────────────────────────────────────────────────
@@ -33,12 +31,6 @@ pub async fn attendance_month(state: State<'_, AppState>, month: String) -> CmdR
 #[specta::specta]
 pub async fn attendance_workers(state: State<'_, AppState>) -> CmdResult<Vec<AttendanceWorkerRow>> {
     Ok(views::attendance_workers(&state.db)?)
-}
-
-#[tauri::command]
-#[specta::specta]
-pub async fn attendance_settings(state: State<'_, AppState>) -> CmdResult<AttendanceSettingsView> {
-    Ok(views::attendance_settings(&state.db)?)
 }
 
 #[tauri::command]
@@ -94,19 +86,6 @@ pub async fn attendance_mark_many(
     let n = domain::attendance_mark_many(&state.db, &inputs, user)?;
     kick(&engine);
     Ok(n)
-}
-
-#[tauri::command]
-#[specta::specta]
-pub async fn attendance_settings_set(
-    state: State<'_, AppState>,
-    engine: State<'_, EngineState>,
-    input: AttendanceSettingsInput,
-) -> CmdResult<()> {
-    let user = current_user_id(&state)?;
-    domain::attendance_settings_set(&state.db, &input, user)?;
-    kick(&engine);
-    Ok(())
 }
 
 #[tauri::command]

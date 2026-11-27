@@ -1,25 +1,22 @@
-// Garage attendance: display helpers. The rule itself (late, hours, what a
-// day counts as) is computed in Rust (services/views/attendance.rs); this file
-// only turns its answers into colors and text.
+// Garage attendance: display helpers. What a day counts as is decided in Rust
+// (services/views/attendance.rs); this file only turns its answers into colors
+// and text. A day is present, absent, leave or sick: no working hours, no
+// lateness, no days off.
 import type { TFunction } from "i18next";
 
 import type { AttendanceMonthCell } from "@/shared/api/client";
 
-import { fmtNumber } from "@/shared/lib/numbers";
 import { CAIRO_TZ, dayjs, fmtCairo } from "@/shared/lib/time";
 
-export const STATUSES = ["present", "absent", "leave", "sick", "off"] as const;
+export const STATUSES = ["present", "absent", "leave", "sick"] as const;
 export type Status = (typeof STATUSES)[number];
 
 /** Soft fill + deep text, per day kind (the status tokens in index.css). */
 export const KIND_TONE: Record<string, string> = {
   present: "bg-status-ok-soft text-status-ok",
-  late: "bg-status-due_soon-soft text-status-due_soon",
   absent: "bg-status-overdue-soft text-status-overdue",
   leave: "bg-info-soft text-info",
   sick: "bg-violet-soft text-violet",
-  off: "bg-status-never_done-soft text-status-never_done",
-  weekly_off: "bg-muted text-muted-foreground",
   unmarked: "border border-dashed border-border-strong text-muted-foreground",
   outside: "",
   future: "",
@@ -28,11 +25,9 @@ export const KIND_TONE: Record<string, string> = {
 /** A solid swatch for status pickers and the legend. */
 export const KIND_SOLID: Record<string, string> = {
   present: "bg-status-ok text-white",
-  late: "bg-status-due_soon text-white",
   absent: "bg-status-overdue text-white",
   leave: "bg-info text-white",
   sick: "bg-violet text-white",
-  off: "bg-status-never_done text-white",
 };
 
 /** The short code of a day kind ("ح", "P"…); empty for days that show nothing. */
@@ -50,6 +45,11 @@ export function timeOf(iso: string | null | undefined, lang: string): string {
 export function hhmmOf(iso: string | null | undefined): string {
   if (!iso) return "";
   return dayjs.utc(iso).tz(CAIRO_TZ).format("HH:mm");
+}
+
+/** Cairo's time of day now, for a time input, "08:05". */
+export function nowCairoHhmm(): string {
+  return dayjs().tz(CAIRO_TZ).format("HH:mm");
 }
 
 /** The UTC instant of a Cairo wall-clock time on a day (summer time included). */
@@ -73,22 +73,6 @@ export function dayTitle(date: string, lang: string): string {
 /** "نوفمبر ٢٠٢٦". */
 export function monthTitle(month: string, lang: string): string {
   return dayjs(`${month}-01`).locale(lang.startsWith("ar") ? "ar" : "en").format("MMMM YYYY");
-}
-
-/** "8 س 15 د" / "8h 15m". */
-export function fmtDuration(minutes: number | null | undefined, t: TFunction, lang: string): string {
-  if (minutes == null) return "—";
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  const n = (v: number) => fmtNumber(v, lang);
-  if (h === 0) return t("attendance.duration.m", { m: n(m) });
-  if (m === 0) return t("attendance.duration.h", { h: n(h) });
-  return t("attendance.duration.hm", { h: n(h), m: n(m) });
-}
-
-/** Hours with one decimal, for totals and Excel. */
-export function hoursOf(minutes: number): number {
-  return Math.round((minutes / 60) * 10) / 10;
 }
 
 /** Saturday-first weekday index (0 = Saturday … 6 = Friday) of an ISO weekday. */

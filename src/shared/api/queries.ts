@@ -36,7 +36,6 @@ export const keys = {
   attendanceDay: (date: string) => ["attendance", "day", date] as const,
   attendanceMonth: (month: string) => ["attendance", "month", month] as const,
   attendanceWorkers: ["attendance", "workers"] as const,
-  attendanceSettings: ["attendance", "settings"] as const,
   attendanceEmployees: ["attendance", "employees"] as const,
 };
 
@@ -206,9 +205,6 @@ export const useAttendanceMonth = (month: string) =>
 
 export const useAttendanceWorkers = () =>
   useQuery({ queryKey: keys.attendanceWorkers, queryFn: () => unwrap(commands.attendanceWorkers()) });
-
-export const useAttendanceSettings = () =>
-  useQuery({ queryKey: keys.attendanceSettings, queryFn: () => unwrap(commands.attendanceSettings()) });
 
 export const useAttendanceEmployees = () =>
   useQuery({ queryKey: keys.attendanceEmployees, queryFn: () => unwrap(commands.attendanceEmployees()) });

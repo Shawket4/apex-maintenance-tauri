@@ -92,6 +92,11 @@ const MIGRATIONS: &[Migration] = &[
         name: "0014_attendance",
         sql: include_str!("migrations/0014_attendance.sql"),
     },
+    Migration {
+        version: 15,
+        name: "0015_attendance_no_hours",
+        sql: include_str!("migrations/0015_attendance_no_hours.sql"),
+    },
 ];
 
 #[derive(Clone)]

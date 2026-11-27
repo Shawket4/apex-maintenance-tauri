@@ -191,6 +191,15 @@ pub fn queued(conn: &Connection, limit: i64) -> rusqlite::Result<Vec<OutboxItem>
     Ok(rows)
 }
 
+/// Is anything queued whose wait (if any) is over?
+pub fn has_due(conn: &Connection, now_ms: i64) -> rusqlite::Result<bool> {
+    conn.query_row(
+        "SELECT EXISTS (SELECT 1 FROM outbox WHERE status = 'pending' AND next_attempt_at <= ?1)",
+        params![now_ms],
+        |r| r.get(0),
+    )
+}
+
 /// Mark rows as handed to the network. From here on they are frozen.
 pub fn mark_sent(conn: &Connection, seqs: &[i64]) -> rusqlite::Result<()> {
     let mut stmt = conn.prepare("UPDATE outbox SET status = 'inflight', sent = 1 WHERE seq = ?1")?;

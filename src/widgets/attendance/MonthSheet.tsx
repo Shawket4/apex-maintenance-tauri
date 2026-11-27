@@ -7,7 +7,7 @@ import { cn } from "@/shared/lib/cn";
 import { fmtNumber } from "@/shared/lib/numbers";
 import { fmtCairo, nowUtcIso } from "@/shared/lib/time";
 
-import { KIND_TONE, editable, fmtDuration, hoursOf, kindCode, monthTitle, satFirst, timeOf } from "./lib";
+import { KIND_TONE, STATUSES, editable, kindCode, monthTitle, satFirst, timeOf } from "./lib";
 
 export type CellPick = { worker: AttendanceMonthWorker; index: number };
 
@@ -15,27 +15,21 @@ function cellTitle(c: AttendanceMonthCell, date: string, t: TFunction, lang: str
   const parts = [fmtCairo(`${date}T12:00:00Z`, "dddd D MMMM", lang), t(`attendance.status.${c.kind}`)];
   if (c.check_in_at) parts.push(t("attendance.day.inAt", { time: timeOf(c.check_in_at, lang) }));
   if (c.check_out_at) parts.push(t("attendance.day.outAt", { time: timeOf(c.check_out_at, lang) }));
-  if (c.late_minutes > 0) parts.push(t("attendance.day.lateBy", { d: fmtDuration(c.late_minutes, t, lang) }));
   if (c.note) parts.push(c.note);
   return parts.join(" · ");
 }
 
 const TOTAL_COLS: { key: keyof AttendanceTotals; label: string; tone?: string }[] = [
   { key: "present", label: "attendance.month.present", tone: "text-status-ok" },
-  { key: "late", label: "attendance.month.late", tone: "text-status-due_soon" },
   { key: "absent", label: "attendance.month.absent", tone: "text-status-overdue" },
   { key: "leave", label: "attendance.month.leave", tone: "text-info" },
   { key: "sick", label: "attendance.month.sick", tone: "text-violet" },
-  { key: "off", label: "attendance.month.off" },
   { key: "unmarked", label: "attendance.month.unmarked" },
 ];
 
-/** What the screen grid shows next to each name (the rest is in Excel and on paper). */
-const SCREEN_TOTALS: { key: keyof AttendanceTotals; label: string; tone: string }[] = [
-  { key: "present", label: "attendance.month.present", tone: "text-status-ok" },
-  { key: "late", label: "attendance.month.late", tone: "text-status-due_soon" },
-  { key: "absent", label: "attendance.month.absent", tone: "text-status-overdue" },
-];
+/** What the screen grid shows next to each name (not marked is in Excel and on paper). */
+const SCREEN_TOTALS = TOTAL_COLS.filter((c) => c.key !== "unmarked");
+const LAST = SCREEN_TOTALS.length - 1;
 
 /** The month as a grid: workers down, days across. The name and the month's
  * totals stay put while the days scroll; the grid opens on today. */
@@ -62,18 +56,11 @@ export function MonthGrid({ v, onPick }: { v: AttendanceMonthView; onPick: (p: C
                 key={c.key}
                 scope="col"
                 style={{ insetInlineStart: `${10 + i * 3}rem` }}
-                className={cn(fixed, "z-20 w-12 min-w-12 border-b px-1 py-2 text-center font-semibold")}
+                className={cn(fixed, "z-20 w-12 min-w-12 border-b px-1 py-2 text-center font-semibold", i === LAST && "border-e-2")}
               >
                 {t(c.label)}
               </th>
             ))}
-            <th
-              scope="col"
-              style={{ insetInlineStart: "19rem" }}
-              className={cn(fixed, "z-20 w-20 min-w-20 border-b border-e-2 px-1 py-2 text-center font-semibold")}
-            >
-              {t("attendance.month.hours")}
-            </th>
             {v.days.map((d) => (
               <th
                 key={d.date}
@@ -81,7 +68,6 @@ export function MonthGrid({ v, onPick }: { v: AttendanceMonthView; onPick: (p: C
                 data-today={d.is_today || undefined}
                 className={cn(
                   "min-w-8 border-b px-0.5 py-1.5 text-center font-semibold tabular",
-                  d.is_weekly_off && "bg-muted/60",
                   d.is_today && "text-primary",
                 )}
               >
@@ -102,22 +88,21 @@ export function MonthGrid({ v, onPick }: { v: AttendanceMonthView; onPick: (p: C
                 <td
                   key={col.key}
                   style={{ insetInlineStart: `${10 + i * 3}rem` }}
-                  className={cn(fixed, "border-b px-1 text-center text-sm font-bold tabular", w.totals[col.key] > 0 ? col.tone : "text-muted-foreground/50")}
+                  className={cn(
+                    fixed,
+                    "border-b px-1 text-center text-sm font-bold tabular",
+                    w.totals[col.key] > 0 ? col.tone : "text-muted-foreground/50",
+                    i === LAST && "border-e-2",
+                  )}
                 >
                   {w.totals[col.key] > 0 ? n(w.totals[col.key]) : "—"}
                 </td>
               ))}
-              <td
-                style={{ insetInlineStart: "19rem" }}
-                className={cn(fixed, "border-b border-e-2 px-1 text-center font-semibold whitespace-nowrap tabular")}
-              >
-                {w.totals.worked_minutes > 0 ? fmtDuration(w.totals.worked_minutes, t, lang) : "—"}
-              </td>
               {w.cells.map((c, i) => {
                 const d = v.days[i];
                 const code = kindCode(c.kind, t);
                 return (
-                  <td key={d.date} className={cn("border-b p-0.5 text-center", d.is_weekly_off && "bg-muted/40")}>
+                  <td key={d.date} className="border-b p-0.5 text-center">
                     {editable(c) ? (
                       <button
                         type="button"
@@ -148,13 +133,14 @@ export function MonthGrid({ v, onPick }: { v: AttendanceMonthView; onPick: (p: C
               {t("attendance.month.total")}
             </th>
             {SCREEN_TOTALS.map((col, i) => (
-              <td key={col.key} style={{ insetInlineStart: `${10 + i * 3}rem` }} className={cn(fixed, "px-1 py-2 text-center text-sm font-bold tabular")}>
+              <td
+                key={col.key}
+                style={{ insetInlineStart: `${10 + i * 3}rem` }}
+                className={cn(fixed, "px-1 py-2 text-center text-sm font-bold tabular", i === LAST && "border-e-2")}
+              >
                 {n(v.totals[col.key])}
               </td>
             ))}
-            <td style={{ insetInlineStart: "19rem" }} className={cn(fixed, "border-e-2 px-1 py-2 text-center font-bold whitespace-nowrap tabular")}>
-              {fmtDuration(v.totals.worked_minutes, t, lang)}
-            </td>
             <td colSpan={v.days.length} />
           </tr>
         </tfoot>
@@ -174,12 +160,7 @@ export function MonthCards({ v, onPick }: { v: AttendanceMonthView; onPick: (p: 
     <div className="space-y-3">
       {v.workers.map((w) => (
         <section key={w.worker_id} className="rounded-xl border bg-card p-4 shadow-sm">
-          <div className="mb-3 flex items-baseline justify-between gap-3">
-            <h3 className="min-w-0 truncate font-bold">{w.name}</h3>
-            <span className="flex-none text-xs text-muted-foreground tabular">
-              {w.totals.worked_minutes > 0 ? fmtDuration(w.totals.worked_minutes, t, lang) : ""}
-            </span>
-          </div>
+          <h3 className="mb-3 min-w-0 truncate font-bold">{w.name}</h3>
           <div className="mb-3 flex flex-wrap gap-1.5">
             {TOTAL_COLS.filter((c) => w.totals[c.key] > 0).map((c) => (
               <span key={c.key} className={cn("rounded-full px-2 py-0.5 text-xs font-semibold tabular", KIND_TONE[c.key])}>
@@ -229,7 +210,7 @@ export function MonthCards({ v, onPick }: { v: AttendanceMonthView; onPick: (p: 
 /** The key under the sheet. */
 export function MonthLegend() {
   const { t } = useTranslation();
-  const kinds = ["present", "late", "absent", "leave", "sick", "off", "weekly_off", "unmarked"];
+  const kinds = [...STATUSES, "unmarked"];
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground" aria-label={t("attendance.month.legend")}>
       {kinds.map((k) => (
@@ -247,7 +228,6 @@ export function MonthPrintSheet({ v }: { v: AttendanceMonthView }) {
   const { t, i18n } = useTranslation();
   const lang = i18n.language;
   const n = (x: number) => fmtNumber(x, lang);
-  const s = v.settings;
   return (
     <div data-print="sheet" className="hidden print:block">
       <style>{"@media print { @page { size: A4 landscape; margin: 10mm; } }"}</style>
@@ -257,10 +237,7 @@ export function MonthPrintSheet({ v }: { v: AttendanceMonthView }) {
           <div>{monthTitle(v.month, lang)}</div>
         </div>
         <div className="text-end text-[9pt]">
-          <div>
-            {t("attendance.month.exportSubtitle", { start: s.work_start, end: s.work_end, grace: n(s.late_grace_minutes) })}
-          </div>
-          <div>{t("attendance.month.printed", { date: fmtCairo(nowUtcIso(), "YYYY/MM/DD HH:mm", lang) })}</div>
+          {t("attendance.month.printed", { date: fmtCairo(nowUtcIso(), "YYYY/MM/DD HH:mm", lang) })}
         </div>
       </header>
       <table className="w-full border-collapse text-[8pt]">
@@ -272,12 +249,11 @@ export function MonthPrintSheet({ v }: { v: AttendanceMonthView }) {
                 {n(d.day)}
               </th>
             ))}
-            {TOTAL_COLS.slice(0, 6).map((c) => (
+            {TOTAL_COLS.map((c) => (
               <th key={c.key} className="border border-black px-1 py-0.5 text-center">
                 {t(c.label)}
               </th>
             ))}
-            <th className="border border-black px-1 py-0.5 text-center">{t("attendance.month.hours")}</th>
           </tr>
         </thead>
         <tbody>
@@ -285,27 +261,21 @@ export function MonthPrintSheet({ v }: { v: AttendanceMonthView }) {
             <tr key={w.worker_id} data-print="row">
               <td className="border border-black px-1 py-0.5 font-semibold whitespace-nowrap">{w.name}</td>
               {w.cells.map((c, i) => (
-                <td
-                  key={v.days[i].date}
-                  className={cn("border border-black p-0 text-center", v.days[i].is_weekly_off && "bg-[#eee]")}
-                >
-                  {c.kind === "weekly_off" || c.kind === "unmarked" ? "" : kindCode(c.kind, t)}
+                <td key={v.days[i].date} className="border border-black p-0 text-center">
+                  {c.kind === "unmarked" ? "" : kindCode(c.kind, t)}
                 </td>
               ))}
-              {TOTAL_COLS.slice(0, 6).map((col) => (
+              {TOTAL_COLS.map((col) => (
                 <td key={col.key} className="border border-black px-1 text-center tabular">
                   {n(w.totals[col.key])}
                 </td>
               ))}
-              <td className="border border-black px-1 text-center tabular whitespace-nowrap">
-                {n(hoursOf(w.totals.worked_minutes))}
-              </td>
             </tr>
           ))}
         </tbody>
       </table>
       <p className="mt-2 text-[8pt]">
-        {["present", "late", "absent", "leave", "sick", "off"].map((k) => `${kindCode(k, t)} = ${t(`attendance.status.${k}`)}`).join("   ")}
+        {STATUSES.map((k) => `${kindCode(k, t)} = ${t(`attendance.status.${k}`)}`).join("   ")}
       </p>
     </div>
   );

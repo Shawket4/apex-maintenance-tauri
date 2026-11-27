@@ -174,14 +174,6 @@ async attendanceWorkers() : Promise<Result<AttendanceWorkerRow[], CmdError>> {
     else return { status: "error", error: e  as any };
 }
 },
-async attendanceSettings() : Promise<Result<AttendanceSettingsView, CmdError>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("attendance_settings") };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
 async attendanceEmployees() : Promise<Result<AttendanceEmployeeRow[], CmdError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("attendance_employees") };
@@ -212,14 +204,6 @@ async attendanceMark(input: AttendanceMarkInput) : Promise<Result<null, CmdError
 async attendanceMarkMany(inputs: AttendanceMarkInput[]) : Promise<Result<number, CmdError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("attendance_mark_many", { inputs }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-async attendanceSettingsSet(input: AttendanceSettingsInput) : Promise<Result<null, CmdError>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("attendance_settings_set", { input }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -937,12 +921,12 @@ async stockMovementsRefresh(days: number | null) : Promise<Result<number, CmdErr
  */
 export type AiSearchResult = { source: "advisor"; variants: string[]; plate_number: string | null; hits: HistoryHit[] } | { source: "ai_query"; answer: string; rows: JsonValue[]; fallback: FallbackReason | null }
 export type AppVersion = { name: string; version: string; tauri_version: string }
-export type AttendanceCounts = { present: number; late: number; absent: number; leave: number; sick: number; off: number; unmarked: number }
+export type AttendanceCounts = { present: number; absent: number; leave: number; sick: number; unmarked: number }
 export type AttendanceDayRow = { worker_id: string; name: string; job: string | null; 
 /**
  * None = not marked yet.
  */
-status: string | null; check_in_at: string | null; check_out_at: string | null; note: string | null; late_minutes: number; worked_minutes: number | null; 
+status: string | null; check_in_at: string | null; check_out_at: string | null; note: string | null; 
 /**
  * A present day in the past with no check-out.
  */
@@ -951,7 +935,7 @@ export type AttendanceDayView = { date: string;
 /**
  * ISO weekday, 1 = Monday.
  */
-weekday: number; is_today: boolean; is_weekly_off: boolean; today: string; settings: AttendanceSettingsView; rows: AttendanceDayRow[]; counts: AttendanceCounts; 
+weekday: number; is_today: boolean; today: string; rows: AttendanceDayRow[]; counts: AttendanceCounts; 
 /**
  * Workers exist at all (an empty day may just be before anyone joined).
  */
@@ -979,41 +963,18 @@ work_date: string; status: string;
  */
 check_in_at: string | null; check_out_at: string | null; note: string | null }
 /**
- * What one square of the sheet shows: present, late, absent, leave, sick,
- * off (marked), weekly_off, unmarked, future, outside (before joining /
- * after leaving).
+ * What one square of the sheet shows: present, absent, leave, sick,
+ * unmarked, future, outside (before joining / after leaving).
  */
-export type AttendanceMonthCell = { kind: string; check_in_at: string | null; check_out_at: string | null; note: string | null; late_minutes: number; worked_minutes: number | null; pending: boolean }
-export type AttendanceMonthDay = { date: string; day: number; weekday: number; is_weekly_off: boolean; is_today: boolean; is_future: boolean }
+export type AttendanceMonthCell = { kind: string; check_in_at: string | null; check_out_at: string | null; note: string | null; pending: boolean }
+export type AttendanceMonthDay = { date: string; day: number; weekday: number; is_today: boolean; is_future: boolean }
 export type AttendanceMonthView = { 
 /**
  * YYYY-MM
  */
-month: string; first: string; last: string; is_current: boolean; days: AttendanceMonthDay[]; workers: AttendanceMonthWorker[]; totals: AttendanceTotals; settings: AttendanceSettingsView }
+month: string; first: string; last: string; is_current: boolean; days: AttendanceMonthDay[]; workers: AttendanceMonthWorker[]; totals: AttendanceTotals }
 export type AttendanceMonthWorker = { worker_id: string; name: string; job: string | null; cells: AttendanceMonthCell[]; totals: AttendanceTotals }
-export type AttendanceSettingsInput = { 
-/**
- * HH:MM, Cairo time.
- */
-work_start: string; work_end: string; late_grace_minutes: number; 
-/**
- * ISO weekdays, 1 = Monday … 7 = Sunday.
- */
-weekly_off_days: number[] }
-export type AttendanceSettingsView = { work_start: string; work_end: string; late_grace_minutes: number; weekly_off_days: number[]; 
-/**
- * False until someone saves the hours: the defaults are showing.
- */
-saved: boolean; pending: boolean }
-export type AttendanceTotals = { 
-/**
- * Present days, late ones included.
- */
-present: number; late: number; late_minutes: number; absent: number; leave: number; sick: number; 
-/**
- * Marked off for the day, not the weekly day off.
- */
-off: number; unmarked: number; worked_minutes: number; extra_minutes: number }
+export type AttendanceTotals = { present: number; absent: number; leave: number; sick: number; unmarked: number }
 export type AttendanceWorkerRow = { id: string; name: string; job: string | null; phone: string | null; falcon_employee_id: number | null; joined_on: string | null; left_on: string | null; notes: string | null; 
 /**
  * On the register today (not before joining, not after leaving).

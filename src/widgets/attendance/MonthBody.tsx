@@ -20,13 +20,13 @@ export function MonthBody({ v, thisMonth, onGo }: { v: AttendanceMonthView; this
 
   const pick = ({ worker, index }: CellPick) => {
     const c = worker.cells[index];
-    const known = c.kind !== "unmarked" && c.kind !== "weekly_off" && c.kind !== "outside";
+    const known = c.kind !== "unmarked" && c.kind !== "outside";
     setTarget({
       workerId: worker.worker_id,
       name: worker.name,
       job: worker.job,
       date: v.days[index].date,
-      status: known ? (c.kind === "late" ? "present" : c.kind) : null,
+      status: known ? c.kind : null,
       checkInAt: c.check_in_at,
       checkOutAt: c.check_out_at,
       note: c.note,
@@ -80,7 +80,7 @@ export function MonthBody({ v, thisMonth, onGo }: { v: AttendanceMonthView; this
       )}
 
       {v.workers.length > 0 && <MonthPrintSheet v={v} />}
-      <DayDialog target={target} settings={v.settings} onOpenChange={(o) => !o && setTarget(null)} />
+      <DayDialog target={target} onOpenChange={(o) => !o && setTarget(null)} />
     </div>
   );
 }

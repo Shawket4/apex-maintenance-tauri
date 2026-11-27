@@ -101,8 +101,7 @@
     "attendanceMark": "Marking a worker's day",
     "workerAdd": "Adding a worker",
     "workerEdit": "Editing a worker",
-    "workerDelete": "Deleting a worker",
-    "attendanceHours": "Working hours"
+    "workerDelete": "Deleting a worker"
   },
   "field": {
     "vehicle_id": "Truck",

@@ -1319,7 +1319,8 @@ pub fn chassis_create(pool: &DbPool, vehicle_id: i64, cfg: &ChassisConfig, user_
 /// `rules::ATTENDANCE_DAY_NAMESPACE`: the server refuses any other id.
 pub const ATTENDANCE_DAY_NAMESPACE: Uuid = Uuid::from_u128(0x510d161b_3155_4560_9a62_cd726bbed9e9);
 
-pub const ATTENDANCE_STATUSES: &[&str] = &["present", "absent", "leave", "sick", "off"];
+/// What a worker's day can be. No "off": the garage has no days off.
+pub const ATTENDANCE_STATUSES: &[&str] = &["present", "absent", "leave", "sick"];
 
 /// The one id a worker's day may have: two devices marking the same day meet
 /// on it (the first mark stays; the second device is told).
@@ -1335,12 +1336,6 @@ fn check_ymd(d: Option<&str>) -> AppResult<Option<String>> {
             .map(|d| Some(d.format("%Y-%m-%d").to_string()))
             .map_err(|_| rule("bad_date", "not a date")),
     }
-}
-
-fn check_hhmm(s: &str) -> AppResult<String> {
-    chrono::NaiveTime::parse_from_str(s.trim(), "%H:%M")
-        .map(|t| t.format("%H:%M").to_string())
-        .map_err(|_| rule("bad_time", "not a time of day"))
 }
 
 fn parse_utc(s: &str) -> AppResult<chrono::DateTime<chrono::Utc>> {
@@ -1617,61 +1612,5 @@ pub fn attendance_mark_many(pool: &DbPool, inputs: &[AttendanceMarkInput], user_
             mark_inner(a, inp, today)?;
         }
         Ok(inputs.len() as u32)
-    })
-}
-
-#[derive(Debug, Clone, Deserialize, specta::Type)]
-pub struct AttendanceSettingsInput {
-    /// HH:MM, Cairo time.
-    pub work_start: String,
-    pub work_end: String,
-    pub late_grace_minutes: i64,
-    /// ISO weekdays, 1 = Monday … 7 = Sunday.
-    pub weekly_off_days: Vec<i64>,
-}
-
-pub fn attendance_settings_set(pool: &DbPool, inp: &AttendanceSettingsInput, user_id: i64) -> AppResult<()> {
-    let start = check_hhmm(&inp.work_start)?;
-    let end = check_hhmm(&inp.work_end)?;
-    if !(0..=240).contains(&inp.late_grace_minutes) {
-        return Err(rule("attendance_grace_range", "grace must be 0 to 240 minutes"));
-    }
-    let mut days: Vec<i64> = inp.weekly_off_days.iter().copied().filter(|d| (1..=7).contains(d)).collect();
-    days.sort_unstable();
-    days.dedup();
-    let off = days.iter().map(i64::to_string).collect::<Vec<_>>().join(",");
-    write(pool, user_id, |a| {
-        type Row = (Option<String>, Option<String>, Option<i64>, Option<String>);
-        let before: Option<Row> = a
-            .tx
-            .query_row(
-                "SELECT work_start, work_end, late_grace_minutes, weekly_off_days FROM attendance_settings WHERE id = 1",
-                [],
-                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
-            )
-            .optional()?;
-        let now = now_iso();
-        a.tx.execute(
-            "INSERT INTO attendance_settings
-               (id, work_start, work_end, late_grace_minutes, weekly_off_days,
-                created_at, updated_at, created_by_user_id, updated_by_user_id, sync_version)
-             VALUES (1,?1,?2,?3,?4,?5,?5,?6,?6,1)
-             ON CONFLICT(id) DO UPDATE SET
-               work_start=excluded.work_start, work_end=excluded.work_end,
-               late_grace_minutes=excluded.late_grace_minutes, weekly_off_days=excluded.weekly_off_days,
-               updated_at=excluded.updated_at, updated_by_user_id=excluded.updated_by_user_id",
-            params![start, end, inp.late_grace_minutes, off, now, a.user_id],
-        )?;
-        match before {
-            None => a.inserted("attendance_settings", "1"),
-            Some(b) => {
-                let mut cols: Vec<&str> = Vec::new();
-                if b.0.as_deref() != Some(start.as_str()) { cols.push("work_start"); }
-                if b.1.as_deref() != Some(end.as_str()) { cols.push("work_end"); }
-                if b.2 != Some(inp.late_grace_minutes) { cols.push("late_grace_minutes"); }
-                if b.3.as_deref() != Some(off.as_str()) { cols.push("weekly_off_days"); }
-                if cols.is_empty() { Ok(()) } else { a.updated("attendance_settings", "1", &cols) }
-            }
-        }
     })
 }
