@@ -204,6 +204,30 @@ impl HttpClient {
         Ok(serde_json::from_str(&raw.body)?)
     }
 
+    /// GET from the route fee lookup service (falcon-fees) with this user's
+    /// FalconGo token. Its answer comes back as it is (status + body): a 401
+    /// there means the fee service refused, not that this app's session ended,
+    /// so it must not go through `consume_response`.
+    pub async fn fees_get(&self, path_and_query: &str) -> AppResult<RawResponse> {
+        let jwt = self.require_jwt()?;
+        let b = &self.config.backend;
+        let url = match &b.fees_url {
+            Some(base) => format!("{}{}", base.trim_end_matches('/'), path_and_query),
+            None => format!("{}{}{}", b.base_url, b.fees_prefix, path_and_query),
+        };
+        tracing::debug!(%url, "fees GET");
+        let resp = self
+            .inner
+            .get(&url)
+            .header(header::AUTHORIZATION, format!("Bearer {jwt}"))
+            .header(header::ACCEPT, "application/json")
+            .send()
+            .await?;
+        let status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
+        Ok(RawResponse { status, body })
+    }
+
     fn require_jwt(&self) -> AppResult<String> {
         session_store::read_jwt(&self.data_dir)?.ok_or(AppError::Unauthorized)
     }

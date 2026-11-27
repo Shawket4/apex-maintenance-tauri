@@ -1,0 +1,6 @@
+{
+  "title": "Route fee lookup",
+  "subtitle": "Company → terminal → drop-off: the route our trucks drive, the truck route, the distance and the fee.",
+  "offline": "No internet: the fee lookup asks the fee service live, so it works only online.",
+  "distancesOnly": "Fees and bands are shown from permission 3; you see the distances."
+}

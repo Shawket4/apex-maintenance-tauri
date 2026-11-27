@@ -34,7 +34,8 @@
     "menu": "افتح القائمة",
     "workOrders": "أوامر الشغل",
     "attendance": "الحضور",
-    "batteries": "البطاريات"
+    "batteries": "البطاريات",
+    "fees": "أجرة المسار"
   },
   "login": {
     "title": "تسجيل الدخول",

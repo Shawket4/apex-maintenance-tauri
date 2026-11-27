@@ -473,3 +473,53 @@ pub async fn stock_movements(
 pub async fn stock_movements_refresh(state: State<'_, AppState>, days: Option<i64>) -> CmdResult<u32> {
     Ok(movements_refresh_inner(&state, days.unwrap_or(90)).await?)
 }
+
+// ── route fee lookup (falcon-fees, online only) ──────────────────────────────
+
+/// What the fee service answered, as it is: the shared fee finder reads the
+/// status and the JSON body itself.
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
+pub struct FeeApiAnswer {
+    pub status: u16,
+    pub body: String,
+}
+
+/// The endpoints the fee finder may call (read-only lookups and the session).
+const FEE_ENDPOINTS: &[&str] = &[
+    "/companies", "/terminals", "/drop-offs", "/quote", "/driven", "/routes", "/health", "/auth/session",
+];
+
+/// `path` if it is one of the fee finder's endpoints with an optional query —
+/// never anything else on that host.
+pub fn fee_api_path(path: &str) -> Option<&str> {
+    if path.len() > 2000 || path.contains("..") || path.contains('#') || path.contains('\\') || path.chars().any(char::is_control) {
+        return None;
+    }
+    let (route, _query) = path.split_once('?').unwrap_or((path, ""));
+    FEE_ENDPOINTS.contains(&route).then_some(path)
+}
+
+/// One GET to the route fee lookup service, with this user's FalconGo token
+/// (it decides who sees fees). Online only.
+#[tauri::command]
+#[specta::specta]
+pub async fn fee_api(state: State<'_, AppState>, path: String) -> CmdResult<FeeApiAnswer> {
+    let path = fee_api_path(&path).ok_or_else(|| AppError::Http(format!("not a fee lookup path: {path}")))?;
+    let r = state.http.fees_get(path).await?;
+    Ok(FeeApiAnswer { status: r.status.as_u16(), body: r.body })
+}
+
+#[cfg(test)]
+mod fee_tests {
+    use super::fee_api_path;
+
+    #[test]
+    fn only_the_fee_finders_endpoints_go_through() {
+        for ok in ["/companies", "/terminals?company=X", "/quote?company=A&terminal=B&drop_off=C%20D", "/auth/session"] {
+            assert_eq!(fee_api_path(ok), Some(ok), "{ok}");
+        }
+        for bad in ["/auth/login", "/auth/logout", "/companies/../auth/login", "//evil.example/x", "https://evil.example/", "", "/quote#x", "/companiesX"] {
+            assert_eq!(fee_api_path(bad), None, "{bad}");
+        }
+    }
+}

@@ -15,6 +15,7 @@ import {
   Truck,
   UserCheck,
   Warehouse,
+  Route as RouteIcon,
 } from "lucide-react";
 
 import { fetchCurrentUser, performLogout, useAuth } from "@/shared/api/auth";
@@ -46,6 +47,7 @@ const NAV_MAIN = [
 ] as const;
 
 const NAV_TOOLS = [
+  { to: "/fees", key: "nav.fees", icon: RouteIcon, exact: false },
   { to: "/ai", key: "nav.ai", icon: Sparkles, exact: false },
   { to: "/settings", key: "nav.settings", icon: Settings, exact: false },
 ] as const;
