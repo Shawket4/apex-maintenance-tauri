@@ -73,7 +73,11 @@ function fieldText(f: ShownField, entityType: string, names: Names, t: TFunction
     case "reason":
       return known(`settings.reason.${String(v)}`);
     case "status":
-      return entityType === "work_orders" ? known(`wo.status.${String(v)}`) : known(`tires.status.${String(v)}`);
+      return entityType === "work_orders"
+        ? known(`wo.status.${String(v)}`)
+        : entityType === "batteries"
+          ? known(`batteries.status.${String(v)}`)
+          : known(`tires.status.${String(v)}`);
     default:
       return String(v);
   }

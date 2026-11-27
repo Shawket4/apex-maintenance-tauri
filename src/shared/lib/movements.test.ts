@@ -76,6 +76,21 @@ describe("describeMovement", () => {
     expect(describeMovement(row("oil_debit", { liters: 36 })).direction).toBe("out");
   });
 
+  it("battery_* is batteries, counted in pieces — not tires", () => {
+    expect(describeMovement(row("battery_credit", { qty: 6 }))).toEqual({
+      item: "battery",
+      direction: "in",
+      adjustment: false,
+      amount: 6,
+    });
+    expect(describeMovement(row("battery_debit", { qty: 1 }))).toEqual({
+      item: "battery",
+      direction: "out",
+      adjustment: false,
+      amount: 1,
+    });
+  });
+
   it("oil_* is oil, tire_* is tires, with the right amount", () => {
     expect(describeMovement(row("oil_debit", { liters: 35.5 }))).toEqual({
       item: "oil",
@@ -129,11 +144,43 @@ describe("movementTotals", () => {
         { ...row("tire_debit", { qty: 2 }), is_count: true },
         { ...row("oil_credit", { liters: 1.5 }), is_count: true },
       ]),
-    ).toEqual({ tiresIn: 20, tiresOut: 2, oilIn: 200, oilOut: 70.3, tiresCounted: -5, oilCounted: 6.5 });
+    ).toEqual({
+      tiresIn: 20,
+      tiresOut: 2,
+      oilIn: 200,
+      oilOut: 70.3,
+      batteriesIn: 0,
+      batteriesOut: 0,
+      tiresCounted: -5,
+      oilCounted: 6.5,
+      batteriesCounted: 0,
+    });
+  });
+
+  it("keeps batteries apart from tires, counts included", () => {
+    expect(
+      movementTotals([
+        row("battery_credit", { qty: 10 }),
+        row("battery_debit", { qty: 1 }),
+        row("battery_debit", { qty: 1 }),
+        { ...row("battery_debit", { qty: 2 }), is_count: true },
+        row("tire_credit", { qty: 4 }),
+      ]),
+    ).toMatchObject({ tiresIn: 4, tiresOut: 0, tiresCounted: 0, batteriesIn: 10, batteriesOut: 2, batteriesCounted: -2 });
   });
 
   it("is all zeros for no rows", () => {
-    expect(movementTotals([])).toEqual({ tiresIn: 0, tiresOut: 0, oilIn: 0, oilOut: 0, tiresCounted: 0, oilCounted: 0 });
+    expect(movementTotals([])).toEqual({
+      tiresIn: 0,
+      tiresOut: 0,
+      oilIn: 0,
+      oilOut: 0,
+      batteriesIn: 0,
+      batteriesOut: 0,
+      tiresCounted: 0,
+      oilCounted: 0,
+      batteriesCounted: 0,
+    });
   });
 });
 
@@ -156,6 +203,12 @@ describe("movementItemLabel", () => {
     expect(
       movementItemLabel({ ...base, kind: "tire_debit", oil_type: null, brand: "Michelin", model: null, size: "" }),
     ).toBe("Michelin");
+  });
+
+  it("names a battery by brand, model and rating", () => {
+    expect(
+      movementItemLabel({ ...base, kind: "battery_debit", oil_type: null, brand: "Varta", model: "Promotive", size: "100Ah 12V" }),
+    ).toBe("Varta Promotive 100Ah 12V");
   });
 
   it("falls back to the em-dash empty-cell convention", () => {

@@ -3,6 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { create } from "zustand";
 import {
+  BatteryFull,
   CalendarClock,
   CircleDot,
   ClipboardList,
@@ -164,6 +165,7 @@ export function Omnisearch() {
     { to: WO_LIST, label: t("search.linkWorkOrders"), icon: ClipboardList },
     { to: "/due", label: t("search.linkDue"), icon: CalendarClock },
     { to: "/tires", label: t("search.linkTires"), icon: CircleDot },
+    { to: "/batteries", label: t("search.linkBatteries"), icon: BatteryFull },
   ];
 
   return (

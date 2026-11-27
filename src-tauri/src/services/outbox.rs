@@ -433,6 +433,7 @@ pub(crate) fn test_db() -> Connection {
         include_str!("../migrations/0014_attendance.sql"),
         include_str!("../migrations/0015_attendance_no_hours.sql"),
         include_str!("../migrations/0016_wo_types_and_jobs.sql"),
+        include_str!("../migrations/0017_batteries.sql"),
     ] {
         conn.execute_batch(sql).unwrap();
     }

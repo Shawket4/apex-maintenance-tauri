@@ -29,8 +29,9 @@ import { ClosedNote, PendingBadge, SectionTitle, TaskTypePicker } from "./parts"
  * clock, so the tick is a large labelled button and says what it does. */
 export function WoTasks({ d, woId, canEdit }: { d: WoDetail; woId: string; canEdit: boolean }) {
   const { t, i18n } = useTranslation();
-  // The oil change adds a hidden task of its own; it is listed under "oil".
-  const tasks = d.tasks.filter((task) => task.kind !== "oil");
+  // An oil change and a battery fitting each add a hidden task of their own
+  // (it restarts that due date); they are listed under "oil" / "batteries".
+  const tasks = d.tasks.filter((task) => task.kind !== "oil" && task.kind !== "battery");
 
   return (
     <Section

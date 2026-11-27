@@ -2,9 +2,10 @@ import { useTranslation } from "react-i18next";
 import { Printer } from "lucide-react";
 
 import type { WoDetail } from "@/shared/api/client";
-import { fmtKm, fmtLiters } from "@/shared/lib/numbers";
+import { fmtKm, fmtLiters, fmtNumber } from "@/shared/lib/numbers";
 import { fmtCairo, nowUtcIso } from "@/shared/lib/time";
 import { Button } from "@/shared/ui/button";
+import { batteryLabel } from "@/widgets/batteries/lib";
 
 import { canPrint, printPage, useCategoryName } from "./lib";
 
@@ -30,8 +31,9 @@ export function WoPrintSheet({ d }: { d: WoDetail }) {
   const lang = i18n.language;
   const categoryName = useCategoryName();
   const wo = d.wo;
-  // The oil change adds a hidden task of its own; it is listed under "oil".
-  const tasks = d.tasks.filter((task) => task.kind !== "oil");
+  // An oil change and a battery fitting each add a hidden task of their own
+  // (it restarts that due date); they are listed under "oil" / "batteries".
+  const tasks = d.tasks.filter((task) => task.kind !== "oil" && task.kind !== "battery");
   const title = wo.title?.trim();
   const notes = wo.notes?.trim();
 
@@ -170,6 +172,48 @@ export function WoPrintSheet({ d }: { d: WoDetail }) {
                   <td>{op.dismounted_at ? t("wo.tireDismounted") : t("wo.tireMounted")}</td>
                 </tr>
               ))}
+            </tbody>
+          </table>
+        )}
+      </SheetSection>
+
+      <SheetSection title={t("batteries.wo.title")}>
+        {d.battery_ops.length === 0 ? (
+          <None />
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th className="w-[18%]">{t("wo.print.colPosition")}</th>
+                <th>{t("batteries.print.colBattery")}</th>
+                <th className="w-[30%]">{t("wo.print.colWhat")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {d.battery_ops.map((op) => {
+                const removedHere = op.removed_at != null && op.removal_work_order_id === wo.id;
+                return (
+                  <tr key={op.install_id} data-print="row">
+                    <td>{t("batteries.slot", { n: fmtNumber(op.slot, lang) })}</td>
+                    <td className="font-semibold">
+                      <bdi>{batteryLabel(op.battery)}</bdi>
+                      {op.battery.serial && (
+                        <>
+                          {" · "}
+                          <bdi dir="ltr">{op.battery.serial}</bdi>
+                        </>
+                      )}
+                    </td>
+                    <td>
+                      {removedHere
+                        ? [t("batteries.wo.removed"), op.removal_reason && t(`batteries.reason.${op.removal_reason}`)]
+                            .filter(Boolean)
+                            .join(" · ")
+                        : t("batteries.wo.fitted")}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}

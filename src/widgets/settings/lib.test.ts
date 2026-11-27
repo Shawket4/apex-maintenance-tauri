@@ -95,6 +95,13 @@ describe("changes in words", () => {
     expect(changeKey("oil_changes", "delete", null)).toBe("oilDelete");
     expect(changeKey("chassis_axles", "insert", null)).toBe("chassisAdd");
     expect(changeKey("something_new", "update", null)).toBe("otherEdit");
+    expect(changeKey("battery_installs", "insert", {})).toBe("batteryFit");
+    expect(changeKey("battery_installs", "update", { removed_at: "2026-11-27T10:00:00Z" })).toBe("batteryRemove");
+    expect(changeKey("battery_installs", "update", { removed_at: null })).toBe("batteryRemoveUndo");
+    expect(changeKey("battery_installs", "delete", null)).toBe("batteryFitUndo");
+    expect(changeKey("batteries", "update", { status: "charging" })).toBe("batteryStatus");
+    expect(changeKey("batteries", "update", { serial: "X1" })).toBe("batteryEdit");
+    expect(changeKey("battery_layouts", "insert", { slots: 3 })).toBe("batterySlots");
   });
   it("reads a payload, and survives a broken one", () => {
     expect(parsePayload('{"liters":35}')).toEqual({ liters: 35 });

@@ -1,0 +1,209 @@
+{
+  "slot": "Slot {{n}}",
+  "pending": "Not sent yet",
+  "none": "Not recorded",
+  "noKm": "Unknown",
+  "serialShort": "Serial",
+  "dateCodeShort": "Date code",
+  "noSerial": "No serial",
+  "noWarranty": "No warranty recorded",
+  "warrantyLabel": "Warranty until",
+  "warrantyUntil": "Warranty until {{date}}",
+  "warrantyEnded": "Warranty ended {{date}}",
+  "fittedOn": "Fitted on",
+  "fittedOdo": "Odometer when fitted",
+  "kmSinceLabel": "Run since fitting",
+  "kmSince": "{{km}} since it was fitted",
+  "kmRun": "Ran {{km}}",
+  "notesShown": "Note:",
+  "status": {
+    "installed": "Fitted",
+    "in_stock_used": "In stock (used)",
+    "charging": "Charging",
+    "warranty": "Warranty claim",
+    "scrapped": "Scrapped"
+  },
+  "where": {
+    "in_stock_used": "In stock, ready to fit",
+    "charging": "Being charged",
+    "warranty": "Sent for warranty",
+    "scrapped": "Scrapped",
+    "other": "Not on a truck"
+  },
+  "reason": {
+    "dead": "Dead (won't hold a charge)",
+    "weak": "Weak",
+    "damaged": "Broken or damaged",
+    "moved": "Moved to another truck",
+    "warranty": "Going for warranty",
+    "other": "Other reason"
+  },
+  "outcome": {
+    "in_stock_used": "Back to stock as used",
+    "charging": "Sent for charging",
+    "warranty": "Warranty claim",
+    "scrapped": "Scrapped"
+  },
+  "field": {
+    "serial": "Serial number",
+    "dateCode": "Date code",
+    "warranty": "Warranty (months)",
+    "warrantyHint": "The warranty counts from the day the battery was first fitted.",
+    "warrantyBad": "Enter the months: 0 to {{max}}",
+    "notes": "Notes (optional)",
+    "odometer": "Truck odometer now (km)",
+    "odometerMissing": "Without the odometer we cannot tell how far the battery ran.",
+    "odometerBackwards": "This is below the odometer at fitting ({{km}}) — check the number",
+    "fittedAt": "Fitted at {{km}}"
+  },
+  "picker": {
+    "placeholder": "Choose the battery type",
+    "search": "Brand, model, Ah…",
+    "noStock": "Not in stock",
+    "onHand": "In stock: {{n}}",
+    "unconfirmed": "Being saved",
+    "notListed": "Not listed? Add a new type",
+    "newTitle": "A battery type not on the list",
+    "newHint": "Enter the brand, Ah and volts as written on the battery. The type is added to the list by itself.",
+    "brand": "Brand",
+    "model": "Model",
+    "ah": "Capacity (Ah)",
+    "volts": "Voltage (V)",
+    "cca": "CCA (if written)",
+    "brandPh": "e.g. Varta",
+    "modelPh": "e.g. Promotive",
+    "range": "A number from {{lo}} to {{hi}}",
+    "brandRequired": "Enter the brand",
+    "useThis": "Use this type",
+    "back": "Back to the list"
+  },
+  "bay": {
+    "underOpenWo": "Batteries fitted or taken off here are recorded under the truck's open work order.",
+    "goWo": "Go to the work order",
+    "noOpenWo": "Fitting a battery is recorded inside an open work order, and this truck has none right now — open one above. Registering a battery that is already on the truck, or taking one off, needs no work order.",
+    "empty": "Empty",
+    "fit": "Fit a battery",
+    "register": "Register the one already here",
+    "remove": "Take it off"
+  },
+  "fit": {
+    "title": "Fit a battery in slot {{n}}",
+    "subtitle": "It is recorded under the work order, and the battery due date starts again.",
+    "sourceLabel": "Where the battery comes from",
+    "fromNew": "New from stock",
+    "fromUsed": "Used, from stock",
+    "pickType": "Battery type",
+    "typeRequired": "Choose the battery type first.",
+    "notStocked": "This type is not in stock — it is fitted anyway; correct the stock with a count later.",
+    "zeroStock": "Stock says there are none of this type — it is fitted anyway; check the count later.",
+    "pickUsed": "Choose the battery",
+    "searchUsed": "Search by brand or serial…",
+    "noUsed": "No used batteries in stock",
+    "noUsedHow": "A battery taken off and put back in stock, or back from charging, shows up here.",
+    "noMatch": "No battery matches",
+    "submitNew": "Fit the new battery",
+    "submitUsed": "Fit this battery",
+    "done": "Battery fitted in slot {{n}}"
+  },
+  "register": {
+    "title": "Register the battery in slot {{n}}",
+    "subtitle": "For a battery that was on the truck before the app: it is not taken from stock and does not change the due date — it is only written down.",
+    "submit": "Register the battery",
+    "done": "Battery registered in slot {{n}}"
+  },
+  "remove": {
+    "title": "Take the battery off slot {{n}}",
+    "reasonPrompt": "Why is it coming off?",
+    "outcomePrompt": "Where did it go?",
+    "suggested": "We picked the usual place for that reason — change it if it is wrong.",
+    "underWo": "Recorded under the open work order.",
+    "noWo": "No open work order — the removal is recorded without one.",
+    "pickFirst": "Choose the reason and the place first.",
+    "submit": "Take it off",
+    "submitScrap": "Take it off and scrap it",
+    "done": {
+      "in_stock_used": "Battery taken off and back in stock",
+      "charging": "Battery taken off and sent for charging",
+      "warranty": "Battery taken off and sent for warranty",
+      "scrapped": "Battery taken off and scrapped"
+    }
+  },
+  "edit": {
+    "open": "Edit details",
+    "title": "Edit battery details",
+    "typeHint": "The type (brand, Ah) is not edited here: if the type is wrong, undo the fitting and fit the right one.",
+    "done": "Details saved"
+  },
+  "undoFit": {
+    "action": "Undo fitting",
+    "title": "Undo this fitting?",
+    "body": "For a wrong battery or a wrong slot. The battery leaves slot {{n}} as if it was never fitted: a new one goes back to stock, a used one back to used stock, and a battery that was only registered is deleted.",
+    "done": "Fitting undone"
+  },
+  "undoRemoval": {
+    "action": "Put it back",
+    "title": "Put the battery back?",
+    "body": "The battery goes back into slot {{n}} as if it was never taken off — for a removal made by mistake.",
+    "done": "Battery put back"
+  },
+  "slots": {
+    "title": "Battery slots on this truck",
+    "hint": "Most trucks have two. Add more if this one has more.",
+    "inUse": "It cannot go below the highest slot with a battery in it — take that one off first.",
+    "less": "One slot less",
+    "more": "One slot more",
+    "saved": "The truck now has {{n}} slots"
+  },
+  "removed": {
+    "title": "Batteries taken off this truck",
+    "empty": "No battery has been taken off this truck yet",
+    "when": "Taken off {{date}} at {{km}}",
+    "why": "Why: {{reason}}",
+    "went": "Went to: {{place}}"
+  },
+  "setStatus": {
+    "label": "Where is it now?",
+    "in_stock_used": "Back in stock, ready",
+    "charging": "Charging",
+    "warranty": "Sent for warranty",
+    "scrapped": "Scrapped",
+    "done": "Battery is now: {{status}}"
+  },
+  "history": {
+    "title": "Battery history",
+    "empty": "This battery has not been fitted to any truck yet",
+    "fitted": "Fitted {{date}} at {{km}}",
+    "removed": "Taken off {{date}} at {{km}}",
+    "stillOn": "Still fitted"
+  },
+  "wo": {
+    "title": "Batteries",
+    "empty": "No battery work in this work order",
+    "slotsTitle": "Battery slots on the truck",
+    "fitted": "Fitted",
+    "removed": "Taken off",
+    "fittedAndRemoved": "Fitted and taken off",
+    "fittedRemovedLater": "Fitted (taken off later)"
+  },
+  "page": {
+    "title": "Batteries",
+    "subtitle": "Every battery has a record: which truck it is on, how far it ran, and how long its warranty lasts.",
+    "listTitle": "All batteries",
+    "searchLabel": "Find a battery",
+    "searchPlaceholder": "Brand, serial or plate…",
+    "clearSearch": "Clear search",
+    "filterLabel": "Battery status",
+    "noMatch": "No battery matches",
+    "noneInStatus": "No batteries with this status",
+    "empty": "No batteries recorded yet. A battery is recorded when it is fitted from stock, or from a truck's page with \"Register the one already here\".",
+    "showAll": "Show all",
+    "showMore": "Show more",
+    "shownOf": "Showing {{shown}} of {{total}}",
+    "onTruck": "On",
+    "since": "since {{date}}",
+    "openHistory": "History"
+  },
+  "print": {
+    "colBattery": "Battery"
+  }
+}

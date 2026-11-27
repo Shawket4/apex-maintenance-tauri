@@ -687,6 +687,102 @@ async chassisCreate(vehicleId: number, config: ChassisConfig) : Promise<Result<s
     else return { status: "error", error: e  as any };
 }
 },
+async batteryTruck(vehicleId: number) : Promise<Result<BatteryTruckView, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("battery_truck", { vehicleId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async batteriesList(status: string | null) : Promise<Result<BatteryRow[], CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("batteries_list", { status }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async batteryHistory(batteryId: string) : Promise<Result<BatteryFitRow[], CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("battery_history", { batteryId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async batteryFitNew(input: BatteryFitNewInput) : Promise<Result<BatteryFitResult, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("battery_fit_new", { input }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async batteryFitUsed(input: BatteryFitUsedInput) : Promise<Result<string, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("battery_fit_used", { input }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async batteryRegister(input: BatteryRegisterInput) : Promise<Result<BatteryFitResult, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("battery_register", { input }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async batteryRemove(input: BatteryRemoveInput) : Promise<Result<string, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("battery_remove", { input }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async batteryFitUndo(installId: string) : Promise<Result<null, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("battery_fit_undo", { installId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async batteryRemoveUndo(installId: string) : Promise<Result<null, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("battery_remove_undo", { installId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async batterySetStatus(batteryId: string, status: string) : Promise<Result<null, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("battery_set_status", { batteryId, status }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async batteryUpdate(batteryId: string, details: BatteryDetailsInput) : Promise<Result<null, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("battery_update", { batteryId, details }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async batterySlotsSet(vehicleId: number, slots: number) : Promise<Result<null, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("battery_slots_set", { vehicleId, slots }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 /**
  * Refresh categories + classes + plans mirrors. Called on login/startup
  * (refresh_all_mirrors) and from Settings; safe to call any time online.
@@ -838,6 +934,28 @@ async stockCreditOil(oilType: string, liters: number, refId: string, note: strin
 }
 },
 /**
+ * Receive new batteries into stock (perm ≥4). See `stock_credit_tires` for `ref_id`.
+ */
+async stockCreditBatteries(spec: BatterySpecInput, qty: number, refId: string, note: string | null) : Promise<Result<null, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("stock_credit_batteries", { spec, qty, refId, note }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * "We counted N new batteries of this type" (perm ≥4).
+ */
+async stockCountBatteries(spec: BatterySpecInput, counted: number, refId: string, note: string | null) : Promise<Result<CountResult, CmdError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("stock_count_batteries", { spec, counted, refId, note }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
  * Create/rename a vehicle class (server-authoritative, perm ≥3), then
  * refresh the reference mirror so the Settings selects update immediately.
  */
@@ -981,8 +1099,86 @@ export type AttendanceWorkerRow = { id: string; name: string; job: string | null
  */
 current: boolean; day_count: number; pending: boolean }
 export type AxleRow = { id: string; section: string; section_index: number; axle_type: string; is_steering: boolean; is_lifted: boolean }
+/**
+ * One battery's own details (on top of its spec).
+ */
+export type BatteryDetailsInput = { serial: string | null; date_code: string | null; warranty_months: number | null; notes: string | null }
+export type BatteryFitNewInput = { vehicle_id: number; slot: number; work_order_id: string; 
+/**
+ * The stock line being used.
+ */
+spec: BatterySpecInput; details: BatteryDetailsInput; odometer: number | null }
+export type BatteryFitResult = { battery_id: string; install_id: string }
+/**
+ * One fitting of a battery into a slot (open, or closed by a removal).
+ */
+export type BatteryFitRow = { install_id: string; vehicle_id: number; plate: string | null; slot: number; battery: BatteryRow; work_order_id: string | null; installed_at: string; installed_odometer: number | null; removed_at: string | null; removed_odometer: number | null; 
+/**
+ * dead | weak | damaged | moved | warranty | other
+ */
+removal_reason: string | null; 
+/**
+ * in_stock_used | charging | warranty | scrapped
+ */
+removal_outcome: string | null; removal_work_order_id: string | null; notes: string | null; 
+/**
+ * Open fitting: km since it was fitted (the truck's odometer now − then).
+ * Closed: km between fitting and removal.
+ */
+km: number | null; pending: boolean }
+export type BatteryFitUsedInput = { battery_id: string; vehicle_id: number; slot: number; work_order_id: string; odometer: number | null }
+export type BatteryProductOption = { id: string | null; brand: string; model: string; capacity_ah: number | null; voltage: number | null; cca: number | null; 
+/**
+ * New ones on the shelf (projected), when the product is stocked.
+ */
+on_hand: number | null; batteries: number }
+export type BatteryRegisterInput = { vehicle_id: number; slot: number; spec: BatterySpecInput; details: BatteryDetailsInput; 
+/**
+ * The truck's odometer now, so km from here on can be counted.
+ */
+odometer: number | null }
+export type BatteryRemoveInput = { install_id: string; odometer: number | null; 
+/**
+ * dead | weak | damaged | moved | warranty | other
+ */
+reason: string; 
+/**
+ * in_stock_used | charging | warranty | scrapped
+ */
+outcome: string; work_order_id: string | null }
+/**
+ * One battery: what it is, its warranty (counted from its first fitting),
+ * where it is now.
+ */
+export type BatteryRow = { id: string; brand: string; model: string | null; capacity_ah: number | null; voltage: number | null; cca: number | null; serial: string | null; date_code: string | null; warranty_months: number | null; 
+/**
+ * installed | in_stock_used | charging | warranty | scrapped
+ */
+status: string; 
+/**
+ * stock (new from the shelf) | legacy (registered already on a truck)
+ */
+origin: string; notes: string | null; registered_at: string | null; first_installed_at: string | null; 
+/**
+ * YYYY-MM-DD, when both the first fitting and the warranty are known.
+ */
+warranty_until: string | null; 
+/**
+ * Where it is fitted now.
+ */
+vehicle_id: number | null; plate: string | null; slot: number | null; installed_at: string | null; pending: boolean }
+export type BatterySlot = { slot: number; fit: BatteryFitRow | null }
+/**
+ * What a battery is: what is written on it.
+ */
+export type BatterySpecInput = { brand: string; model: string | null; capacity_ah: number | null; voltage: number | null; cca: number | null }
+export type BatteryTruckView = { vehicle_id: number; slots: BatterySlot[]; 
+/**
+ * Batteries taken off this truck, newest first (last 30).
+ */
+removed: BatteryFitRow[]; layout_pending: boolean }
 export type CacheFreshnessRow = { cache_name: string; fetched_at: string; ttl_seconds: number; is_stale: boolean }
-export type CatalogView = { tire_products: TireProductOption[]; oil_products: OilProductOption[]; standard_jobs: JobOption[] }
+export type CatalogView = { tire_products: TireProductOption[]; oil_products: OilProductOption[]; standard_jobs: JobOption[]; battery_products: BatteryProductOption[] }
 export type CategoryRow = { id: string; name_ar: string; name_en: string; icon: string | null; color: string | null; sort_order: number }
 export type ChassisConfig = { 
 /**
@@ -1154,6 +1350,10 @@ export type ServerVersionInfo = { server_version: string; min_client_version: st
  */
 update_required: boolean }
 /**
+ * New batteries on the shelf, per product.
+ */
+export type StockBatteryLine = { id: string; brand: string; model: string | null; capacity_ah: number | null; voltage: number | null; cca: number | null; snapshot_qty: number; pending_debits: number; projected_qty: number; low_stock: boolean; fetched_at: string | null }
+/**
  * One row of the ledger. `kind` is tire_debit | oil_debit | tire_credit |
  * oil_credit | adjustment; tires carry qty, oil carries liters; a debit
  * resolves the consuming work order's plate.
@@ -1182,7 +1382,11 @@ export type StockView = { tires: StockTireLine[]; oil: StockOilLine[];
 /**
  * Used tires available to mount (individual assets in the pool).
  */
-used_pool_count: number }
+used_pool_count: number; batteries: StockBatteryLine[]; 
+/**
+ * Used batteries back in stock, ready to fit.
+ */
+used_battery_count: number }
 export type SyncIssue = { id: number; created_at: string; entity_type: string; entity_id: string; op: string; 
 /**
  * Stable code (server rule code, or `conflict_deleted`, `gave_up`).
@@ -1261,6 +1465,10 @@ export type UserInfo = { id: number; email: string; name: string; permission: nu
  */
 export type VehicleRow = { id: number; car_no_plate: string; car_type: string | null; transporter: string | null; tank_capacity: number | null; last_fuel_odometer: number | null; driver_id: number | null; driver_name: string | null; license_expiration_date: string | null; calibration_expiration_date: string | null; tank_license_expiration_date: string | null; is_in_trip: boolean; is_approved: boolean; source_deleted_at: string | null; fetched_at: string }
 export type WoDetail = { wo: WoListRow; sync_version: number; tasks: TaskRow[]; oil_changes: OilRow[]; tire_ops: TireOpRow[]; 
+/**
+ * Batteries fitted or taken off under this work order.
+ */
+battery_ops: BatteryFitRow[]; 
 /**
  * This truck's due items — the cockpit's suggestion panel.
  */

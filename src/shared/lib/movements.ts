@@ -41,14 +41,16 @@ export function rangeToFrom(range: string, now = dayjs()): string | undefined {
   return now.tz(CAIRO_TZ).subtract(days, "day").startOf("day").utc().format("YYYY-MM-DDTHH:mm:ss");
 }
 
+export type MovementItem = "tire" | "oil" | "battery";
+
 export type MovementInfo = {
   /** What moved. */
-  item: "tire" | "oil";
+  item: MovementItem;
   /** Into the stock or out of it. */
   direction: "in" | "out";
   /** A stock-count correction rather than a receipt or a use. */
   adjustment: boolean;
-  /** How much: tires, or liters. Never negative. */
+  /** How much: tires or batteries (pieces), or liters. Never negative. */
   amount: number;
 };
 
@@ -56,10 +58,11 @@ type MovementFacts = Pick<StockMovementRow, "kind" | "qty" | "liters" | "oil_typ
 
 /**
  * What a ledger row means. `kind` is tire_debit | tire_credit | oil_debit |
- * oil_credit | adjustment:
+ * oil_credit | battery_debit | battery_credit | adjustment:
  *   `*_credit` = stock IN (received), `*_debit` = stock OUT (used);
- *   an `adjustment` carries its own sign — it is oil when it has liters or an
- *   oil type, otherwise tires, and a negative amount takes stock OUT.
+ *   an `adjustment` (older rows, tires and oil only) carries its own sign — it
+ *   is oil when it has liters or an oil type, otherwise tires, and a negative
+ *   amount takes stock OUT.
  */
 export function describeMovement(m: MovementFacts): MovementInfo {
   if (m.kind === "adjustment") {
@@ -67,10 +70,10 @@ export function describeMovement(m: MovementFacts): MovementInfo {
     const raw = (isOil ? m.liters : m.qty) ?? 0;
     return { item: isOil ? "oil" : "tire", direction: raw < 0 ? "out" : "in", adjustment: true, amount: Math.abs(raw) };
   }
-  const isOil = m.kind.startsWith("oil");
-  const raw = (isOil ? m.liters : m.qty) ?? 0;
+  const item: MovementItem = m.kind.startsWith("oil") ? "oil" : m.kind.startsWith("battery") ? "battery" : "tire";
+  const raw = (item === "oil" ? m.liters : m.qty) ?? 0;
   return {
-    item: isOil ? "oil" : "tire",
+    item,
     direction: m.kind.endsWith("_credit") ? "in" : "out",
     adjustment: false,
     amount: Math.abs(raw),
@@ -79,8 +82,9 @@ export function describeMovement(m: MovementFacts): MovementInfo {
 
 /**
  * The human item label for a movement row: the oil type for oil movements,
- * otherwise brand/model/size joined (blank parts dropped). Falls back to the
- * em-dash empty-cell convention when nothing is set.
+ * otherwise brand/model/size joined (blank parts dropped; a battery's "size"
+ * is its rating, "100Ah 12V"). Falls back to the em-dash empty-cell
+ * convention when nothing is set.
  */
 export function movementItemLabel(
   m: MovementFacts & Pick<StockMovementRow, "brand" | "model" | "size">,
@@ -94,29 +98,48 @@ export type MovementTotals = {
   tiresOut: number;
   oilIn: number;
   oilOut: number;
+  batteriesIn: number;
+  batteriesOut: number;
   /** Net effect of stock counts (corrections): + added, − taken off. Kept
    * out of in/out, which mean "received" and "used". */
   tiresCounted: number;
   oilCounted: number;
+  batteriesCounted: number;
 };
 
-/** Received / used totals over a set of rows (tires counted, oil in liters).
- * A stock count is neither a delivery nor a use, so it is summed apart. */
+const ZERO: MovementTotals = {
+  tiresIn: 0,
+  tiresOut: 0,
+  oilIn: 0,
+  oilOut: 0,
+  batteriesIn: 0,
+  batteriesOut: 0,
+  tiresCounted: 0,
+  oilCounted: 0,
+  batteriesCounted: 0,
+};
+
+const FIELDS: Record<MovementItem, { in: keyof MovementTotals; out: keyof MovementTotals; counted: keyof MovementTotals }> = {
+  tire: { in: "tiresIn", out: "tiresOut", counted: "tiresCounted" },
+  oil: { in: "oilIn", out: "oilOut", counted: "oilCounted" },
+  battery: { in: "batteriesIn", out: "batteriesOut", counted: "batteriesCounted" },
+};
+
+/** Received / used totals over a set of rows (tires and batteries counted,
+ * oil in liters). A stock count is neither a delivery nor a use, so it is
+ * summed apart. */
 export function movementTotals(
   rows: readonly (MovementFacts & Partial<Pick<StockMovementRow, "is_count">>)[],
 ): MovementTotals {
-  const totals: MovementTotals = { tiresIn: 0, tiresOut: 0, oilIn: 0, oilOut: 0, tiresCounted: 0, oilCounted: 0 };
+  const totals: MovementTotals = { ...ZERO };
   for (const row of rows) {
     const info = describeMovement(row);
+    const f = FIELDS[info.item];
     if (row.is_count || info.adjustment) {
-      const signed = info.direction === "in" ? info.amount : -info.amount;
-      if (info.item === "tire") totals.tiresCounted += signed;
-      else totals.oilCounted += signed;
-    } else if (info.item === "tire") {
-      if (info.direction === "in") totals.tiresIn += info.amount;
-      else totals.tiresOut += info.amount;
-    } else if (info.direction === "in") totals.oilIn += info.amount;
-    else totals.oilOut += info.amount;
+      totals[f.counted] += info.direction === "in" ? info.amount : -info.amount;
+    } else {
+      totals[info.direction === "in" ? f.in : f.out] += info.amount;
+    }
   }
   // Liters are stored to two decimals; do not let float noise leak out.
   totals.oilIn = Math.round(totals.oilIn * 100) / 100;

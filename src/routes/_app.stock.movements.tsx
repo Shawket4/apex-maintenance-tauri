@@ -24,7 +24,7 @@ import { QueryState } from "@/shared/ui/query-state";
 import { PageShell } from "@/widgets/layout/PageShell";
 import { Chip } from "@/widgets/tires/parts";
 
-const KINDS = ["all", "tire", "oil"] as const;
+const KINDS = ["all", "tire", "oil", "battery"] as const;
 type Kind = (typeof KINDS)[number];
 const RANGES = MOVEMENT_RANGES;
 
@@ -58,10 +58,10 @@ function writeStamp(s: Stamp) {
 
 export const Route = createFileRoute("/_app/stock/movements")({
   // Filter + range live in the URL so back-navigation restores them.
-  validateSearch: (s: Record<string, unknown>): { kind?: "tire" | "oil"; range?: MovementRange } => {
+  validateSearch: (s: Record<string, unknown>): { kind?: "tire" | "oil" | "battery"; range?: MovementRange } => {
     const range = (RANGES as readonly unknown[]).includes(s.range) ? (s.range as MovementRange) : undefined;
     return {
-      ...(s.kind === "tire" || s.kind === "oil" ? { kind: s.kind } : {}),
+      ...(s.kind === "tire" || s.kind === "oil" || s.kind === "battery" ? { kind: s.kind } : {}),
       ...(range && range !== "30" ? { range } : {}),
     };
   },
@@ -85,7 +85,7 @@ function useRangeMovements(from: string | undefined) {
   });
 }
 
-/** The stock in/out ledger for oil and tires. The list is read from this
+/** The stock in/out ledger for tires, oil and batteries. The list is read from this
  * device; opening the screen (or picking a period) brings that period from
  * the fleet system when there is a connection. */
 function StockMovements() {
@@ -238,15 +238,21 @@ function Ledger({
         <h2 id="mv-totals" className="mb-2 text-base font-bold">
           {t("movements.totalsTitle", { range: rangeLabel })}
         </h2>
-        <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <dl className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
           <Total label={t("movements.totals.tiresIn")} value={fmtNumber(totals.tiresIn, lang)} tone="in" />
           <Total label={t("movements.totals.tiresOut")} value={fmtNumber(totals.tiresOut, lang)} tone="out" />
           <Total label={t("movements.totals.oilIn")} value={fmtNumber(totals.oilIn, lang)} tone="in" />
           <Total label={t("movements.totals.oilOut")} value={fmtNumber(totals.oilOut, lang)} tone="out" />
+          <Total label={t("movements.totals.batteriesIn")} value={fmtNumber(totals.batteriesIn, lang)} tone="in" />
+          <Total label={t("movements.totals.batteriesOut")} value={fmtNumber(totals.batteriesOut, lang)} tone="out" />
         </dl>
-        {(totals.tiresCounted !== 0 || totals.oilCounted !== 0) && (
+        {(totals.tiresCounted !== 0 || totals.oilCounted !== 0 || totals.batteriesCounted !== 0) && (
           <p className="mt-2 text-sm text-muted-foreground">
-            {t("movements.countsNote", { tires: signed(totals.tiresCounted, lang), oil: signed(totals.oilCounted, lang) })}
+            {t("movements.countsNote", {
+              tires: signed(totals.tiresCounted, lang),
+              oil: signed(totals.oilCounted, lang),
+              batteries: signed(totals.batteriesCounted, lang),
+            })}
           </p>
         )}
         {unmirrored > 0 && (
@@ -335,7 +341,11 @@ function MovementRow({ m }: { m: StockMovementRow }) {
           <span
             className={cn(
               "flex-none rounded-full px-2 py-0.5 text-xs font-semibold",
-              info.item === "oil" ? "bg-info-soft text-info" : "bg-muted text-muted-foreground",
+              info.item === "oil"
+                ? "bg-info-soft text-info"
+                : info.item === "battery"
+                  ? "bg-violet-soft text-violet"
+                  : "bg-muted text-muted-foreground",
             )}
           >
             {t(`movements.filter.${info.item}`)}

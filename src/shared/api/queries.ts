@@ -37,6 +37,9 @@ export const keys = {
   attendanceMonth: (month: string) => ["attendance", "month", month] as const,
   attendanceWorkers: ["attendance", "workers"] as const,
   attendanceEmployees: ["attendance", "employees"] as const,
+  batteryTruck: (vehicleId: number) => ["battery-truck", vehicleId] as const,
+  batteries: (status?: string) => ["batteries", status ?? "all"] as const,
+  batteryHistory: (id: string) => ["battery-history", id] as const,
 };
 
 // ── reads ────────────────────────────────────────────────────────────────────
@@ -79,6 +82,29 @@ export const useTires = (status?: string, q?: string) =>
 export const useTire = (id: string) =>
   useQuery({ queryKey: keys.tire(id), queryFn: () => unwrap(commands.tireFile(id)) });
 
+/** A truck's battery slots (what is fitted in each) and what came off it. */
+export const useBatteryTruck = (vehicleId: number) =>
+  useQuery({
+    queryKey: keys.batteryTruck(vehicleId),
+    queryFn: () => unwrap(commands.batteryTruck(vehicleId)),
+    enabled: vehicleId > 0,
+  });
+
+/** Every battery (fitted ones first); `status` narrows it. */
+export const useBatteries = (status?: string) =>
+  useQuery({
+    queryKey: keys.batteries(status),
+    queryFn: () => unwrap(commands.batteriesList(status ?? null)),
+  });
+
+/** The fittings one battery has had, newest first. */
+export const useBatteryHistory = (batteryId: string | null) =>
+  useQuery({
+    queryKey: keys.batteryHistory(batteryId ?? ""),
+    queryFn: () => unwrap(commands.batteryHistory(batteryId!)),
+    enabled: !!batteryId,
+  });
+
 export const useStock = () =>
   useQuery({ queryKey: keys.stock, queryFn: () => unwrap(commands.stockView()) });
 
@@ -89,7 +115,7 @@ export const useStock = () =>
 export const MOVEMENTS_PAGE = 50;
 // LOCAL read over the mirror — works offline. `stock_movements_refresh`
 // updates the mirror when online.
-export const useStockMovements = (kind?: "tire" | "oil", from?: string) =>
+export const useStockMovements = (kind?: "tire" | "oil" | "battery", from?: string) =>
   useInfiniteQuery({
     queryKey: ["stock-movements", kind ?? "all", from ?? "all"],
     queryFn: ({ pageParam }) =>
@@ -218,7 +244,7 @@ function invalidateDomain(qc: ReturnType<typeof useQueryClient>, withSync = true
   for (const k of [
     "home", "trucks", "truck", "due", "wos", "wo", "tires", "tire", "stock",
     "chassis", "plans", "categories", "classes", "outbox", "sync-issues", "search", "catalog",
-    "attendance",
+    "attendance", "battery-truck", "batteries", "battery-history",
   ]) {
     void qc.invalidateQueries({ queryKey: [k] });
   }

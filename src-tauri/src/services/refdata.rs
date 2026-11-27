@@ -127,6 +127,32 @@ pub fn replace_tire_stock(pool: &DbPool, rows: &[Value]) -> AppResult<usize> {
     Ok(rows.len())
 }
 
+/// Battery stock is counted by maint-rust alone (GET /stock/batteries).
+pub fn replace_battery_stock(pool: &DbPool, rows: &[Value]) -> AppResult<usize> {
+    let mut conn = pool.get()?;
+    let tx = conn.transaction()?;
+    tx.execute("DELETE FROM battery_stock_cache", [])?;
+    let now = crate::services::domain::now_iso();
+    for r in rows {
+        tx.execute(
+            "INSERT OR REPLACE INTO battery_stock_cache (id, brand, model, capacity_ah, voltage, cca, on_hand_qty, fetched_at)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8)",
+            params![
+                s(r, "id"),
+                s(r, "brand").unwrap_or_default(),
+                s(r, "model").filter(|m| !m.is_empty()),
+                i(r, "capacity_ah"),
+                i(r, "voltage"),
+                i(r, "cca"),
+                i(r, "on_hand_qty").unwrap_or(0),
+                now
+            ],
+        )?;
+    }
+    tx.commit()?;
+    Ok(rows.len())
+}
+
 pub fn replace_oil_stock(pool: &DbPool, rows: &[Value]) -> AppResult<usize> {
     let mut conn = pool.get()?;
     let tx = conn.transaction()?;
@@ -193,6 +219,19 @@ pub fn replace_catalog(pool: &DbPool, v: &Value) -> AppResult<()> {
             "INSERT OR REPLACE INTO standard_jobs (id, name_ar, name_en, category_id, uses) VALUES (?1,?2,?3,?4,?5)",
             params![s(&r, "id"), s(&r, "name_ar").unwrap_or_default(), s(&r, "name_en"), s(&r, "category_id"), i(&r, "uses").unwrap_or(0)],
         )?;
+    }
+    // Batteries arrived with maint-rust 0031: an older server sends none, and
+    // then the list is simply left as it was.
+    if let Some(rows) = v.get("battery_products").and_then(|x| x.as_array()) {
+        tx.execute("DELETE FROM battery_products", [])?;
+        for r in rows {
+            tx.execute(
+                "INSERT OR REPLACE INTO battery_products (id, brand, model, capacity_ah, voltage, cca, batteries, on_hand)
+                 VALUES (?1,?2,?3,?4,?5,?6,?7,?8)",
+                params![s(r, "id"), s(r, "brand").unwrap_or_default(), s(r, "model"), i(r, "capacity_ah"),
+                        i(r, "voltage"), i(r, "cca"), i(r, "batteries").unwrap_or(0), i(r, "on_hand")],
+            )?;
+        }
     }
     for (id, name, category) in typed_here {
         if !listed.contains(&norm_key(&name)) {

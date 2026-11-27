@@ -82,7 +82,7 @@ pub fn upsert(conn: &mut Connection, rows: &[Value]) -> AppResult<usize> {
     Ok(n)
 }
 
-/// Local, offline-safe read: filter by kind (tire|oil), an inclusive `from`
+/// Local, offline-safe read: filter by kind (tire|oil|battery), an inclusive `from`
 /// date/timestamp lower bound (created_at is stored as the server's ISO string,
 /// which is lexically ordered), newest first, paginated.
 pub fn list(
@@ -101,6 +101,7 @@ pub fn list(
     match kind {
         Some("tire") => sql.push_str(" AND kind IN ('tire_debit','tire_credit')"),
         Some("oil") => sql.push_str(" AND kind IN ('oil_debit','oil_credit')"),
+        Some("battery") => sql.push_str(" AND kind IN ('battery_debit','battery_credit')"),
         _ => {}
     }
     let mut binds: Vec<SqlValue> = Vec::new();

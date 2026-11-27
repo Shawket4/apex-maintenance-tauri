@@ -25,8 +25,10 @@ mod reference;
 mod search;
 mod catalog;
 mod attendance;
+mod batteries;
 
 pub use attendance::*;
+pub use batteries::*;
 pub use catalog::*;
 pub use chassis::*;
 pub use common::*;
