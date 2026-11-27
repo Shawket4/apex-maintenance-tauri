@@ -147,6 +147,40 @@ pub const ENTITIES: &[EntityMeta] = &[
         fk_cols: &["tire_id", "work_order_id"],
     },
     EntityMeta {
+        entity: "battery_layouts",
+        pk: "vehicle_id",
+        columns: &[
+            "vehicle_id", "slots", "created_at", "updated_at", "deleted_at",
+            "created_by_user_id", "updated_by_user_id", "sync_version",
+        ],
+        bool_cols: &[],
+        fk_cols: &[],
+    },
+    EntityMeta {
+        entity: "batteries",
+        pk: "id",
+        columns: &[
+            "id", "battery_product_id", "brand", "model", "capacity_ah", "voltage", "cca",
+            "serial", "date_code", "warranty_months", "status", "origin", "notes_ar",
+            "created_at", "updated_at", "deleted_at", "created_by_user_id", "updated_by_user_id",
+            "sync_version",
+        ],
+        bool_cols: &[],
+        fk_cols: &[],
+    },
+    EntityMeta {
+        entity: "battery_installs",
+        pk: "id",
+        columns: &[
+            "id", "battery_id", "vehicle_id", "slot", "work_order_id", "installed_at", "installed_odometer",
+            "removed_at", "removed_odometer", "removal_reason", "removal_outcome", "removal_work_order_id",
+            "notes", "created_at", "updated_at", "deleted_at", "created_by_user_id", "updated_by_user_id",
+            "sync_version",
+        ],
+        bool_cols: &[],
+        fk_cols: &["battery_id", "work_order_id", "removal_work_order_id"],
+    },
+    EntityMeta {
         entity: "attendance_workers",
         pk: "id",
         columns: &[
@@ -188,7 +222,8 @@ pub fn fk_target(col: &str) -> Option<&'static str> {
         "layout_id" => Some("chassis_layouts"),
         "axle_id" => Some("chassis_axles"),
         "position_id" => Some("chassis_positions"),
-        "work_order_id" | "dismount_work_order_id" => Some("work_orders"),
+        "work_order_id" | "dismount_work_order_id" | "removal_work_order_id" => Some("work_orders"),
+        "battery_id" => Some("batteries"),
         "tire_id" | "parent_tire_id" => Some("tires"),
         "worker_id" => Some("attendance_workers"),
         _ => None,
@@ -200,7 +235,7 @@ pub fn fk_target(col: &str) -> Option<&'static str> {
 pub const SERVER_OWNED: &[&str] = &[
     "created_at", "updated_at", "deleted_at", "created_by_user_id", "updated_by_user_id", "sync_version",
     // Catalog links: the server resolves text to a catalog row.
-    "tire_product_id", "oil_product_id", "standard_job_id",
+    "tire_product_id", "oil_product_id", "standard_job_id", "battery_product_id",
 ];
 
 #[cfg(test)]
@@ -226,6 +261,9 @@ mod tests {
                 "tires",
                 "tire_assignments",
                 "tire_status_events",
+                "battery_layouts",
+                "batteries",
+                "battery_installs",
                 "attendance_workers",
                 "attendance_days",
             ]
@@ -243,8 +281,9 @@ mod tests {
                 "layout_id" => "chassis_layouts",
                 "axle_id" => "chassis_axles",
                 "position_id" => "chassis_positions",
-                "work_order_id" | "dismount_work_order_id" => "work_orders",
+                "work_order_id" | "dismount_work_order_id" | "removal_work_order_id" => "work_orders",
                 "tire_id" | "parent_tire_id" => "tires",
+                "battery_id" => "batteries",
                 "worker_id" => "attendance_workers",
                 other => panic!("unmapped fk col {other}"),
             }

@@ -69,10 +69,24 @@ pub struct JobOption {
 }
 
 #[derive(Debug, Clone, Serialize, specta::Type)]
+pub struct BatteryProductOption {
+    pub id: Option<String>,
+    pub brand: String,
+    pub model: String,
+    pub capacity_ah: Option<i64>,
+    pub voltage: Option<i64>,
+    pub cca: Option<i64>,
+    /// New ones on the shelf (projected), when the product is stocked.
+    pub on_hand: Option<i64>,
+    pub batteries: i64,
+}
+
+#[derive(Debug, Clone, Serialize, specta::Type)]
 pub struct CatalogView {
     pub tire_products: Vec<TireProductOption>,
     pub oil_products: Vec<OilProductOption>,
     pub standard_jobs: Vec<JobOption>,
+    pub battery_products: Vec<BatteryProductOption>,
 }
 
 pub fn catalog(pool: &DbPool) -> AppResult<CatalogView> {
@@ -145,7 +159,55 @@ pub fn catalog(pool: &DbPool) -> AppResult<CatalogView> {
         v
     };
 
-    Ok(CatalogView { tire_products, oil_products, standard_jobs })
+    let mut battery_products: Vec<BatteryProductOption> = {
+        let mut stmt = conn.prepare(
+            "SELECT id, brand, COALESCE(model,''), capacity_ah, voltage, cca, batteries FROM battery_products
+              ORDER BY brand, model, capacity_ah, voltage",
+        )?;
+        let v = stmt
+            .query_map([], |r| {
+                Ok(BatteryProductOption {
+                    id: r.get(0)?,
+                    brand: r.get(1)?,
+                    model: r.get(2)?,
+                    capacity_ah: r.get(3)?,
+                    voltage: r.get(4)?,
+                    cca: r.get(5)?,
+                    on_hand: None,
+                    batteries: r.get(6)?,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        v
+    };
+    let mut seen: HashSet<String> =
+        battery_products.iter().map(|p| battery_key(&p.brand, &p.model, p.capacity_ah, p.voltage)).collect();
+    let mut extra: Vec<(String, String, Option<i64>, Option<i64>, Option<i64>)> = stock
+        .batteries
+        .iter()
+        .map(|l| (l.brand.clone(), l.model.clone().unwrap_or_default(), l.capacity_ah, l.voltage, l.cca))
+        .collect();
+    {
+        let mut stmt = conn.prepare(
+            "SELECT DISTINCT brand, COALESCE(model,''), capacity_ah, voltage, cca FROM batteries WHERE deleted_at IS NULL AND brand IS NOT NULL",
+        )?;
+        extra.extend(stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)))?.collect::<Result<Vec<_>, _>>()?);
+    }
+    for (brand, model, capacity_ah, voltage, cca) in extra {
+        if !norm(&brand).is_empty() && seen.insert(battery_key(&brand, &model, capacity_ah, voltage)) {
+            battery_products.push(BatteryProductOption { id: None, brand, model, capacity_ah, voltage, cca, on_hand: None, batteries: 0 });
+        }
+    }
+    for p in &mut battery_products {
+        let k = battery_key(&p.brand, &p.model, p.capacity_ah, p.voltage);
+        p.on_hand = stock
+            .batteries
+            .iter()
+            .find(|l| battery_key(&l.brand, l.model.as_deref().unwrap_or(""), l.capacity_ah, l.voltage) == k)
+            .map(|l| l.projected_qty);
+    }
+
+    Ok(CatalogView { tire_products, oil_products, standard_jobs, battery_products })
 }
 
 #[cfg(test)]

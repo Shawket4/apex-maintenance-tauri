@@ -284,12 +284,14 @@ pub fn wo_delete(pool: &DbPool, id: &str, user_id: i64) -> AppResult<()> {
         let busy: bool = a.tx.query_row(
             "SELECT EXISTS (SELECT 1 FROM oil_changes WHERE work_order_id = ?1 AND deleted_at IS NULL)
                  OR EXISTS (SELECT 1 FROM tire_assignments
-                             WHERE (work_order_id = ?1 OR dismount_work_order_id = ?1) AND deleted_at IS NULL)",
+                             WHERE (work_order_id = ?1 OR dismount_work_order_id = ?1) AND deleted_at IS NULL)
+                 OR EXISTS (SELECT 1 FROM battery_installs
+                             WHERE (work_order_id = ?1 OR removal_work_order_id = ?1) AND deleted_at IS NULL)",
             params![id],
             |r| r.get(0),
         )?;
         if busy {
-            return Err(rule("wo_not_empty", "the work order has tire or oil work"));
+            return Err(rule("wo_not_empty", "the work order has tire, battery or oil work"));
         }
         // The server tombstones the tasks itself; mirror that locally. Tasks
         // it has never seen are queued inserts — cancel those.
@@ -1390,6 +1392,521 @@ pub fn chassis_create(pool: &DbPool, vehicle_id: i64, cfg: &ChassisConfig, user_
             a.inserted("chassis_positions", &id)?;
         }
         Ok(layout_id)
+    })
+}
+
+// ═════════════════════════════ batteries ═════════════════════════════════════
+//
+// As tires: new batteries are counted per product on the shelf (the server
+// takes one off when a battery from stock arrives), each fitted battery has its
+// own record, and battery_installs is the ledger of which battery sat in which
+// numbered slot. A battery's status follows its installs; the server derives
+// it, this device keeps a local copy (never queued) so screens are right
+// offline. Fitting one restarts the battery due date (a hidden done task, as
+// an oil change adds for oil).
+
+/// Why a battery came off.
+pub const BATTERY_REMOVAL_REASONS: &[&str] = &["dead", "weak", "damaged", "moved", "warranty", "other"];
+/// Where it went (and every status that can be set by hand).
+pub const BATTERY_OFF_STATUSES: &[&str] = &["in_stock_used", "charging", "warranty", "scrapped"];
+/// Slots per truck when nobody said otherwise.
+pub const DEFAULT_BATTERY_SLOTS: i64 = 2;
+pub const MAX_BATTERY_SLOTS: i64 = 12;
+
+/// What a battery is: what is written on it.
+#[derive(Debug, Clone, Deserialize, specta::Type)]
+pub struct BatterySpecInput {
+    pub brand: String,
+    pub model: Option<String>,
+    pub capacity_ah: Option<i64>,
+    pub voltage: Option<i64>,
+    pub cca: Option<i64>,
+}
+
+/// One battery's own details (on top of its spec).
+#[derive(Debug, Clone, Deserialize, specta::Type)]
+pub struct BatteryDetailsInput {
+    pub serial: Option<String>,
+    pub date_code: Option<String>,
+    pub warranty_months: Option<i64>,
+    pub notes: Option<String>,
+}
+
+fn check_range(v: Option<i64>, lo: i64, hi: i64, code: &'static str, what: &str) -> AppResult<()> {
+    match v {
+        Some(n) if !(lo..=hi).contains(&n) => Err(rule(code, &format!("{what} must be between {lo} and {hi}"))),
+        _ => Ok(()),
+    }
+}
+
+fn check_battery(spec: &BatterySpecInput, details: &BatteryDetailsInput) -> AppResult<String> {
+    let brand = clean(Some(&spec.brand)).ok_or_else(|| rule("brand_required", "brand is required"))?;
+    check_range(spec.capacity_ah, 1, 2000, "battery_ah_range", "capacity (Ah)")?;
+    check_range(spec.voltage, 2, 48, "battery_voltage_range", "voltage")?;
+    check_range(spec.cca, 1, 5000, "battery_cca_range", "CCA")?;
+    check_range(details.warranty_months, 0, 120, "warranty_range", "warranty months")?;
+    Ok(brand)
+}
+
+/// Slots this truck has: its layout, or the default, never fewer than the
+/// highest slot in use.
+pub fn battery_slots(tx: &Connection, vehicle_id: i64) -> AppResult<i64> {
+    let set: Option<i64> = tx
+        .query_row(
+            "SELECT slots FROM battery_layouts WHERE vehicle_id = ?1 AND deleted_at IS NULL",
+            params![vehicle_id],
+            |r| r.get(0),
+        )
+        .optional()?
+        .flatten();
+    let used: i64 = tx.query_row(
+        "SELECT COALESCE(MAX(slot), 0) FROM battery_installs WHERE vehicle_id = ?1 AND removed_at IS NULL AND deleted_at IS NULL",
+        params![vehicle_id],
+        |r| r.get(0),
+    )?;
+    Ok(set.unwrap_or(DEFAULT_BATTERY_SLOTS).max(used))
+}
+
+/// A slot of this truck that is there and empty.
+fn free_slot(tx: &Connection, vehicle_id: i64, slot: i64) -> AppResult<()> {
+    if slot < 1 || slot > battery_slots(tx, vehicle_id)? {
+        return Err(rule("slot_range", "that battery slot does not exist on this truck"));
+    }
+    let taken: bool = tx.query_row(
+        "SELECT EXISTS (SELECT 1 FROM battery_installs
+                         WHERE vehicle_id = ?1 AND slot = ?2 AND removed_at IS NULL AND deleted_at IS NULL)",
+        params![vehicle_id, slot],
+        |r| r.get(0),
+    )?;
+    if taken {
+        return Err(rule("slot_occupied", "that battery slot already has a battery"));
+    }
+    Ok(())
+}
+
+fn battery_fitted(tx: &Connection, battery_id: &str) -> AppResult<bool> {
+    Ok(tx.query_row(
+        "SELECT EXISTS (SELECT 1 FROM battery_installs WHERE battery_id = ?1 AND removed_at IS NULL AND deleted_at IS NULL)",
+        params![battery_id],
+        |r| r.get(0),
+    )?)
+}
+
+/// The local copy of the server's rule for `batteries.status`. Never queued.
+fn rederive_battery(tx: &Connection, battery_id: &str) -> AppResult<()> {
+    let current: Option<String> =
+        tx.query_row("SELECT status FROM batteries WHERE id = ?1", params![battery_id], |r| r.get(0)).optional()?.flatten();
+    let want = if battery_fitted(tx, battery_id)? {
+        "installed".to_string()
+    } else if current.as_deref() == Some("installed") {
+        tx.query_row(
+            "SELECT removal_outcome FROM battery_installs
+              WHERE battery_id = ?1 AND removed_at IS NOT NULL AND deleted_at IS NULL
+              ORDER BY julianday(removed_at) DESC LIMIT 1",
+            params![battery_id],
+            |r| r.get::<_, Option<String>>(0),
+        )
+        .optional()?
+        .flatten()
+        .unwrap_or_else(|| "in_stock_used".to_string())
+    } else {
+        return Ok(());
+    };
+    tx.execute("UPDATE batteries SET status = ?2 WHERE id = ?1 AND status IS NOT ?2", params![battery_id, want])?;
+    Ok(())
+}
+
+fn insert_battery(a: &Action<'_>, id: &str, spec: &BatterySpecInput, d: &BatteryDetailsInput, origin: &str) -> AppResult<()> {
+    let brand = check_battery(spec, d)?;
+    let now = now_iso();
+    // Stored as 'installed' here (it is being fitted in the same action); the
+    // server starts it in stock and the install that follows fits it.
+    a.tx.execute(
+        "INSERT INTO batteries
+           (id, brand, model, capacity_ah, voltage, cca, serial, date_code, warranty_months, status, origin, notes_ar,
+            created_at, updated_at, created_by_user_id, updated_by_user_id, sync_version)
+         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,'installed',?10,?11,?12,?12,?13,?13,1)",
+        params![
+            id, brand, clean(spec.model.as_deref()), spec.capacity_ah, spec.voltage, spec.cca,
+            clean(d.serial.as_deref()), clean(d.date_code.as_deref()), d.warranty_months, origin,
+            clean(d.notes.as_deref()), now, a.user_id
+        ],
+    )?;
+    a.inserted("batteries", id)
+}
+
+fn insert_install(
+    a: &Action<'_>,
+    battery_id: &str,
+    vehicle_id: i64,
+    slot: i64,
+    work_order_id: Option<&str>,
+    odometer: Option<i64>,
+) -> AppResult<String> {
+    check_odometer(odometer)?;
+    free_slot(a.tx, vehicle_id, slot)?;
+    if battery_fitted(a.tx, battery_id)? {
+        return Err(rule("battery_already_installed", "that battery is already fitted"));
+    }
+    let id = Uuid::new_v4().to_string();
+    let now = now_iso();
+    a.tx.execute(
+        "INSERT INTO battery_installs
+           (id, battery_id, vehicle_id, slot, work_order_id, installed_at, installed_odometer,
+            created_at, updated_at, created_by_user_id, updated_by_user_id, sync_version)
+         VALUES (?1,?2,?3,?4,?5,?6,?7,?6,?6,?8,?8,1)",
+        params![id, battery_id, vehicle_id, slot, work_order_id, now, odometer, a.user_id],
+    )?;
+    a.inserted("battery_installs", &id)?;
+    Ok(id)
+}
+
+/// A battery fitted under a work order restarts the battery due date: a
+/// hidden done task, and a planned "battery" task on the order is ticked.
+fn battery_due_task(a: &Action<'_>, work_order_id: &str) -> AppResult<()> {
+    let now = now_iso();
+    let has: bool = a.tx.query_row(
+        "SELECT EXISTS (SELECT 1 FROM work_order_tasks WHERE work_order_id = ?1 AND kind = 'battery' AND deleted_at IS NULL)",
+        params![work_order_id],
+        |r| r.get(0),
+    )?;
+    if !has {
+        let task_id = Uuid::new_v4().to_string();
+        a.tx.execute(
+            "INSERT INTO work_order_tasks
+               (id, work_order_id, kind, category_id, is_done, done_at, sort_order,
+                created_at, updated_at, created_by_user_id, updated_by_user_id, sync_version)
+             VALUES (?1,?2,'battery','battery',1,?3,
+                     (SELECT COALESCE(MAX(sort_order),0)+1 FROM work_order_tasks WHERE work_order_id=?2),
+                     ?3,?3,?4,?4,1)",
+            params![task_id, work_order_id, now, a.user_id],
+        )?;
+        a.inserted("work_order_tasks", &task_id)?;
+    }
+    let planned: Vec<String> = {
+        let mut stmt = a.tx.prepare(
+            "SELECT id FROM work_order_tasks
+              WHERE work_order_id = ?1 AND kind = 'free' AND category_id = 'battery' AND is_done = 0 AND deleted_at IS NULL",
+        )?;
+        let v = stmt.query_map(params![work_order_id], |r| r.get(0))?.collect::<Result<Vec<_>, _>>()?;
+        v
+    };
+    for t in planned {
+        a.tx.execute(
+            "UPDATE work_order_tasks SET is_done=1, done_at=?2, updated_at=?2, updated_by_user_id=?3 WHERE id=?1",
+            params![t, now, a.user_id],
+        )?;
+        a.updated("work_order_tasks", &t, &["is_done", "done_at"])?;
+    }
+    Ok(())
+}
+
+/// The order's hidden battery task goes when no battery is fitted under it any more.
+fn drop_battery_due_task(a: &Action<'_>, work_order_id: &str) -> AppResult<()> {
+    let left: i64 = a.tx.query_row(
+        "SELECT COUNT(*) FROM battery_installs WHERE work_order_id = ?1 AND deleted_at IS NULL",
+        params![work_order_id],
+        |r| r.get(0),
+    )?;
+    if left == 0 {
+        let tasks: Vec<String> = {
+            let mut stmt = a.tx.prepare(
+                "SELECT id FROM work_order_tasks WHERE work_order_id = ?1 AND kind = 'battery' AND deleted_at IS NULL",
+            )?;
+            let v = stmt.query_map(params![work_order_id], |r| r.get(0))?.collect::<Result<Vec<_>, _>>()?;
+            v
+        };
+        for t in tasks {
+            a.deleted("work_order_tasks", &t)?;
+        }
+    }
+    Ok(())
+}
+
+fn wo_for_vehicle(tx: &Connection, work_order_id: &str, vehicle_id: i64) -> AppResult<()> {
+    if open_work_order(tx, work_order_id)? != vehicle_id {
+        return Err(rule("wo_wrong_vehicle", "the work order is for another vehicle"));
+    }
+    Ok(())
+}
+
+#[derive(Debug, Deserialize, specta::Type)]
+pub struct BatteryFitNewInput {
+    pub vehicle_id: i64,
+    pub slot: i64,
+    pub work_order_id: String,
+    /// The stock line being used.
+    pub spec: BatterySpecInput,
+    pub details: BatteryDetailsInput,
+    pub odometer: Option<i64>,
+}
+
+/// Fit a NEW battery from stock: mints its record and fits it, as one action.
+/// The server takes one off the shelf count when it arrives.
+pub fn battery_fit_new(pool: &DbPool, inp: &BatteryFitNewInput, user_id: i64) -> AppResult<(String, String)> {
+    write(pool, user_id, |a| {
+        wo_for_vehicle(a.tx, &inp.work_order_id, inp.vehicle_id)?;
+        let battery_id = Uuid::new_v4().to_string();
+        insert_battery(a, &battery_id, &inp.spec, &inp.details, "stock")?;
+        let install_id = insert_install(a, &battery_id, inp.vehicle_id, inp.slot, Some(&inp.work_order_id), inp.odometer)?;
+        battery_due_task(a, &inp.work_order_id)?;
+        Ok((battery_id, install_id))
+    })
+}
+
+#[derive(Debug, Deserialize, specta::Type)]
+pub struct BatteryFitUsedInput {
+    pub battery_id: String,
+    pub vehicle_id: i64,
+    pub slot: i64,
+    pub work_order_id: String,
+    pub odometer: Option<i64>,
+}
+
+/// Fit a used battery (back in stock, e.g. after charging, or moved from
+/// another truck).
+pub fn battery_fit_used(pool: &DbPool, inp: &BatteryFitUsedInput, user_id: i64) -> AppResult<String> {
+    write(pool, user_id, |a| {
+        wo_for_vehicle(a.tx, &inp.work_order_id, inp.vehicle_id)?;
+        let status: Option<String> = a
+            .tx
+            .query_row("SELECT status FROM batteries WHERE id = ?1 AND deleted_at IS NULL", params![inp.battery_id], |r| r.get(0))
+            .optional()?;
+        match status.as_deref() {
+            Some("in_stock_used") => {}
+            Some(_) => return Err(rule("battery_not_available", "the battery is not in stock")),
+            None => return Err(rule("battery_not_found", "battery not found")),
+        }
+        let install_id = insert_install(a, &inp.battery_id, inp.vehicle_id, inp.slot, Some(&inp.work_order_id), inp.odometer)?;
+        rederive_battery(a.tx, &inp.battery_id)?;
+        battery_due_task(a, &inp.work_order_id)?;
+        Ok(install_id)
+    })
+}
+
+#[derive(Debug, Deserialize, specta::Type)]
+pub struct BatteryRegisterInput {
+    pub vehicle_id: i64,
+    pub slot: i64,
+    pub spec: BatterySpecInput,
+    pub details: BatteryDetailsInput,
+    /// The truck's odometer now, so km from here on can be counted.
+    pub odometer: Option<i64>,
+}
+
+/// First-time record of a battery that is already on the truck. No stock
+/// effect (origin = legacy) and no due-date restart: nothing was done to it.
+pub fn battery_register(pool: &DbPool, inp: &BatteryRegisterInput, user_id: i64) -> AppResult<(String, String)> {
+    write(pool, user_id, |a| {
+        let battery_id = Uuid::new_v4().to_string();
+        insert_battery(a, &battery_id, &inp.spec, &inp.details, "legacy")?;
+        let install_id = insert_install(a, &battery_id, inp.vehicle_id, inp.slot, None, inp.odometer)?;
+        Ok((battery_id, install_id))
+    })
+}
+
+#[derive(Debug, Deserialize, specta::Type)]
+pub struct BatteryRemoveInput {
+    pub install_id: String,
+    pub odometer: Option<i64>,
+    /// dead | weak | damaged | moved | warranty | other
+    pub reason: String,
+    /// in_stock_used | charging | warranty | scrapped
+    pub outcome: String,
+    pub work_order_id: Option<String>,
+}
+
+/// Take a battery off: close its install. Returns the battery id.
+pub fn battery_remove(pool: &DbPool, inp: &BatteryRemoveInput, user_id: i64) -> AppResult<String> {
+    if !BATTERY_REMOVAL_REASONS.contains(&inp.reason.as_str()) {
+        return Err(rule("bad_reason", "invalid removal reason"));
+    }
+    if !BATTERY_OFF_STATUSES.contains(&inp.outcome.as_str()) {
+        return Err(rule("bad_outcome", "invalid removal outcome"));
+    }
+    check_odometer(inp.odometer)?;
+    write(pool, user_id, |a| {
+        if let Some(wo) = &inp.work_order_id {
+            open_work_order(a.tx, wo)?;
+        }
+        let row: Option<(String, Option<i64>)> = a
+            .tx
+            .query_row(
+                "SELECT battery_id, installed_odometer FROM battery_installs
+                  WHERE id = ?1 AND removed_at IS NULL AND deleted_at IS NULL",
+                params![inp.install_id],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .optional()?;
+        let Some((battery_id, fitted_km)) = row else {
+            return Err(rule("install_not_found", "that battery is not fitted"));
+        };
+        if let (Some(f), Some(r)) = (fitted_km, inp.odometer) {
+            if r < f {
+                return Err(rule("odometer_backwards", "the odometer at removal is lower than at fitting"));
+            }
+        }
+        let now = now_iso();
+        a.tx.execute(
+            "UPDATE battery_installs SET removed_at=?2, removed_odometer=?3, removal_reason=?4, removal_outcome=?5,
+                    removal_work_order_id=?6, updated_at=?2, updated_by_user_id=?7
+              WHERE id=?1",
+            params![inp.install_id, now, inp.odometer, inp.reason, inp.outcome, inp.work_order_id, user_id],
+        )?;
+        a.updated(
+            "battery_installs",
+            &inp.install_id,
+            &["removed_at", "removed_odometer", "removal_reason", "removal_outcome", "removal_work_order_id"],
+        )?;
+        a.tx.execute("UPDATE batteries SET status = ?2 WHERE id = ?1", params![battery_id, inp.outcome])?;
+        Ok(battery_id)
+    })
+}
+
+/// (battery_id, vehicle_id, slot, work_order_id, is_open) of a live install.
+fn battery_install(tx: &Connection, id: &str) -> AppResult<(String, i64, i64, Option<String>, bool)> {
+    tx.query_row(
+        "SELECT battery_id, vehicle_id, slot, work_order_id, removed_at IS NULL FROM battery_installs
+          WHERE id = ?1 AND deleted_at IS NULL",
+        params![id],
+        |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
+    )
+    .optional()?
+    .ok_or_else(|| rule("install_not_found", "battery fitting not found"))
+}
+
+/// The wrong battery was fitted, or into the wrong slot: remove the fitting as
+/// if it never happened. A battery that only existed because of it (new from
+/// stock, or just registered) goes with it — the server gives a stock one
+/// back. Refused once it has been taken off.
+pub fn battery_fit_undo(pool: &DbPool, install_id: &str, user_id: i64) -> AppResult<()> {
+    write(pool, user_id, |a| {
+        let (battery_id, _, _, wo, open) = battery_install(a.tx, install_id)?;
+        if !open {
+            return Err(rule("already_removed", "the battery has already been taken off"));
+        }
+        let history: i64 = a.tx.query_row(
+            "SELECT COUNT(*) FROM battery_installs WHERE battery_id = ?2 AND id <> ?1 AND deleted_at IS NULL",
+            params![install_id, battery_id],
+            |r| r.get(0),
+        )?;
+        a.deleted("battery_installs", install_id)?;
+        if history == 0 {
+            a.deleted("batteries", &battery_id)?;
+        } else {
+            a.tx.execute("UPDATE batteries SET status = 'in_stock_used' WHERE id = ?1", params![battery_id])?;
+            rederive_battery(a.tx, &battery_id)?;
+        }
+        if let Some(wo) = wo {
+            drop_battery_due_task(a, &wo)?;
+        }
+        Ok(())
+    })
+}
+
+/// The wrong battery was taken off: put it back where it was, if nothing has
+/// happened to it since and its slot is still free.
+pub fn battery_remove_undo(pool: &DbPool, install_id: &str, user_id: i64) -> AppResult<()> {
+    write(pool, user_id, |a| {
+        let (battery_id, vehicle_id, slot, _, open) = battery_install(a.tx, install_id)?;
+        if open {
+            return Err(rule("still_installed", "the battery is still fitted"));
+        }
+        let later: bool = a.tx.query_row(
+            "SELECT EXISTS (SELECT 1 FROM battery_installs o, battery_installs me
+                             WHERE me.id = ?1 AND o.battery_id = ?2 AND o.id <> me.id AND o.deleted_at IS NULL
+                               AND julianday(o.installed_at) >= julianday(me.removed_at))",
+            params![install_id, battery_id],
+            |r| r.get(0),
+        )?;
+        if later {
+            return Err(rule("battery_moved_on", "the battery has been fitted again since"));
+        }
+        free_slot(a.tx, vehicle_id, slot)?;
+        a.tx.execute(
+            "UPDATE battery_installs SET removed_at=NULL, removed_odometer=NULL, removal_reason=NULL, removal_outcome=NULL,
+                    removal_work_order_id=NULL, updated_at=?2, updated_by_user_id=?3 WHERE id=?1",
+            params![install_id, now_iso(), user_id],
+        )?;
+        a.updated(
+            "battery_installs",
+            install_id,
+            &["removed_at", "removed_odometer", "removal_reason", "removal_outcome", "removal_work_order_id"],
+        )?;
+        a.tx.execute("UPDATE batteries SET status = 'installed' WHERE id = ?1", params![battery_id])?;
+        Ok(())
+    })
+}
+
+/// Where a battery that is off a truck is now: charged and back in stock, a
+/// warranty claim, scrapped.
+pub fn battery_set_status(pool: &DbPool, battery_id: &str, status: &str, user_id: i64) -> AppResult<()> {
+    if !BATTERY_OFF_STATUSES.contains(&status) {
+        return Err(rule("bad_status", "invalid battery status"));
+    }
+    write(pool, user_id, |a| {
+        let live: bool = a.tx.query_row(
+            "SELECT EXISTS (SELECT 1 FROM batteries WHERE id = ?1 AND deleted_at IS NULL)",
+            params![battery_id],
+            |r| r.get(0),
+        )?;
+        if !live {
+            return Err(rule("battery_not_found", "battery not found"));
+        }
+        if battery_fitted(a.tx, battery_id)? {
+            return Err(rule("battery_installed", "the battery is fitted; take it off first"));
+        }
+        a.tx.execute(
+            "UPDATE batteries SET status=?2, updated_at=?3, updated_by_user_id=?4 WHERE id=?1",
+            params![battery_id, status, now_iso(), user_id],
+        )?;
+        a.updated("batteries", battery_id, &["status"])
+    })
+}
+
+/// Correct a battery's own details (serial, date code, warranty, notes).
+pub fn battery_update(pool: &DbPool, battery_id: &str, d: &BatteryDetailsInput, user_id: i64) -> AppResult<()> {
+    check_range(d.warranty_months, 0, 120, "warranty_range", "warranty months")?;
+    write(pool, user_id, |a| {
+        let n = a.tx.execute(
+            "UPDATE batteries SET serial=?2, date_code=?3, warranty_months=?4, notes_ar=?5, updated_at=?6, updated_by_user_id=?7
+              WHERE id=?1 AND deleted_at IS NULL",
+            params![
+                battery_id, clean(d.serial.as_deref()), clean(d.date_code.as_deref()), d.warranty_months,
+                clean(d.notes.as_deref()), now_iso(), user_id
+            ],
+        )?;
+        if n == 0 {
+            return Err(rule("battery_not_found", "battery not found"));
+        }
+        a.updated("batteries", battery_id, &["serial", "date_code", "warranty_months", "notes_ar"])
+    })
+}
+
+/// How many battery slots this truck has (never fewer than the highest one in use).
+pub fn battery_slots_set(pool: &DbPool, vehicle_id: i64, slots: i64, user_id: i64) -> AppResult<()> {
+    if !(1..=MAX_BATTERY_SLOTS).contains(&slots) {
+        return Err(rule("slots_range", "a truck has between 1 and 12 battery slots"));
+    }
+    write(pool, user_id, |a| {
+        let used: i64 = a.tx.query_row(
+            "SELECT COALESCE(MAX(slot), 0) FROM battery_installs WHERE vehicle_id = ?1 AND removed_at IS NULL AND deleted_at IS NULL",
+            params![vehicle_id],
+            |r| r.get(0),
+        )?;
+        if slots < used {
+            return Err(rule("slot_in_use", "a battery is fitted in a slot above that number"));
+        }
+        let now = now_iso();
+        a.tx.execute(
+            "INSERT INTO battery_layouts (vehicle_id, slots, created_at, updated_at, created_by_user_id, updated_by_user_id, sync_version)
+             VALUES (?1,?2,?3,?3,?4,?4,1)
+             ON CONFLICT(vehicle_id) DO UPDATE SET slots=excluded.slots, deleted_at=NULL,
+               updated_at=excluded.updated_at, updated_by_user_id=excluded.updated_by_user_id",
+            params![vehicle_id, slots, now, user_id],
+        )?;
+        // The server upserts this per-vehicle row: insert covers set and re-set.
+        a.inserted("battery_layouts", &vehicle_id.to_string())
     })
 }
 

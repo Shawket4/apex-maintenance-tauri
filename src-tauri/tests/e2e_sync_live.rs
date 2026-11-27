@@ -18,7 +18,10 @@ use std::sync::Arc;
 use apex_maintenance_lib::config::AppConfig;
 use apex_maintenance_lib::db::DbPool;
 use apex_maintenance_lib::http_client::HttpClient;
-use apex_maintenance_lib::services::domain::{self, ChassisConfig, DismountInput, MountFromStockInput};
+use apex_maintenance_lib::services::domain::{
+    self, BatteryDetailsInput, BatteryFitNewInput, BatteryRemoveInput, BatterySpecInput, ChassisConfig, DismountInput,
+    MountFromStockInput,
+};
 use apex_maintenance_lib::services::engine::SyncEngine;
 use apex_maintenance_lib::services::{outbox, views};
 use apex_maintenance_lib::session_store;
@@ -308,4 +311,56 @@ async fn a_typed_type_and_its_typed_job_reach_the_server_and_every_device() {
     let d = views::wo_detail(&b.pool, &wo).unwrap().expect("wo on B");
     let t = d.tasks.iter().find(|t| t.id == task).expect("task on B");
     assert_eq!(t.category_id.as_deref(), Some(minted.as_str()));
+}
+
+#[tokio::test]
+async fn a_battery_fitted_offline_reaches_the_server_and_counts_off_the_shelf() {
+    let Some(env) = e2e_env() else { return };
+    let v = vehicle();
+    let a = device(&env, v);
+    let brand = format!("E2E-B{}", &uuid::Uuid::new_v4().simple().to_string()[..6]);
+    let body = serde_json::json!({"brand": brand, "capacity_ah": 100, "voltage": 12, "qty": 3, "ref_id": uuid::Uuid::new_v4().to_string()});
+    a.http.maint_post_raw("/stock/batteries/credit", &body).await.expect("receive batteries");
+
+    let wo = domain::wo_open(&a.pool, v, Some(100_500), USER).unwrap();
+    let spec = BatterySpecInput { brand: brand.clone(), model: None, capacity_ah: Some(100), voltage: Some(12), cca: None };
+    let details = BatteryDetailsInput { serial: Some("E2E-SN".into()), date_code: Some("2611".into()), warranty_months: Some(18), notes: None };
+    let (_battery, install) = domain::battery_fit_new(
+        &a.pool,
+        &BatteryFitNewInput { vehicle_id: v, slot: 1, work_order_id: wo.clone(), spec, details, odometer: Some(100_500) },
+        USER,
+    )
+    .expect("fit");
+    domain::battery_slots_set(&a.pool, v, 3, USER).expect("slots");
+    sync(&a).await;
+    assert_eq!(pending(&a), 0, "{:?}", issues(&a));
+    assert!(issues(&a).is_empty(), "{:?}", issues(&a));
+
+    // The server took one off the shelf.
+    let stock: Vec<serde_json::Value> = a.http.get("/stock/batteries").await.expect("battery stock");
+    let line = stock.iter().find(|l| l["brand"] == brand.as_str()).expect("the product line");
+    assert_eq!(line["on_hand_qty"], 2);
+
+    // Off for a warranty claim.
+    domain::battery_remove(
+        &a.pool,
+        &BatteryRemoveInput {
+            install_id: install, odometer: Some(101_000), reason: "dead".into(), outcome: "warranty".into(), work_order_id: Some(wo),
+        },
+        USER,
+    )
+    .expect("remove");
+    sync(&a).await;
+    assert_eq!(pending(&a), 0, "{:?}", issues(&a));
+
+    // A second device sees the slots, the removal and where the battery went.
+    let b = device(&env, v);
+    sync(&b).await;
+    let t = views::battery_truck(&b.pool, v).unwrap();
+    assert_eq!(t.slots.len(), 3);
+    assert!(t.slots.iter().all(|s| s.fit.is_none()));
+    assert_eq!(t.removed.len(), 1);
+    assert_eq!((t.removed[0].battery.status.as_str(), t.removed[0].removal_reason.as_deref()), ("warranty", Some("dead")));
+    assert_eq!(t.removed[0].battery.serial.as_deref(), Some("E2E-SN"));
+    assert_eq!(t.removed[0].km, Some(500));
 }

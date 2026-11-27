@@ -54,9 +54,9 @@ SELECT wo.id, wo.vehicle_id, COALESCE(v.car_no_plate, '#' || wo.vehicle_id) AS p
        wo.created_by_user_id AS opened_by_user_id,
        wo.notes_ar AS notes,
        (SELECT COUNT(*) FROM work_order_tasks t
-         WHERE t.work_order_id = wo.id AND t.deleted_at IS NULL AND t.kind <> 'oil') AS task_count,
+         WHERE t.work_order_id = wo.id AND t.deleted_at IS NULL AND t.kind NOT IN ('oil','battery')) AS task_count,
        (SELECT COUNT(*) FROM work_order_tasks t
-         WHERE t.work_order_id = wo.id AND t.deleted_at IS NULL AND t.kind <> 'oil' AND t.is_done = 1) AS done_count
+         WHERE t.work_order_id = wo.id AND t.deleted_at IS NULL AND t.kind NOT IN ('oil','battery') AND t.is_done = 1) AS done_count
   FROM work_orders wo
   LEFT JOIN vehicles_cache v ON v.id = wo.vehicle_id
  WHERE wo.deleted_at IS NULL
@@ -161,6 +161,8 @@ pub struct WoDetail {
     pub tasks: Vec<TaskRow>,
     pub oil_changes: Vec<OilRow>,
     pub tire_ops: Vec<TireOpRow>,
+    /// Batteries fitted or taken off under this work order.
+    pub battery_ops: Vec<BatteryFitRow>,
     /// This truck's due items — the cockpit's suggestion panel.
     pub due: Vec<DueRow>,
     pub odometer: Option<OdoTruth>,
@@ -242,8 +244,9 @@ pub fn wo_detail(pool: &DbPool, id: &str) -> AppResult<Option<WoDetail>> {
         tire_ops_for(&conn, "(ta.work_order_id = ?1 OR ta.dismount_work_order_id = ?1)", &[&id])?;
     let due = due_board(pool, Some(wo.vehicle_id))?;
     let odometer = odometer_truth(pool, wo.vehicle_id)?;
+    let battery_ops = battery_ops_for_wo(&conn, id, odometer.as_ref().map(|o| o.km))?;
 
-    Ok(Some(WoDetail { wo, sync_version, tasks, oil_changes, tire_ops, due, odometer }))
+    Ok(Some(WoDetail { wo, sync_version, tasks, oil_changes, tire_ops, battery_ops, due, odometer }))
 }
 
 pub(crate) fn tire_ops_for(

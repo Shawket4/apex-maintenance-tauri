@@ -41,12 +41,45 @@ pub struct StockOilLine {
     pub fetched_at: Option<String>,
 }
 
+/// New batteries on the shelf, per product.
+#[derive(Debug, Clone, Serialize, specta::Type)]
+pub struct StockBatteryLine {
+    pub id: String,
+    pub brand: String,
+    pub model: Option<String>,
+    pub capacity_ah: Option<i64>,
+    pub voltage: Option<i64>,
+    pub cca: Option<i64>,
+    pub snapshot_qty: i64,
+    pub pending_debits: i64,
+    pub projected_qty: i64,
+    pub low_stock: bool,
+    pub fetched_at: Option<String>,
+}
+
+pub const K_LOW_STOCK_BATTERIES: i64 = 2;
+
 #[derive(Debug, Clone, Serialize, specta::Type)]
 pub struct StockView {
     pub tires: Vec<StockTireLine>,
     pub oil: Vec<StockOilLine>,
     /// Used tires available to mount (individual assets in the pool).
     pub used_pool_count: i64,
+    pub batteries: Vec<StockBatteryLine>,
+    /// Used batteries back in stock, ready to fit.
+    pub used_battery_count: i64,
+}
+
+/// One battery product the way the server keys it: brand and model as names,
+/// Ah and volts as numbers.
+pub fn battery_key(brand: &str, model: &str, capacity_ah: Option<i64>, voltage: Option<i64>) -> String {
+    format!(
+        "{}|{}|{}|{}",
+        norm(brand),
+        norm(model),
+        capacity_ah.map(|n| n.to_string()).unwrap_or_default(),
+        voltage.map(|n| n.to_string()).unwrap_or_default()
+    )
 }
 
 /// Projected on-hand = last server snapshot − debits still queued locally.
@@ -144,7 +177,55 @@ pub fn stock_view(pool: &DbPool) -> AppResult<StockView> {
         |r| r.get(0),
     )?;
 
-    Ok(StockView { tires, oil, used_pool_count })
+    // Batteries: queued debits = batteries from stock whose insert is not acked.
+    let pending_batteries = pending_insert_ids(&conn, "batteries")?;
+    let mut stmt = conn.prepare(
+        "SELECT id, brand, model, capacity_ah, voltage, cca, on_hand_qty, fetched_at FROM battery_stock_cache
+          ORDER BY brand, model, capacity_ah, voltage",
+    )?;
+    let mut batteries: Vec<StockBatteryLine> = stmt
+        .query_map([], |r| {
+            Ok(StockBatteryLine {
+                id: r.get(0)?,
+                brand: r.get(1)?,
+                model: r.get(2)?,
+                capacity_ah: r.get(3)?,
+                voltage: r.get(4)?,
+                cca: r.get(5)?,
+                snapshot_qty: r.get(6)?,
+                pending_debits: 0,
+                projected_qty: 0,
+                low_stock: false,
+                fetched_at: r.get(7)?,
+            })
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+    if !pending_batteries.is_empty() {
+        let mut stmt = conn.prepare(
+            "SELECT brand, COALESCE(model,''), capacity_ah, voltage, id FROM batteries WHERE origin = 'stock' AND deleted_at IS NULL",
+        )?;
+        let from_stock: Vec<(String, String, Option<i64>, Option<i64>, String)> = stmt
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)))?
+            .collect::<Result<Vec<_>, _>>()?;
+        for line in &mut batteries {
+            let k = battery_key(&line.brand, line.model.as_deref().unwrap_or(""), line.capacity_ah, line.voltage);
+            line.pending_debits = from_stock
+                .iter()
+                .filter(|(b, m, ah, v, id)| battery_key(b, m, *ah, *v) == k && pending_batteries.contains(id))
+                .count() as i64;
+        }
+    }
+    for line in &mut batteries {
+        line.projected_qty = line.snapshot_qty - line.pending_debits;
+        line.low_stock = line.projected_qty <= K_LOW_STOCK_BATTERIES;
+    }
+    let used_battery_count: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM batteries WHERE status = 'in_stock_used' AND deleted_at IS NULL",
+        [],
+        |r| r.get(0),
+    )?;
+
+    Ok(StockView { tires, oil, used_pool_count, batteries, used_battery_count })
 }
 
 #[derive(Debug, Clone, Serialize, specta::Type)]

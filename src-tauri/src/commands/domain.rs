@@ -22,11 +22,12 @@ use tauri::State;
 use crate::commands::sync::EngineState;
 use crate::error::CmdResult;
 use crate::services::domain::{
-    self, ChassisConfig, DismountInput, LegacyTireInput, MountFromStockInput, MountUsedInput,
-    OnboardPositionInput, TireEditInput,
+    self, BatteryDetailsInput, BatteryFitNewInput, BatteryFitUsedInput, BatteryRegisterInput, BatteryRemoveInput,
+    ChassisConfig, DismountInput, LegacyTireInput, MountFromStockInput, MountUsedInput, OnboardPositionInput,
+    TireEditInput,
 };
 use crate::services::views::{
-    self, CatalogView, CategoryRow, ChassisPayload, ClassRow, DueRow, HomeSummary, PlanRow, SearchResults,
+    self, BatteryFitRow, BatteryRow, BatteryTruckView, CatalogView, CategoryRow, ChassisPayload, ClassRow, DueRow, HomeSummary, PlanRow, SearchResults,
     StockView, TireFile, TireRow, TruckRow, WoDetail, WoListRow,
 };
 use crate::{session_store, AppError, AppResult, AppState};
@@ -598,4 +599,142 @@ pub async fn chassis_create(
     let id = domain::chassis_create(&state.db, vehicle_id, &config, uid)?;
     kick(&engine);
     Ok(id)
+}
+
+// ── batteries ────────────────────────────────────────────────────────────────
+
+#[derive(Debug, serde::Serialize, specta::Type)]
+pub struct BatteryFitResult {
+    pub battery_id: String,
+    pub install_id: String,
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn battery_truck(state: State<'_, AppState>, vehicle_id: i64) -> CmdResult<BatteryTruckView> {
+    Ok(views::battery_truck(&state.db, vehicle_id)?)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn batteries_list(state: State<'_, AppState>, status: Option<String>) -> CmdResult<Vec<BatteryRow>> {
+    Ok(views::batteries_list(&state.db, status.as_deref())?)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn battery_history(state: State<'_, AppState>, battery_id: String) -> CmdResult<Vec<BatteryFitRow>> {
+    Ok(views::battery_history(&state.db, &battery_id)?)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn battery_fit_new(
+    state: State<'_, AppState>,
+    engine: State<'_, EngineState>,
+    input: BatteryFitNewInput,
+) -> CmdResult<BatteryFitResult> {
+    let uid = current_user_id(&state)?;
+    let (battery_id, install_id) = domain::battery_fit_new(&state.db, &input, uid)?;
+    kick(&engine);
+    Ok(BatteryFitResult { battery_id, install_id })
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn battery_fit_used(
+    state: State<'_, AppState>,
+    engine: State<'_, EngineState>,
+    input: BatteryFitUsedInput,
+) -> CmdResult<String> {
+    let uid = current_user_id(&state)?;
+    let id = domain::battery_fit_used(&state.db, &input, uid)?;
+    kick(&engine);
+    Ok(id)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn battery_register(
+    state: State<'_, AppState>,
+    engine: State<'_, EngineState>,
+    input: BatteryRegisterInput,
+) -> CmdResult<BatteryFitResult> {
+    let uid = current_user_id(&state)?;
+    let (battery_id, install_id) = domain::battery_register(&state.db, &input, uid)?;
+    kick(&engine);
+    Ok(BatteryFitResult { battery_id, install_id })
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn battery_remove(
+    state: State<'_, AppState>,
+    engine: State<'_, EngineState>,
+    input: BatteryRemoveInput,
+) -> CmdResult<String> {
+    let uid = current_user_id(&state)?;
+    let id = domain::battery_remove(&state.db, &input, uid)?;
+    kick(&engine);
+    Ok(id)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn battery_fit_undo(state: State<'_, AppState>, engine: State<'_, EngineState>, install_id: String) -> CmdResult<()> {
+    let uid = current_user_id(&state)?;
+    domain::battery_fit_undo(&state.db, &install_id, uid)?;
+    kick(&engine);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn battery_remove_undo(state: State<'_, AppState>, engine: State<'_, EngineState>, install_id: String) -> CmdResult<()> {
+    let uid = current_user_id(&state)?;
+    domain::battery_remove_undo(&state.db, &install_id, uid)?;
+    kick(&engine);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn battery_set_status(
+    state: State<'_, AppState>,
+    engine: State<'_, EngineState>,
+    battery_id: String,
+    status: String,
+) -> CmdResult<()> {
+    let uid = current_user_id(&state)?;
+    domain::battery_set_status(&state.db, &battery_id, &status, uid)?;
+    kick(&engine);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn battery_update(
+    state: State<'_, AppState>,
+    engine: State<'_, EngineState>,
+    battery_id: String,
+    details: BatteryDetailsInput,
+) -> CmdResult<()> {
+    let uid = current_user_id(&state)?;
+    domain::battery_update(&state.db, &battery_id, &details, uid)?;
+    kick(&engine);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn battery_slots_set(
+    state: State<'_, AppState>,
+    engine: State<'_, EngineState>,
+    vehicle_id: i64,
+    slots: i64,
+) -> CmdResult<()> {
+    let uid = current_user_id(&state)?;
+    domain::battery_slots_set(&state.db, vehicle_id, slots, uid)?;
+    kick(&engine);
+    Ok(())
 }

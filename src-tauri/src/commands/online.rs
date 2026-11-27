@@ -80,6 +80,10 @@ pub(crate) async fn stock_refresh_inner(state: &AppState) -> CmdResult<()> {
     let oil = get_array(state, "/stock/oil").await?;
     refdata::replace_tire_stock(&state.db, &tires)?;
     refdata::replace_oil_stock(&state.db, &oil)?;
+    // An older server has no battery stock: keep what we had.
+    if let Ok(batteries) = get_array(state, "/stock/batteries").await {
+        refdata::replace_battery_stock(&state.db, &batteries)?;
+    }
     // Reading stock is when the server learns product names from Falcon's
     // ledger, so the catalog may have just grown.
     if let Ok(v) = get_json(state, "/catalog").await {
@@ -283,6 +287,48 @@ pub async fn stock_count_oil(
     stock_refresh_inner(&state).await?;
     let _ = movements_refresh_inner(&state, 7).await;
     Ok(CountResult { before: num(&v, "before"), after: num(&v, "liters_on_hand"), change: num(&v, "change") })
+}
+
+/// Receive new batteries into stock (perm ≥4). See `stock_credit_tires` for `ref_id`.
+#[tauri::command]
+#[specta::specta]
+#[allow(clippy::too_many_arguments)]
+pub async fn stock_credit_batteries(
+    state: State<'_, AppState>,
+    spec: crate::services::domain::BatterySpecInput,
+    qty: i64,
+    ref_id: String,
+    note: Option<String>,
+) -> CmdResult<()> {
+    let body = json!({
+        "brand": spec.brand, "model": spec.model, "capacity_ah": spec.capacity_ah, "voltage": spec.voltage,
+        "cca": spec.cca, "qty": qty, "ref_id": ref_id, "note": note,
+    });
+    state.http.maint_post_raw("/stock/batteries/credit", &body).await?;
+    stock_refresh_inner(&state).await?;
+    let _ = movements_refresh_inner(&state, 7).await;
+    Ok(())
+}
+
+/// "We counted N new batteries of this type" (perm ≥4).
+#[tauri::command]
+#[specta::specta]
+pub async fn stock_count_batteries(
+    state: State<'_, AppState>,
+    spec: crate::services::domain::BatterySpecInput,
+    counted: i64,
+    ref_id: String,
+    note: Option<String>,
+) -> CmdResult<CountResult> {
+    let body = json!({
+        "brand": spec.brand, "model": spec.model, "capacity_ah": spec.capacity_ah, "voltage": spec.voltage,
+        "cca": spec.cca, "counted": counted, "ref_id": ref_id, "note": note,
+    });
+    let v = state.http.maint_post_raw("/stock/batteries/count", &body).await?.body;
+    let v: serde_json::Value = serde_json::from_str(&v).unwrap_or_default();
+    stock_refresh_inner(&state).await?;
+    let _ = movements_refresh_inner(&state, 7).await;
+    Ok(CountResult { before: num(&v, "before"), after: num(&v, "on_hand_qty"), change: num(&v, "change") })
 }
 
 /// Correct a tire product's spelling everywhere (perm ≥3). If the corrected

@@ -979,3 +979,135 @@
         assert_eq!(tires_list(&p, None, Some("fr01")).unwrap().len(), 1, "model is searchable");
     }
 
+
+    // ───────────── batteries (counted per product, one record once fitted) ─────────────
+
+    fn battery_spec(brand: &str) -> domain::BatterySpecInput {
+        domain::BatterySpecInput { brand: brand.into(), model: Some("Blue".into()), capacity_ah: Some(100), voltage: Some(12), cca: Some(800) }
+    }
+    fn battery_details(serial: &str) -> domain::BatteryDetailsInput {
+        domain::BatteryDetailsInput { serial: Some(serial.into()), date_code: Some("2611".into()), warranty_months: Some(12), notes: None }
+    }
+    fn seed_battery_stock(p: &DbPool, qty: i64) {
+        p.get()
+            .unwrap()
+            .execute(
+                "INSERT INTO battery_stock_cache (id, brand, model, capacity_ah, voltage, cca, on_hand_qty, fetched_at)
+                 VALUES ('b1', 'Varta', 'Blue', 100, 12, 800, ?1, ?2)",
+                params![qty, domain::now_iso()],
+            )
+            .unwrap();
+    }
+    fn battery_status(p: &DbPool, id: &str) -> String {
+        p.get().unwrap().query_row("SELECT status FROM batteries WHERE id = ?1", [id], |r| r.get(0)).unwrap()
+    }
+
+    #[test]
+    fn a_battery_from_stock_fills_a_slot_counts_off_the_shelf_and_restarts_the_due_date() {
+        let p = pool();
+        seed_vehicle(&p, 21, "ب ط ر 21", 300_000);
+        seed_battery_stock(&p, 4);
+        let wo = domain::wo_open(&p, 21, Some(300_000), 9).unwrap();
+        let fit = |slot: i64, serial: &str| {
+            domain::battery_fit_new(
+                &p,
+                &domain::BatteryFitNewInput {
+                    vehicle_id: 21, slot, work_order_id: wo.clone(), spec: battery_spec(" varta "),
+                    details: battery_details(serial), odometer: Some(300_000),
+                },
+                9,
+            )
+        };
+        let (b1, _i1) = fit(1, "SN-1").unwrap();
+        assert_eq!(battery_status(&p, &b1), "installed");
+        // One action, one group: the battery, its fitting, the hidden due task.
+        let rows = outbox_rows(&p);
+        let last: Vec<&str> = rows.iter().rev().take(3).map(|r| r.0.as_str()).collect();
+        assert_eq!(last, ["work_order_tasks", "battery_installs", "batteries"]);
+        assert!(rows.iter().rev().take(3).all(|r| r.3 == rows.last().unwrap().3));
+        let task_kind: String = p.get().unwrap()
+            .query_row("SELECT kind FROM work_order_tasks WHERE work_order_id = ?1 AND category_id = 'battery'", [&wo], |r| r.get(0))
+            .unwrap();
+        assert_eq!(task_kind, "battery");
+        let d = wo_detail(&p, &wo).unwrap().unwrap();
+        assert_eq!(d.wo.task_count, 0, "the hidden battery task is not a task on the list");
+        assert_eq!(d.battery_ops.len(), 1);
+        assert_eq!(d.battery_ops[0].battery.serial.as_deref(), Some("SN-1"));
+
+        // The shelf shows one fewer until the server has it.
+        let s = stock_view(&p).unwrap();
+        assert_eq!((s.batteries[0].snapshot_qty, s.batteries[0].pending_debits, s.batteries[0].projected_qty), (4, 1, 3));
+        assert!(catalog(&p).unwrap().battery_products.iter().any(|b| b.on_hand == Some(3)));
+
+        // Slot 1 is taken; slot 3 does not exist on a two-slot truck; slot 2 is fine.
+        assert_eq!(rule_code(fit(1, "SN-2").unwrap_err()), "slot_occupied");
+        assert_eq!(rule_code(fit(3, "SN-2").unwrap_err()), "slot_range");
+        let (_b2, i2) = fit(2, "SN-2").unwrap();
+        let t = battery_truck(&p, 21).unwrap();
+        assert_eq!(t.slots.iter().map(|s| s.fit.as_ref().map(|f| f.battery.serial.clone().unwrap())).collect::<Vec<_>>(),
+                   [Some("SN-1".to_string()), Some("SN-2".to_string())]);
+        // A third slot can be added; fewer slots than one in use cannot.
+        domain::battery_slots_set(&p, 21, 3, 9).unwrap();
+        assert_eq!(battery_truck(&p, 21).unwrap().slots.len(), 3);
+        assert_eq!(rule_code(domain::battery_slots_set(&p, 21, 1, 9).unwrap_err()), "slot_in_use");
+        // A battery that is fitted cannot be given a status by hand.
+        assert_eq!(rule_code(domain::battery_set_status(&p, &b1, "scrapped", 9).unwrap_err()), "battery_installed");
+        // The work order has battery work: it stays.
+        assert_eq!(rule_code(domain::wo_delete(&p, &wo, 9).unwrap_err()), "wo_not_empty");
+
+        // Off for charging: its status is where it went, and the slot is free.
+        domain::battery_remove(&p, &domain::BatteryRemoveInput {
+            install_id: i2.clone(), odometer: Some(301_000), reason: "weak".into(), outcome: "charging".into(), work_order_id: Some(wo.clone()),
+        }, 9).unwrap();
+        let b2 = battery_truck(&p, 21).unwrap().removed[0].battery.id.clone();
+        assert_eq!(battery_status(&p, &b2), "charging");
+        assert_eq!(battery_truck(&p, 21).unwrap().removed[0].km, Some(1_000));
+        // Charged: back in stock by hand, then into slot 3 as a used battery.
+        domain::battery_set_status(&p, &b2, "in_stock_used", 9).unwrap();
+        assert_eq!(stock_view(&p).unwrap().used_battery_count, 1);
+        let i3 = domain::battery_fit_used(&p, &domain::BatteryFitUsedInput {
+            battery_id: b2.clone(), vehicle_id: 21, slot: 3, work_order_id: wo.clone(), odometer: None,
+        }, 9).unwrap();
+        assert_eq!(battery_status(&p, &b2), "installed");
+        // Undoing that fitting keeps the battery (it has history) and puts it back in stock.
+        domain::battery_fit_undo(&p, &i3, 9).unwrap();
+        assert_eq!(battery_status(&p, &b2), "in_stock_used");
+        assert_eq!(batteries_list(&p, Some("in_stock_used")).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn undoing_a_fresh_fitting_removes_the_battery_and_its_due_task() {
+        let p = pool();
+        seed_vehicle(&p, 22, "ب ط ر 22", 100_000);
+        seed_battery_stock(&p, 2);
+        let wo = domain::wo_open(&p, 22, None, 9).unwrap();
+        let (b, i) = domain::battery_fit_new(&p, &domain::BatteryFitNewInput {
+            vehicle_id: 22, slot: 1, work_order_id: wo.clone(), spec: battery_spec("Varta"), details: battery_details("X"), odometer: None,
+        }, 9).unwrap();
+        domain::battery_fit_undo(&p, &i, 9).unwrap();
+        let conn = p.get().unwrap();
+        let left: i64 = conn.query_row("SELECT COUNT(*) FROM batteries WHERE id = ?1", [&b], |r| r.get(0)).unwrap();
+        assert_eq!(left, 0, "never sent: simply gone");
+        let tasks: i64 = conn
+            .query_row("SELECT COUNT(*) FROM work_order_tasks WHERE work_order_id = ?1 AND deleted_at IS NULL", [&wo], |r| r.get(0))
+            .unwrap();
+        assert_eq!(tasks, 0);
+        drop(conn);
+        assert_eq!(stock_view(&p).unwrap().batteries[0].projected_qty, 2);
+        // Registered on the truck: no stock effect, no due-date restart, and a
+        // removal can be taken back while nothing happened to it since.
+        let (rb, ri) = domain::battery_register(&p, &domain::BatteryRegisterInput {
+            vehicle_id: 22, slot: 2, spec: battery_spec("Chloride"), details: battery_details("OLD"), odometer: Some(100_000),
+        }, 9).unwrap();
+        assert_eq!(stock_view(&p).unwrap().batteries[0].projected_qty, 2);
+        domain::battery_remove(&p, &domain::BatteryRemoveInput {
+            install_id: ri.clone(), odometer: Some(90_000), reason: "dead".into(), outcome: "scrapped".into(), work_order_id: None,
+        }, 9).map(|_| ()).map_err(rule_code).expect_err("km below fitting");
+        domain::battery_remove(&p, &domain::BatteryRemoveInput {
+            install_id: ri.clone(), odometer: None, reason: "dead".into(), outcome: "scrapped".into(), work_order_id: None,
+        }, 9).unwrap();
+        assert_eq!(battery_status(&p, &rb), "scrapped");
+        domain::battery_remove_undo(&p, &ri, 9).unwrap();
+        assert_eq!(battery_status(&p, &rb), "installed");
+        assert_eq!(battery_truck(&p, 22).unwrap().slots[1].fit.as_ref().map(|f| f.install_id.clone()), Some(ri));
+    }
