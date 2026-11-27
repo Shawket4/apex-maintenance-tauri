@@ -1,5 +1,5 @@
 {
-  "title": "Stock: new tires and oil",
+  "title": "Stock: new tires, oil and batteries",
   "refresh": "Refresh numbers",
   "refreshed": "Stock numbers refreshed",
   "updatedAt": "Numbers last updated: {{at}} ({{ago}})",
@@ -25,17 +25,19 @@
     "empty": "Out of stock",
     "low": "Running low — order more",
     "negativeTires": "Below zero: more tires were fitted than recorded — check the stock count",
-    "negativeOil": "Below zero: more oil was used than recorded — check the stock count"
+    "negativeOil": "Below zero: more oil was used than recorded — check the stock count",
+    "negativeBatteries": "Below zero: more batteries were fitted than recorded — check the count"
   },
   "receive": {
     "open": "Receive stock",
     "notAllowed": "Only the person in charge of stock and management can receive stock (record a new shipment). If a shipment arrived, tell them to record it.",
     "title": "Receive stock",
-    "subtitle": "Record the shipment that arrived: new tires or oil. A connection is required.",
+    "subtitle": "Record the shipment that arrived: new tires, oil or batteries. A connection is required.",
     "what": "What arrived",
     "kind": {
       "tire": "New tires",
-      "oil": "Oil"
+      "oil": "Oil",
+      "battery": "Batteries"
     },
     "needsOnline": "No connection right now — a receipt can only be recorded when the connection is back.",
     "qty": "How many arrived",
@@ -61,9 +63,12 @@
       "qty": "Type how many: a number from 1 to {{max}}",
       "oilType": "Choose the oil type",
       "liters": "Type the amount in liters: more than zero, up to {{max}}",
-      "tooLong": "The name is too long — {{max}} characters at most"
+      "tooLong": "The name is too long — {{max}} characters at most",
+      "battery": "Choose the battery type"
     },
-    "tireType": "Tire type"
+    "tireType": "Tire type",
+    "batteryType": "Battery type",
+    "batteriesCount": "{{n}} batteries"
   },
   "count": {
     "open": "Stock count",
@@ -98,7 +103,18 @@
     "finish": "Done",
     "err": {
       "tires": "Type how many: zero or a whole number up to {{max}}",
-      "oil": "Type the amount in liters: zero or a number up to {{max}}"
-    }
-  }
+      "oil": "Type the amount in liters: zero or a number up to {{max}}",
+      "batteries": "Enter the count: zero or a whole number up to {{max}}"
+    },
+    "askBatteries": "How many new batteries are actually there?"
+  },
+  "batteriesShelfTitle": "New batteries in stock",
+  "batteriesTitle": "New batteries",
+  "noBatteries": "No new batteries recorded in stock",
+  "noBatteriesCanReceive": "No new batteries recorded in stock. If a shipment arrived, press \"Receive stock\" and record it.",
+  "batteriesAvailable": "batteries available",
+  "batteriesBreakdown": "Recorded {{counted}} — {{pending}} of them fitted and not sent yet",
+  "usedBatteries": "Used batteries ready to fit:",
+  "usedBatteriesLink": "See them",
+  "usedBatteriesHintHere": "(in the list below)"
 }

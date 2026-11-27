@@ -101,7 +101,16 @@
     "attendanceMark": "تسجيل يوم عامل",
     "workerAdd": "إضافة عامل",
     "workerEdit": "تعديل عامل",
-    "workerDelete": "مسح عامل"
+    "workerDelete": "مسح عامل",
+    "batteryAdd": "تسجيل بطارية",
+    "batteryEdit": "تعديل بيانات بطارية",
+    "batteryStatus": "تغيير مكان بطارية",
+    "batteryDelete": "مسح بطارية",
+    "batteryFit": "تركيب بطارية",
+    "batteryRemove": "شيل بطارية",
+    "batteryRemoveUndo": "إرجاع بطارية مكانها",
+    "batteryFitUndo": "إلغاء تركيب بطارية",
+    "batterySlots": "عدد أماكن البطاريات"
   },
   "field": {
     "vehicle_id": "العربية",
@@ -132,7 +141,10 @@
     "dismounted_at": "وقت الفك",
     "occurred_at": "الوقت",
     "notes": "ملاحظات",
-    "notes_ar": "ملاحظات"
+    "notes_ar": "ملاحظات",
+    "slot": "المكان",
+    "slots": "عدد الأماكن",
+    "serial": "السيريال"
   },
   "reason": {
     "worn": "اتاكل",

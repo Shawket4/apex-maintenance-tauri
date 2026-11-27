@@ -19,7 +19,9 @@
     "tiresIn": "Tires in",
     "tiresOut": "Tires out",
     "oilIn": "Oil in (liters)",
-    "oilOut": "Oil out (liters)"
+    "oilOut": "Oil out (liters)",
+    "batteriesIn": "Batteries in",
+    "batteriesOut": "Batteries out"
   },
   "unmirroredCount": "Movements not recorded in the fleet system: {{n}} — its stock numbers do not include them.",
   "emptyKind": "No movements of this type in this period",
@@ -39,5 +41,5 @@
   "notMirroredWhy": "(press for the reason)",
   "notMirroredHelp": "This movement is recorded here only; the stock numbers in the fleet system do not include it. Give these details to whoever looks after the system:",
   "by": "By:",
-  "countsNote": "Stock counts in this period (not in received / used above): tires {{tires}} · oil {{oil}} L"
+  "countsNote": "Stock counts in this period (not in received / used above): tires {{tires}} · oil {{oil}} L · batteries {{batteries}}"
 }

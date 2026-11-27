@@ -15,6 +15,7 @@ import { WoNotes } from "@/widgets/wo/WoNotes";
 import { WoOil } from "@/widgets/wo/WoOil";
 import { WoPrintSheet } from "@/widgets/wo/WoPrintSheet";
 import { WoTasks } from "@/widgets/wo/WoTasks";
+import { WoBatteries } from "@/widgets/wo/WoBatteries";
 import { WoTireOps } from "@/widgets/wo/WoTireOps";
 
 export const Route = createFileRoute("/_app/wo/$woId/")({
@@ -22,7 +23,7 @@ export const Route = createFileRoute("/_app/wo/$woId/")({
 });
 
 /** The screen a mechanic lives in while the truck is in the bay: the order
- * itself up top, then tasks, oil and tire work; the truck's facts, notes and
+ * itself up top, then tasks, oil, tire and battery work; the truck's facts, notes and
  * what it is due for alongside (below, on a phone). */
 function WoScreen() {
   const { t } = useTranslation();
@@ -80,6 +81,7 @@ function WoScreen() {
             <WoTasks d={d} woId={woId} canEdit={isOpen} />
             <WoOil d={d} woId={woId} canEdit={isOpen} />
             <WoTireOps d={d} woId={woId} canEdit={isOpen} />
+            <WoBatteries d={d} woId={woId} canEdit={isOpen} />
           </div>
 
           <aside className="min-w-0 space-y-7">

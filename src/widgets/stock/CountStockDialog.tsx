@@ -8,6 +8,7 @@ import {
   isOffline,
   unwrap,
   type CountResult,
+  type StockBatteryLine,
   type StockOilLine,
   type StockTireLine,
 } from "@/shared/api/client";
@@ -26,13 +27,17 @@ import {
 import { Input } from "@/shared/ui/input";
 import { Label } from "@/shared/ui/label";
 import { NumberInput } from "@/shared/ui/number-input";
+import { batteryLabel, specOf, toSpecInput } from "@/widgets/batteries/lib";
 
 // The server's own limits (maint-rust handlers/stock.rs).
 const MAX_TIRES = 100_000;
 const MAX_LITERS = 1_000_000;
 const MAX_NOTE = 120;
 
-export type CountTarget = { kind: "tire"; line: StockTireLine } | { kind: "oil"; line: StockOilLine };
+export type CountTarget =
+  | { kind: "tire"; line: StockTireLine }
+  | { kind: "oil"; line: StockOilLine }
+  | { kind: "battery"; line: StockBatteryLine };
 
 type Step = "form" | "review" | "done";
 
@@ -49,11 +54,16 @@ export function CountStockDialog({ target, onClose }: { target: CountTarget; onC
   const online = useSyncStatus().data?.online;
   const stock = useStock().data;
 
-  const isTire = target.kind === "tire";
+  // Tires and batteries are counted in whole pieces, oil in liters.
+  const isTire = target.kind !== "oil";
+  const isBattery = target.kind === "battery";
   // The line as it is NOW (a refresh may have landed since the dialog opened).
-  const live = isTire
-    ? (stock?.tires.find((l) => l.id === target.line.id) ?? target.line)
-    : (stock?.oil.find((l) => l.id === target.line.id) ?? target.line);
+  const live =
+    target.kind === "tire"
+      ? (stock?.tires.find((l) => l.id === target.line.id) ?? target.line)
+      : target.kind === "battery"
+        ? (stock?.batteries.find((l) => l.id === target.line.id) ?? target.line)
+        : (stock?.oil.find((l) => l.id === target.line.id) ?? target.line);
   // The book figure is the fleet system's own number — NOT the projected one,
   // which also subtracts work this device has not sent yet.
   const book = "snapshot_qty" in live ? live.snapshot_qty : round2(live.snapshot_liters);
@@ -77,17 +87,26 @@ export function CountStockDialog({ target, onClose }: { target: CountTarget; onC
   const diff = counted == null ? 0 : round2(counted - book);
 
   const amount = (n: number) =>
-    isTire ? t("stock.receive.tiresCount", { n: fmtNumber(n, lang) }) : fmtLiters(n, lang);
+    isBattery
+      ? t("stock.receive.batteriesCount", { n: fmtNumber(n, lang) })
+      : isTire
+        ? t("stock.receive.tiresCount", { n: fmtNumber(n, lang) })
+        : fmtLiters(n, lang);
   const itemName =
     target.kind === "tire"
       ? [target.line.brand, target.line.model, target.line.size].filter(Boolean).join(" ")
-      : target.line.oil_type;
+      : target.kind === "battery"
+        ? batteryLabel(target.line)
+        : target.line.oil_type;
 
   const submit = useDomainMutation(
     (n: number) => {
       const id = refId.current ?? crypto.randomUUID();
       refId.current = id;
       const noteOrNull = note.trim() || null;
+      if (target.kind === "battery") {
+        return unwrap(commands.stockCountBatteries(toSpecInput(specOf(target.line)), n, id, noteOrNull));
+      }
       return target.kind === "tire"
         ? unwrap(
             commands.stockCountTires(target.line.brand, target.line.model, target.line.size, n, id, noteOrNull),
@@ -161,7 +180,11 @@ export function CountStockDialog({ target, onClose }: { target: CountTarget; onC
 
             <div className="space-y-1.5">
               <Label htmlFor={field("counted")}>
-                {isTire ? t("stock.count.askTires") : t("stock.count.askOil")}
+                {isBattery
+                  ? t("stock.count.askBatteries")
+                  : isTire
+                    ? t("stock.count.askTires")
+                    : t("stock.count.askOil")}
               </Label>
               <NumberInput
                 id={field("counted")}
@@ -179,9 +202,11 @@ export function CountStockDialog({ target, onClose }: { target: CountTarget; onC
               </p>
               {touched && !valid && (
                 <p id={field("counted-err")} className="text-sm text-status-overdue">
-                  {isTire
-                    ? t("stock.count.err.tires", { max: fmtNumber(max, lang) })
-                    : t("stock.count.err.oil", { max: fmtNumber(max, lang) })}
+                  {isBattery
+                    ? t("stock.count.err.batteries", { max: fmtNumber(max, lang) })
+                    : isTire
+                      ? t("stock.count.err.tires", { max: fmtNumber(max, lang) })
+                      : t("stock.count.err.oil", { max: fmtNumber(max, lang) })}
                 </p>
               )}
             </div>

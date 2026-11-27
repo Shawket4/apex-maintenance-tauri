@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { AlertTriangle, CheckCircle2, CloudOff, Loader2 } from "lucide-react";
 
-import { commands, isOffline, unwrap, type StockView } from "@/shared/api/client";
+import { commands, isOffline, unwrap, type BatterySpecInput, type StockView } from "@/shared/api/client";
 import { useDomainMutation, useStock, useSyncStatus } from "@/shared/api/queries";
 import { errorText } from "@/shared/lib/notify";
 import { norm } from "@/shared/lib/normalize";
@@ -20,30 +20,41 @@ import {
 import { Input } from "@/shared/ui/input";
 import { Label } from "@/shared/ui/label";
 import { NumberInput } from "@/shared/ui/number-input";
-import { OilProductPicker, TireProductPicker, tireLabel, type TireSpec } from "@/widgets/catalog/pickers";
+import { batteryKey, batteryLabel, toSpecInput, type BatterySpec } from "@/widgets/batteries/lib";
+import {
+  BatteryProductPicker,
+  OilProductPicker,
+  TireProductPicker,
+  tireLabel,
+  type TireSpec,
+} from "@/widgets/catalog/pickers";
 
 // The server's own limits (maint-rust handlers/stock.rs).
 const MAX_TIRES = 10_000;
 const MAX_LITERS = 100_000;
 const MAX_TEXT = 120;
 
-type Kind = "tire" | "oil";
+type Kind = "tire" | "oil" | "battery";
+const KINDS: readonly Kind[] = ["tire", "oil", "battery"];
 type Step = "form" | "review" | "done";
 type Receipt =
   | { kind: "tire"; brand: string; model: string | null; size: string | null; qty: number; note: string | null }
-  | { kind: "oil"; oilType: string; liters: number; note: string | null };
+  | { kind: "oil"; oilType: string; liters: number; note: string | null }
+  | { kind: "battery"; spec: BatterySpecInput; qty: number; note: string | null };
 
-/** Receive a shipment of new tires or oil into stock. Online only; the server
- * allows it from permission 4. Three steps — fill, read it back, done —
- * because a receipt cannot be taken back from the app. */
+/** Receive a shipment of new tires, oil or batteries into stock. Online
+ * only; the server allows it from permission 4. Three steps — fill, read it
+ * back, done — because a receipt cannot be taken back from the app. */
 export function ReceiveStockDialog({
   open,
   onOpenChange,
   stock,
+  initialKind = "tire",
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   stock: StockView;
+  initialKind?: Kind;
 }) {
   const { t, i18n } = useTranslation();
   const lang = i18n.language;
@@ -52,9 +63,10 @@ export function ReceiveStockDialog({
   const online = useSyncStatus().data?.online;
   const liveStock = useStock().data ?? stock;
 
-  const [kind, setKind] = useState<Kind>("tire");
+  const [kind, setKind] = useState<Kind>(initialKind);
   const [step, setStep] = useState<Step>("form");
   const [tire, setTire] = useState<TireSpec | null>(null);
+  const [battery, setBattery] = useState<BatterySpec | null>(null);
   const [qty, setQty] = useState("");
   const [oilType, setOilType] = useState("");
   const [liters, setLiters] = useState("");
@@ -86,8 +98,16 @@ export function ReceiveStockDialog({
           : tooLong(tire.brand, tire.model, tire.size)
             ? t("stock.receive.err.tooLong", { max: fmtNumber(MAX_TEXT, lang) })
             : null,
+    battery:
+      kind !== "battery"
+        ? null
+        : !battery?.brand.trim()
+          ? t("stock.receive.err.battery")
+          : tooLong(battery.brand, battery.model)
+            ? t("stock.receive.err.tooLong", { max: fmtNumber(MAX_TEXT, lang) })
+            : null,
     qty:
-      kind === "tire" && (qtyN == null || qtyN < 1 || qtyN > MAX_TIRES)
+      kind !== "oil" && (qtyN == null || qtyN < 1 || qtyN > MAX_TIRES)
         ? t("stock.receive.err.qty", { max: fmtNumber(MAX_TIRES, lang) })
         : null,
     oilType:
@@ -103,13 +123,15 @@ export function ReceiveStockDialog({
         ? t("stock.receive.err.liters", { max: fmtNumber(MAX_LITERS, lang) })
         : null,
   };
-  const valid = !errors.tire && !errors.qty && !errors.oilType && !errors.liters;
+  const valid = !errors.tire && !errors.battery && !errors.qty && !errors.oilType && !errors.liters;
 
   const draft: Receipt | null = !valid
     ? null
     : kind === "tire"
       ? { kind, brand: trim(tire!.brand), model: orNull(tire!.model), size: orNull(tire!.size), qty: qtyN!, note: orNull(note) }
-      : { kind, oilType: trim(oilType), liters: litersN!, note: orNull(note) };
+      : kind === "battery"
+        ? { kind, spec: toSpecInput(battery!), qty: qtyN!, note: orNull(note) }
+        : { kind, oilType: trim(oilType), liters: litersN!, note: orNull(note) };
 
   const submit = useDomainMutation(
     (r: Receipt) => {
@@ -117,7 +139,9 @@ export function ReceiveStockDialog({
       refId.current = id;
       return r.kind === "tire"
         ? unwrap(commands.stockCreditTires(r.brand, r.model, r.size, r.qty, id, r.note))
-        : unwrap(commands.stockCreditOil(r.oilType, r.liters, id, r.note));
+        : r.kind === "battery"
+          ? unwrap(commands.stockCreditBatteries(r.spec, r.qty, id, r.note))
+          : unwrap(commands.stockCreditOil(r.oilType, r.liters, id, r.note));
     },
     {
       onSuccess: (_d, r) => {
@@ -129,9 +153,14 @@ export function ReceiveStockDialog({
     },
   );
 
-  const what = (r: Receipt) => (r.kind === "tire" ? tireLabel(r) : r.oilType);
+  const what = (r: Receipt) =>
+    r.kind === "tire" ? tireLabel(r) : r.kind === "battery" ? batteryLabel(r.spec) : r.oilType;
   const howMuch = (r: Receipt) =>
-    r.kind === "tire" ? t("stock.receive.tiresCount", { n: fmtNumber(r.qty, lang) }) : fmtLiters(r.liters, lang);
+    r.kind === "tire"
+      ? t("stock.receive.tiresCount", { n: fmtNumber(r.qty, lang) })
+      : r.kind === "battery"
+        ? t("stock.receive.batteriesCount", { n: fmtNumber(r.qty, lang) })
+        : fmtLiters(r.liters, lang);
 
   // The stock line the receipt went to: the server files a name under the
   // spelling it already has, so compare the way it does.
@@ -141,6 +170,10 @@ export function ReceiveStockDialog({
         (l) => norm(l.brand) === norm(r.brand) && norm(l.model) === norm(r.model) && norm(l.size) === norm(r.size),
       );
       return line ? t("stock.receive.tiresCount", { n: fmtNumber(line.projected_qty, lang) }) : null;
+    }
+    if (r.kind === "battery") {
+      const line = liveStock.batteries.find((l) => batteryKey(l) === batteryKey(r.spec));
+      return line ? t("stock.receive.batteriesCount", { n: fmtNumber(line.projected_qty, lang) }) : null;
     }
     const line = liveStock.oil.find((l) => norm(l.oil_type) === norm(r.oilType));
     return line ? fmtLiters(line.projected_liters, lang) : null;
@@ -188,8 +221,8 @@ export function ReceiveStockDialog({
               if (valid) setStep("review");
             }}
           >
-            <div role="group" aria-label={t("stock.receive.what")} className="grid grid-cols-2 gap-2">
-              {(["tire", "oil"] as const).map((k) => (
+            <div role="group" aria-label={t("stock.receive.what")} className="grid grid-cols-3 gap-2">
+              {KINDS.map((k) => (
                 <Button
                   key={k}
                   type="button"
@@ -213,7 +246,34 @@ export function ReceiveStockDialog({
               </p>
             )}
 
-            {kind === "tire" ? (
+            {kind === "battery" ? (
+              <>
+                <div className="space-y-1.5">
+                  <Label id={field("battery-label")} htmlFor={field("battery")}>
+                    {t("stock.receive.batteryType")}
+                  </Label>
+                  <BatteryProductPicker
+                    id={field("battery")}
+                    aria-labelledby={field("battery-label")}
+                    showStock
+                    value={battery}
+                    onChange={edit(setBattery)}
+                  />
+                  {errorLine(errors.battery, field("battery-err"))}
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor={field("bqty")}>{t("stock.receive.qty")}</Label>
+                  <NumberInput
+                    id={field("bqty")}
+                    value={qty}
+                    onValueChange={edit(setQty)}
+                    aria-invalid={touched && !!errors.qty}
+                    aria-describedby={field("bqty-err")}
+                  />
+                  {errorLine(errors.qty, field("bqty-err"))}
+                </div>
+              </>
+            ) : kind === "tire" ? (
               <>
                 <div className="space-y-1.5">
                   <Label id={field("tire-label")} htmlFor={field("tire")}>

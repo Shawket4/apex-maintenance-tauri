@@ -33,7 +33,8 @@
     "main": "Menu",
     "menu": "Open menu",
     "workOrders": "Work orders",
-    "attendance": "Attendance"
+    "attendance": "Attendance",
+    "batteries": "Batteries"
   },
   "login": {
     "title": "Sign in",
@@ -89,7 +90,8 @@
       "overview": "Overview",
       "tires": "Tires",
       "history": "History",
-      "due": "Due"
+      "due": "Due",
+      "batteries": "Batteries"
     },
     "openWo": "Open work order",
     "openWoTitle": "New work order",
@@ -371,7 +373,10 @@
         "chassis_axles": "Chassis axles",
         "chassis_positions": "Chassis positions",
         "vehicle_class_assignments": "Vehicle classes",
-        "vehicle_odometer_overrides": "Odometer overrides"
+        "vehicle_odometer_overrides": "Odometer overrides",
+        "batteries": "Batteries",
+        "battery_installs": "Battery fittings",
+        "battery_layouts": "Battery slots"
       }
     },
     "appearance": {
@@ -414,8 +419,8 @@
       "wo_not_found": "That work order does not exist",
       "wo_closed": "The work order is closed — reopen it first",
       "wo_not_closed": "The work order is not closed",
-      "wo_not_empty": "The work order has tire or oil work — remove that first",
-      "work_order_not_empty": "The work order has tire or oil work — remove that first",
+      "wo_not_empty": "The work order has tire, oil or battery work — remove that first",
+      "work_order_not_empty": "The work order has tire, oil or battery work — remove that first",
       "wo_wrong_vehicle": "That work order is for another truck",
       "vehicle_not_found": "That truck does not exist",
       "odometer_range": "That odometer reading is not plausible — check the number",
@@ -439,7 +444,7 @@
       "still_mounted": "The tire is still mounted",
       "tire_moved_on": "The tire has been used since — it cannot go back",
       "already_dismounted": "The tire has already been dismounted",
-      "brand_required": "Enter the tire brand",
+      "brand_required": "Enter the brand",
       "bad_reason": "That reason is not valid",
       "bad_status": "That status is not valid",
       "bad_count": "Register between 1 and 200 tires at a time",
@@ -471,7 +476,24 @@
       "attendance_future_time": "That time has not come yet",
       "attendance_out_before_in": "Check-out must be after check-in",
       "attendance_too_long": "More than 18 hours between check-in and check-out — check the times",
-      "attendance_grace_range": "The grace must be 0 to 240 minutes"
+      "attendance_grace_range": "The grace must be 0 to 240 minutes",
+      "slot_occupied": "That slot already has a battery",
+      "slot_range": "The truck has no such slot — add slots first",
+      "slot_in_use": "A higher slot has a battery in it — take it off first",
+      "slots_range": "A truck has 1 to 12 battery slots",
+      "battery_not_available": "That battery is not in used stock",
+      "battery_not_found": "That battery does not exist",
+      "battery_installed": "The battery is fitted — take it off first",
+      "battery_already_installed": "That battery is already fitted",
+      "install_not_found": "That battery is not fitted",
+      "already_removed": "The battery has already been taken off",
+      "still_installed": "The battery is still fitted",
+      "battery_moved_on": "The battery has been fitted again since — it cannot go back",
+      "bad_outcome": "Where the battery went is not valid",
+      "battery_ah_range": "Capacity is not plausible — 1 to 2000 Ah",
+      "battery_voltage_range": "Voltage is not plausible — 2 to 48 V",
+      "battery_cca_range": "CCA is not plausible — 1 to 5000",
+      "warranty_range": "Warranty must be 0 to 120 months"
     }
   },
   "chassis": {
@@ -490,9 +512,10 @@
     "filter": {
       "all": "All",
       "tire": "Tires",
-      "oil": "Oil"
+      "oil": "Oil",
+      "battery": "Batteries"
     },
-    "subtitle": "Tires and oil coming in and going out",
+    "subtitle": "Tires, oil and batteries coming in and going out",
     "loadMore": "Load more",
     "range": {
       "7": "Last week",

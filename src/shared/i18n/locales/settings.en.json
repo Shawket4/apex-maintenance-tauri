@@ -101,7 +101,16 @@
     "attendanceMark": "Marking a worker's day",
     "workerAdd": "Adding a worker",
     "workerEdit": "Editing a worker",
-    "workerDelete": "Deleting a worker"
+    "workerDelete": "Deleting a worker",
+    "batteryAdd": "Battery recorded",
+    "batteryEdit": "Battery details edited",
+    "batteryStatus": "Battery status changed",
+    "batteryDelete": "Battery deleted",
+    "batteryFit": "Battery fitted",
+    "batteryRemove": "Battery taken off",
+    "batteryRemoveUndo": "Battery put back",
+    "batteryFitUndo": "Battery fitting undone",
+    "batterySlots": "Battery slots"
   },
   "field": {
     "vehicle_id": "Truck",
@@ -132,7 +141,10 @@
     "dismounted_at": "Dismounted at",
     "occurred_at": "Time",
     "notes": "Notes",
-    "notes_ar": "Notes"
+    "notes_ar": "Notes",
+    "slot": "Slot",
+    "slots": "Slots",
+    "serial": "Serial"
   },
   "reason": {
     "worn": "Worn out",

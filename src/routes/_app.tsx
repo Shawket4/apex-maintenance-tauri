@@ -3,6 +3,7 @@ import { Link, Outlet, createFileRoute, redirect, useNavigate, useRouterState } 
 import { useTranslation } from "react-i18next";
 import {
   ArrowLeftRight,
+  BatteryFull,
   CalendarClock,
   CircleDot,
   ClipboardList,
@@ -39,6 +40,7 @@ const NAV_MAIN = [
   { to: "/wo", key: "nav.workOrders", icon: ClipboardList, exact: false },
   { to: "/due", key: "nav.due", icon: CalendarClock, exact: false },
   { to: "/tires", key: "nav.tires", icon: CircleDot, exact: false },
+  { to: "/batteries", key: "nav.batteries", icon: BatteryFull, exact: false },
   { to: "/stock/movements", key: "nav.movements", icon: ArrowLeftRight, exact: false },
   { to: "/attendance", key: "nav.attendance", icon: UserCheck, exact: false },
 ] as const;

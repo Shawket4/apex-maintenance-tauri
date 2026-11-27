@@ -2,6 +2,7 @@ import { Link, Outlet, createFileRoute, useCanGoBack, useRouter } from "@tanstac
 import { useTranslation } from "react-i18next";
 import {
   ArrowRight,
+  BatteryFull,
   CalendarClock,
   CircleDot,
   Gauge,
@@ -25,6 +26,7 @@ export const Route = createFileRoute("/_app/trucks/$truckId")({
 const TABS = [
   { to: "/trucks/$truckId", key: "truck.tabs.overview", icon: LayoutDashboard, exact: true },
   { to: "/trucks/$truckId/tires", key: "truck.tabs.tires", icon: CircleDot, exact: false },
+  { to: "/trucks/$truckId/batteries", key: "truck.tabs.batteries", icon: BatteryFull, exact: false },
   { to: "/trucks/$truckId/history", key: "truck.tabs.history", icon: History, exact: false },
   { to: "/trucks/$truckId/due", key: "truck.tabs.due", icon: CalendarClock, exact: false },
 ] as const;

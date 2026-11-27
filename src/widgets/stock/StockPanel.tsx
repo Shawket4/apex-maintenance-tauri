@@ -1,9 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { AlertTriangle, ClipboardCheck, CloudOff, Loader2, PackagePlus, RefreshCw } from "lucide-react";
 
-import { commands, isOffline, unwrap, type StockOilLine, type StockTireLine } from "@/shared/api/client";
+import {
+  commands,
+  isOffline,
+  unwrap,
+  type StockBatteryLine,
+  type StockOilLine,
+  type StockTireLine,
+} from "@/shared/api/client";
 import { useAuth } from "@/shared/api/auth";
 import { useStock } from "@/shared/api/queries";
 import { errorText, notifyError, notifySuccess } from "@/shared/lib/notify";
@@ -13,6 +21,7 @@ import { cn } from "@/shared/lib/cn";
 import { Button } from "@/shared/ui/button";
 import { QueryState } from "@/shared/ui/query-state";
 import { Skeleton } from "@/shared/ui/skeleton";
+import { batteryName, batteryRating } from "@/widgets/batteries/lib";
 
 import { CountStockDialog, type CountTarget } from "./CountStockDialog";
 import { ReceiveStockDialog } from "./ReceiveStockDialog";
@@ -29,10 +38,14 @@ function levelOf(amount: number, low: boolean): Level {
   return low ? "low" : "ok";
 }
 
-/** New tires and oil on hand, with a refresh and (for whoever is allowed)
- * stock receiving. The numbers are the last count read from the fleet system
- * minus the work recorded on this device that has not been sent yet. */
-export function StockPanel() {
+type StockKind = "tire" | "oil" | "battery";
+const ALL_KINDS: readonly StockKind[] = ["tire", "oil", "battery"];
+
+/** New tires, oil and batteries on hand, with a refresh and (for whoever is
+ * allowed) stock receiving. The numbers are the last count read from the
+ * server minus the work recorded on this device that has not been sent yet.
+ * `only` shows one kind (the batteries page shows only batteries). */
+export function StockPanel({ only }: { only?: StockKind } = {}) {
   const { t, i18n } = useTranslation();
   const lang = i18n.language;
   const qc = useQueryClient();
@@ -40,6 +53,8 @@ export function StockPanel() {
   const canReceive = (user?.permission ?? 0) >= RECEIVE_PERMISSION;
   const stock = useStock();
   const [receiving, setReceiving] = useState(false);
+  const kinds = only ? [only] : ALL_KINDS;
+  const shows = (k: StockKind) => kinds.includes(k);
   const [counting, setCounting] = useState<CountTarget | null>(null);
 
   const refresh = useMutation({
@@ -78,7 +93,7 @@ export function StockPanel() {
     <section aria-labelledby="stock-heading">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
         <h2 id="stock-heading" className="text-base font-bold">
-          {t("stock.title")}
+          {only === "battery" ? t("stock.batteriesShelfTitle") : t("stock.title")}
         </h2>
         <div className="flex flex-wrap items-center gap-2">
           {refreshButton}
@@ -93,11 +108,16 @@ export function StockPanel() {
 
       <QueryState query={stock} skeleton={<Skeleton className="h-28 w-full rounded-xl" />}>
         {(data) => {
-          const stamps = [...data.tires, ...data.oil].map((l) => l.fetched_at).filter((s): s is string => !!s);
+          const tires = shows("tire") ? data.tires : [];
+          const oil = shows("oil") ? data.oil : [];
+          const batteries = shows("battery") ? data.batteries : [];
+          const stamps = [...tires, ...oil, ...batteries].map((l) => l.fetched_at).filter((s): s is string => !!s);
           const fetchedAt = stamps.length ? stamps.reduce((a, b) => (a > b ? a : b)) : null;
           const hasPending =
-            data.tires.some((l) => l.pending_debits > 0) || data.oil.some((l) => l.pending_liters > 0);
-          const nothing = data.tires.length === 0 && data.oil.length === 0;
+            tires.some((l) => l.pending_debits > 0) ||
+            oil.some((l) => l.pending_liters > 0) ||
+            batteries.some((l) => l.pending_debits > 0);
+          const nothing = tires.length === 0 && oil.length === 0 && batteries.length === 0;
 
           return (
             <div className="space-y-4">
@@ -130,60 +150,104 @@ export function StockPanel() {
                 {!canReceive && <p>{t("stock.receive.notAllowed")}</p>}
               </div>
 
-              {nothing ? (
+              {nothing && !only ? (
                 <div className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
                   <p>{canReceive ? t("stock.emptyCanReceive") : t("stock.empty")}</p>
                 </div>
               ) : (
                 <>
-                  <div>
-                    <h3 className="mb-2 text-sm font-semibold">{t("stock.tiresTitle")}</h3>
-                    {data.tires.length === 0 ? (
-                      <p className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
-                        {t("stock.noTires")}
-                      </p>
-                    ) : (
-                      <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                        {data.tires.map((line) => (
-                          <TireLine
-                            key={line.id}
-                            line={line}
-                            onCount={canReceive ? () => setCounting({ kind: "tire", line }) : undefined}
-                          />
-                        ))}
-                      </ul>
-                    )}
-                  </div>
+                  {shows("tire") && (
+                    <div>
+                      <h3 className="mb-2 text-sm font-semibold">{t("stock.tiresTitle")}</h3>
+                      {data.tires.length === 0 ? (
+                        <p className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
+                          {t("stock.noTires")}
+                        </p>
+                      ) : (
+                        <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                          {data.tires.map((line) => (
+                            <TireLine
+                              key={line.id}
+                              line={line}
+                              onCount={canReceive ? () => setCounting({ kind: "tire", line }) : undefined}
+                            />
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
 
-                  <div>
-                    <h3 className="mb-2 text-sm font-semibold">{t("stock.oilTitle")}</h3>
-                    {data.oil.length === 0 ? (
-                      <p className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
-                        {t("stock.noOil")}
-                      </p>
-                    ) : (
-                      <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                        {data.oil.map((line) => (
-                          <OilLine
-                            key={line.id}
-                            line={line}
-                            onCount={canReceive ? () => setCounting({ kind: "oil", line }) : undefined}
-                          />
-                        ))}
-                      </ul>
-                    )}
-                  </div>
+                  {shows("oil") && (
+                    <div>
+                      <h3 className="mb-2 text-sm font-semibold">{t("stock.oilTitle")}</h3>
+                      {data.oil.length === 0 ? (
+                        <p className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
+                          {t("stock.noOil")}
+                        </p>
+                      ) : (
+                        <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                          {data.oil.map((line) => (
+                            <OilLine
+                              key={line.id}
+                              line={line}
+                              onCount={canReceive ? () => setCounting({ kind: "oil", line }) : undefined}
+                            />
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+
+                  {shows("battery") && (
+                    <div>
+                      <h3 className="mb-2 text-sm font-semibold">{t("stock.batteriesTitle")}</h3>
+                      {batteries.length === 0 ? (
+                        <p className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
+                          {canReceive ? t("stock.noBatteriesCanReceive") : t("stock.noBatteries")}
+                        </p>
+                      ) : (
+                        <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                          {batteries.map((line) => (
+                            <BatteryLine
+                              key={line.id}
+                              line={line}
+                              onCount={canReceive ? () => setCounting({ kind: "battery", line }) : undefined}
+                            />
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
                 </>
               )}
 
-              <p className="text-sm">
-                {t("stock.usedPool")}{" "}
-                <span className="font-bold tabular">{fmtNumber(data.used_pool_count, lang)}</span>
-                <span className="text-muted-foreground"> {t("stock.usedPoolHint")}</span>
-              </p>
+              {shows("tire") && (
+                <p className="text-sm">
+                  {t("stock.usedPool")}{" "}
+                  <span className="font-bold tabular">{fmtNumber(data.used_pool_count, lang)}</span>
+                  <span className="text-muted-foreground"> {t("stock.usedPoolHint")}</span>
+                </p>
+              )}
+              {shows("battery") && (
+                <p className="text-sm">
+                  {t("stock.usedBatteries")}{" "}
+                  <span className="font-bold tabular">{fmtNumber(data.used_battery_count, lang)}</span>{" "}
+                  {only === "battery" ? (
+                    <span className="text-muted-foreground">{t("stock.usedBatteriesHintHere")}</span>
+                  ) : (
+                    <Link
+                      to="/batteries"
+                      search={{ status: "in_stock_used" }}
+                      className="font-medium text-primary underline-offset-4 hover:underline"
+                    >
+                      {t("stock.usedBatteriesLink")}
+                    </Link>
+                  )}
+                </p>
+              )}
 
               {receiving && (
-                <ReceiveStockDialog open onOpenChange={setReceiving} stock={data} />
+                <ReceiveStockDialog open onOpenChange={setReceiving} stock={data} initialKind={only ?? "tire"} />
               )}
               {counting && (
                 <CountStockDialog
@@ -293,6 +357,41 @@ function OilLine({ line, onCount }: { line: StockOilLine; onCount?: () => void }
         </p>
       )}
       <LevelNote level={level} negativeKey="stock.level.negativeOil" />
+      {onCount && <CountButton onClick={onCount} />}
+    </li>
+  );
+}
+
+function BatteryLine({ line, onCount }: { line: StockBatteryLine; onCount?: () => void }) {
+  const { t, i18n } = useTranslation();
+  const lang = i18n.language;
+  const level = levelOf(line.projected_qty, line.low_stock);
+  const rating = batteryRating(line, true);
+  return (
+    <li className={cn("rounded-xl border bg-card p-4 shadow-sm", LEVEL_BOX[level])}>
+      <div className="font-semibold">
+        <bdi>{batteryName(line)}</bdi>
+      </div>
+      {rating && (
+        <div className="text-sm text-muted-foreground">
+          <bdi dir="ltr">{rating}</bdi>
+        </div>
+      )}
+      <div className="mt-2 flex items-baseline gap-2">
+        <span className={cn("text-2xl font-bold tabular", LEVEL_TEXT[level])} dir="ltr">
+          {fmtNumber(line.projected_qty, lang)}
+        </span>
+        <span className="text-sm text-muted-foreground">{t("stock.batteriesAvailable")}</span>
+      </div>
+      {line.pending_debits > 0 && (
+        <p className="mt-1 text-sm text-muted-foreground">
+          {t("stock.batteriesBreakdown", {
+            counted: fmtNumber(line.snapshot_qty, lang),
+            pending: fmtNumber(line.pending_debits, lang),
+          })}
+        </p>
+      )}
+      <LevelNote level={level} negativeKey="stock.level.negativeBatteries" />
       {onCount && <CountButton onClick={onCount} />}
     </li>
   );

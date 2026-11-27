@@ -20,5 +20,6 @@
   "tireNoNumber": "Tire with no number",
   "tireOn": "mounted on",
   "woOpenedOn": "Opened on {{date}}",
-  "askAi": "Ask the smart search about"
+  "askAi": "Ask the smart search about",
+  "linkBatteries": "Batteries"
 }

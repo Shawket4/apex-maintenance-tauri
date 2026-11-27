@@ -163,6 +163,19 @@ export function changeKey(entityType: string, op: string, payload: Payload | nul
       return removal ? "classRemove" : "classSet";
     case "vehicle_odometer_overrides":
       return removal ? "odometerFixDelete" : "odometerFix";
+    case "batteries":
+      if (removal) return "batteryDelete";
+      if (op === "insert") return "batteryAdd";
+      if (Object.keys(p).length > 0 && Object.keys(p).every((k) => k === "status" || k === "updated_at")) {
+        return "batteryStatus";
+      }
+      return "batteryEdit";
+    case "battery_installs":
+      if (removal) return "batteryFitUndo";
+      if (op === "insert") return "batteryFit";
+      return p.removed_at != null ? "batteryRemove" : "batteryRemoveUndo";
+    case "battery_layouts":
+      return "batterySlots";
     case "attendance_days":
       return "attendanceMark";
     case "attendance_workers":
@@ -205,6 +218,9 @@ const FIELDS: [string, FieldKind][] = [
   ["model", "text"],
   ["size", "text"],
   ["dot_code", "code"],
+  ["serial", "code"],
+  ["slot", "text"],
+  ["slots", "text"],
   ["odometer", "km"],
   ["odometer_at_open", "km"],
   ["mounted_odometer", "km"],
@@ -248,8 +264,12 @@ export function shownFields(payload: Payload | null): ShownField[] {
 export function payloadVehicleId(entityType: string, entityId: string, payload: Payload | null): number | null {
   const v = payload?.vehicle_id;
   if (typeof v === "number") return v;
-  // These two tables are keyed by the truck.
-  if (entityType === "vehicle_class_assignments" || entityType === "vehicle_odometer_overrides") {
+  // These tables are keyed by the truck.
+  if (
+    entityType === "vehicle_class_assignments" ||
+    entityType === "vehicle_odometer_overrides" ||
+    entityType === "battery_layouts"
+  ) {
     const n = Number(entityId);
     return Number.isInteger(n) && n > 0 ? n : null;
   }

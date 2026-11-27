@@ -18,6 +18,7 @@ import { Route as AppSettingsRouteImport } from './routes/_app.settings'
 import { Route as AppAttendanceIndexRouteImport } from './routes/_app.attendance.index'
 import { Route as AppAttendanceMonthRouteImport } from './routes/_app.attendance.month'
 import { Route as AppAttendanceWorkersRouteImport } from './routes/_app.attendance.workers'
+import { Route as AppBatteriesIndexRouteImport } from './routes/_app.batteries.index'
 import { Route as AppStockMovementsRouteImport } from './routes/_app.stock.movements'
 import { Route as AppTiresIndexRouteImport } from './routes/_app.tires.index'
 import { Route as AppTiresTireIdRouteImport } from './routes/_app.tires.$tireId'
@@ -25,6 +26,7 @@ import { Route as AppTrucksIndexRouteImport } from './routes/_app.trucks.index'
 import { Route as AppTrucksTruckIdRouteImport } from './routes/_app.trucks.$truckId'
 import { Route as AppWoIndexRouteImport } from './routes/_app.wo.index'
 import { Route as AppTrucksTruckIdIndexRouteImport } from './routes/_app.trucks.$truckId.index'
+import { Route as AppTrucksTruckIdBatteriesRouteImport } from './routes/_app.trucks.$truckId.batteries'
 import { Route as AppTrucksTruckIdDueRouteImport } from './routes/_app.trucks.$truckId.due'
 import { Route as AppTrucksTruckIdHistoryRouteImport } from './routes/_app.trucks.$truckId.history'
 import { Route as AppTrucksTruckIdTiresRouteImport } from './routes/_app.trucks.$truckId.tires'
@@ -75,6 +77,11 @@ const AppAttendanceWorkersRoute = AppAttendanceWorkersRouteImport.update({
   path: '/attendance/workers',
   getParentRoute: () => AppRoute,
 } as any)
+const AppBatteriesIndexRoute = AppBatteriesIndexRouteImport.update({
+  id: '/batteries/',
+  path: '/batteries/',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppStockMovementsRoute = AppStockMovementsRouteImport.update({
   id: '/stock/movements',
   path: '/stock/movements',
@@ -110,6 +117,12 @@ const AppTrucksTruckIdIndexRoute = AppTrucksTruckIdIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppTrucksTruckIdRoute,
 } as any)
+const AppTrucksTruckIdBatteriesRoute =
+  AppTrucksTruckIdBatteriesRouteImport.update({
+    id: '/batteries',
+    path: '/batteries',
+    getParentRoute: () => AppTrucksTruckIdRoute,
+  } as any)
 const AppTrucksTruckIdDueRoute = AppTrucksTruckIdDueRouteImport.update({
   id: '/due',
   path: '/due',
@@ -148,9 +161,11 @@ export interface FileRoutesByFullPath {
   '/tires/$tireId': typeof AppTiresTireIdRoute
   '/trucks/$truckId': typeof AppTrucksTruckIdRouteWithChildren
   '/attendance/': typeof AppAttendanceIndexRoute
+  '/batteries/': typeof AppBatteriesIndexRoute
   '/tires/': typeof AppTiresIndexRoute
   '/trucks/': typeof AppTrucksIndexRoute
   '/wo/': typeof AppWoIndexRoute
+  '/trucks/$truckId/batteries': typeof AppTrucksTruckIdBatteriesRoute
   '/trucks/$truckId/due': typeof AppTrucksTruckIdDueRoute
   '/trucks/$truckId/history': typeof AppTrucksTruckIdHistoryRoute
   '/trucks/$truckId/tires': typeof AppTrucksTruckIdTiresRoute
@@ -169,9 +184,11 @@ export interface FileRoutesByTo {
   '/stock/movements': typeof AppStockMovementsRoute
   '/tires/$tireId': typeof AppTiresTireIdRoute
   '/attendance': typeof AppAttendanceIndexRoute
+  '/batteries': typeof AppBatteriesIndexRoute
   '/tires': typeof AppTiresIndexRoute
   '/trucks': typeof AppTrucksIndexRoute
   '/wo': typeof AppWoIndexRoute
+  '/trucks/$truckId/batteries': typeof AppTrucksTruckIdBatteriesRoute
   '/trucks/$truckId/due': typeof AppTrucksTruckIdDueRoute
   '/trucks/$truckId/history': typeof AppTrucksTruckIdHistoryRoute
   '/trucks/$truckId/tires': typeof AppTrucksTruckIdTiresRoute
@@ -193,9 +210,11 @@ export interface FileRoutesById {
   '/_app/tires/$tireId': typeof AppTiresTireIdRoute
   '/_app/trucks/$truckId': typeof AppTrucksTruckIdRouteWithChildren
   '/_app/attendance/': typeof AppAttendanceIndexRoute
+  '/_app/batteries/': typeof AppBatteriesIndexRoute
   '/_app/tires/': typeof AppTiresIndexRoute
   '/_app/trucks/': typeof AppTrucksIndexRoute
   '/_app/wo/': typeof AppWoIndexRoute
+  '/_app/trucks/$truckId/batteries': typeof AppTrucksTruckIdBatteriesRoute
   '/_app/trucks/$truckId/due': typeof AppTrucksTruckIdDueRoute
   '/_app/trucks/$truckId/history': typeof AppTrucksTruckIdHistoryRoute
   '/_app/trucks/$truckId/tires': typeof AppTrucksTruckIdTiresRoute
@@ -217,9 +236,11 @@ export interface FileRouteTypes {
     | '/tires/$tireId'
     | '/trucks/$truckId'
     | '/attendance/'
+    | '/batteries/'
     | '/tires/'
     | '/trucks/'
     | '/wo/'
+    | '/trucks/$truckId/batteries'
     | '/trucks/$truckId/due'
     | '/trucks/$truckId/history'
     | '/trucks/$truckId/tires'
@@ -238,9 +259,11 @@ export interface FileRouteTypes {
     | '/stock/movements'
     | '/tires/$tireId'
     | '/attendance'
+    | '/batteries'
     | '/tires'
     | '/trucks'
     | '/wo'
+    | '/trucks/$truckId/batteries'
     | '/trucks/$truckId/due'
     | '/trucks/$truckId/history'
     | '/trucks/$truckId/tires'
@@ -261,9 +284,11 @@ export interface FileRouteTypes {
     | '/_app/tires/$tireId'
     | '/_app/trucks/$truckId'
     | '/_app/attendance/'
+    | '/_app/batteries/'
     | '/_app/tires/'
     | '/_app/trucks/'
     | '/_app/wo/'
+    | '/_app/trucks/$truckId/batteries'
     | '/_app/trucks/$truckId/due'
     | '/_app/trucks/$truckId/history'
     | '/_app/trucks/$truckId/tires'
@@ -342,6 +367,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAttendanceWorkersRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/batteries/': {
+      id: '/_app/batteries/'
+      path: '/batteries'
+      fullPath: '/batteries/'
+      preLoaderRoute: typeof AppBatteriesIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/stock/movements': {
       id: '/_app/stock/movements'
       path: '/stock/movements'
@@ -391,6 +423,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppTrucksTruckIdIndexRouteImport
       parentRoute: typeof AppTrucksTruckIdRoute
     }
+    '/_app/trucks/$truckId/batteries': {
+      id: '/_app/trucks/$truckId/batteries'
+      path: '/batteries'
+      fullPath: '/trucks/$truckId/batteries'
+      preLoaderRoute: typeof AppTrucksTruckIdBatteriesRouteImport
+      parentRoute: typeof AppTrucksTruckIdRoute
+    }
     '/_app/trucks/$truckId/due': {
       id: '/_app/trucks/$truckId/due'
       path: '/due'
@@ -430,6 +469,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AppTrucksTruckIdRouteChildren {
+  AppTrucksTruckIdBatteriesRoute: typeof AppTrucksTruckIdBatteriesRoute
   AppTrucksTruckIdDueRoute: typeof AppTrucksTruckIdDueRoute
   AppTrucksTruckIdHistoryRoute: typeof AppTrucksTruckIdHistoryRoute
   AppTrucksTruckIdTiresRoute: typeof AppTrucksTruckIdTiresRoute
@@ -437,6 +477,7 @@ interface AppTrucksTruckIdRouteChildren {
 }
 
 const AppTrucksTruckIdRouteChildren: AppTrucksTruckIdRouteChildren = {
+  AppTrucksTruckIdBatteriesRoute: AppTrucksTruckIdBatteriesRoute,
   AppTrucksTruckIdDueRoute: AppTrucksTruckIdDueRoute,
   AppTrucksTruckIdHistoryRoute: AppTrucksTruckIdHistoryRoute,
   AppTrucksTruckIdTiresRoute: AppTrucksTruckIdTiresRoute,
@@ -457,6 +498,7 @@ interface AppRouteChildren {
   AppTiresTireIdRoute: typeof AppTiresTireIdRoute
   AppTrucksTruckIdRoute: typeof AppTrucksTruckIdRouteWithChildren
   AppAttendanceIndexRoute: typeof AppAttendanceIndexRoute
+  AppBatteriesIndexRoute: typeof AppBatteriesIndexRoute
   AppTiresIndexRoute: typeof AppTiresIndexRoute
   AppTrucksIndexRoute: typeof AppTrucksIndexRoute
   AppWoIndexRoute: typeof AppWoIndexRoute
@@ -475,6 +517,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppTiresTireIdRoute: AppTiresTireIdRoute,
   AppTrucksTruckIdRoute: AppTrucksTruckIdRouteWithChildren,
   AppAttendanceIndexRoute: AppAttendanceIndexRoute,
+  AppBatteriesIndexRoute: AppBatteriesIndexRoute,
   AppTiresIndexRoute: AppTiresIndexRoute,
   AppTrucksIndexRoute: AppTrucksIndexRoute,
   AppWoIndexRoute: AppWoIndexRoute,
