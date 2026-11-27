@@ -10,8 +10,7 @@ import { Button } from "@/shared/ui/button";
 import { Checkbox } from "@/shared/ui/checkbox";
 import { ConfirmDialog } from "@/shared/ui/confirm-dialog";
 import { Label } from "@/shared/ui/label";
-import { WheelMap } from "@/widgets/TruckDiagram/WheelMap";
-import { syntheticChassis, wheelCount } from "@/widgets/TruckDiagram/layout";
+import { WheelMap, syntheticChassis, wheelCount } from "apex-tire-diagram";
 
 // The limits the Rust planner accepts (services/chassis_plan.rs).
 const LIMITS = { drive: [1, 4], trailer: [0, 8], spares: [0, 6] } as const;
@@ -145,7 +144,7 @@ export function ChassisWizard({ vehicleId }: { vehicleId: number }) {
         <div>
           <div className="mb-2 text-sm font-semibold text-muted-foreground">{t("chassis.preview")}</div>
           <div className="overflow-x-auto rounded-xl border bg-muted/30 p-3">
-            <WheelMap axles={preview.axles} positions={preview.positions} compact />
+            <WheelMap axles={preview.axles} positions={preview.positions} lang={lang} compact />
           </div>
         </div>
       </div>
