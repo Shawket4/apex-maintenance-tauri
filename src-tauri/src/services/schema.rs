@@ -72,7 +72,7 @@ pub const ENTITIES: &[EntityMeta] = &[
         entity: "work_order_tasks",
         pk: "id",
         columns: &[
-            "id", "work_order_id", "kind", "category_id", "description_ar", "description_en",
+            "id", "work_order_id", "kind", "category_id", "category_name_ar", "description_ar", "description_en",
             "is_done", "done_at", "sort_order", "standard_job_id", "created_at", "updated_at", "deleted_at",
             "created_by_user_id", "updated_by_user_id", "sync_version",
         ],

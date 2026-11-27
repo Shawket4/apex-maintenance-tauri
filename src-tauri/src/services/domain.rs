@@ -346,31 +346,106 @@ pub fn record_baseline(
     })
 }
 
+/// Namespace of typed-in maintenance types: a type's id is "c-" + the UUID v5
+/// of its name's key in it, so two devices typing the same name offline meet
+/// on one type.
+pub const CATEGORY_NAMESPACE: Uuid = Uuid::from_u128(0x7c3e1f52_9a4b_4d2e_8f61_2b9d0c5a7e13);
+
+/// The comparison key of a name, as the server's `maint_norm`: case, spacing,
+/// punctuation, Arabic letter variants and digit scripts do not matter.
+pub fn norm_key(s: &str) -> String {
+    s.chars()
+        .flat_map(char::to_lowercase)
+        .map(|c| match c {
+            'أ' | 'إ' | 'آ' | 'ٱ' => 'ا',
+            'ة' => 'ه',
+            'ى' | 'ئ' => 'ي',
+            'ؤ' => 'و',
+            '٠'..='٩' => char::from_digit(c as u32 - '٠' as u32, 10).unwrap(),
+            '۰'..='۹' => char::from_digit(c as u32 - '۰' as u32, 10).unwrap(),
+            c => c,
+        })
+        .filter(|c| c.is_ascii_digit() || c.is_ascii_lowercase() || ('\u{0621}'..='\u{064A}').contains(c))
+        .collect()
+}
+
+/// The task's maintenance type: one from the list, or a name typed in. A typed
+/// name a type already has is that type; a new one gets its id here and is
+/// listed locally until the server, told its name, creates it. Returns the
+/// type's id and, for a new type, the name the task carries.
+fn resolve_category(tx: &Connection, category_id: Option<String>, typed: Option<String>) -> AppResult<(Option<String>, Option<String>)> {
+    let Some(name) = typed else { return Ok((category_id, None)) };
+    let key = norm_key(&name);
+    if key.is_empty() {
+        return Ok((category_id, None));
+    }
+    let mut stmt = tx.prepare("SELECT id, name_ar FROM maintenance_categories")?;
+    let known = stmt
+        .query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?
+        .collect::<Result<Vec<_>, _>>()?;
+    if let Some((id, _)) = known.iter().find(|(_, n)| norm_key(n) == key) {
+        return Ok((Some(id.clone()), None));
+    }
+    let id = format!("c-{}", Uuid::new_v5(&CATEGORY_NAMESPACE, key.as_bytes()));
+    tx.execute(
+        "INSERT OR IGNORE INTO maintenance_categories (id, name_ar, name_en, sort_order)
+         VALUES (?1, ?2, ?2, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM maintenance_categories))",
+        params![id, name],
+    )?;
+    Ok((Some(id), Some(name)))
+}
+
+/// A job typed under a type joins that type's jobs here at once (the server
+/// does the same when the task arrives). The type's own name is not a job.
+fn learn_job(tx: &Connection, category: Option<&str>, description: Option<&str>) -> AppResult<()> {
+    let (Some(cat), Some(desc)) = (category, description) else { return Ok(()) };
+    let key = norm_key(desc);
+    let cat_name: Option<String> =
+        tx.query_row("SELECT name_ar FROM maintenance_categories WHERE id = ?1", params![cat], |r| r.get(0)).optional()?;
+    if key.is_empty() || cat_name.map(|n| norm_key(&n) == key).unwrap_or(false) {
+        return Ok(());
+    }
+    let mut stmt = tx.prepare("SELECT name_ar FROM standard_jobs")?;
+    let exists = stmt.query_map([], |r| r.get::<_, String>(0))?.filter_map(Result::ok).any(|n| norm_key(&n) == key);
+    if !exists {
+        tx.execute(
+            "INSERT INTO standard_jobs (id, name_ar, category_id, uses) VALUES (?1, ?2, ?3, 0)",
+            params![format!("local-{}", Uuid::new_v4()), desc, cat],
+        )?;
+    }
+    Ok(())
+}
+
 pub fn wo_add_task(
     pool: &DbPool,
     work_order_id: &str,
     category_id: Option<&str>,
+    new_category_name: Option<&str>,
     description_ar: &str,
     user_id: i64,
 ) -> AppResult<String> {
     let description = clean(Some(description_ar));
+    let typed = clean(new_category_name);
     let category = clean(category_id);
-    if description.is_none() && category.is_none() {
+    if description.is_none() && category.is_none() && typed.is_none() {
         return Err(rule("task_empty", "a task needs a description or a category"));
     }
     write(pool, user_id, |a| {
         open_work_order(a.tx, work_order_id)?;
+        let (category, category_name) = resolve_category(a.tx, category.clone(), typed.clone())?;
+        let description = description.clone().or_else(|| category_name.clone());
+        learn_job(a.tx, category.as_deref(), description.as_deref())?;
         let id = Uuid::new_v4().to_string();
         let now = now_iso();
         // Adding a task is planning: not done. Ticking it says the work happened.
         a.tx.execute(
             "INSERT INTO work_order_tasks
-               (id, work_order_id, kind, category_id, description_ar, is_done, done_at, sort_order,
+               (id, work_order_id, kind, category_id, category_name_ar, description_ar, is_done, done_at, sort_order,
                 created_at, updated_at, created_by_user_id, updated_by_user_id, sync_version)
-             VALUES (?1,?2,'free',?3,?4,0,NULL,
+             VALUES (?1,?2,'free',?3,?7,?4,0,NULL,
                      (SELECT COALESCE(MAX(sort_order),0)+1 FROM work_order_tasks WHERE work_order_id=?2),
                      ?5,?5,?6,?6,1)",
-            params![id, work_order_id, category, description, now, user_id],
+            params![id, work_order_id, category, description, now, user_id, category_name],
         )?;
         a.inserted("work_order_tasks", &id)?;
         Ok(id)
@@ -404,21 +479,26 @@ pub fn wo_task_update(
     pool: &DbPool,
     task_id: &str,
     category_id: Option<&str>,
+    new_category_name: Option<&str>,
     description_ar: &str,
     user_id: i64,
 ) -> AppResult<()> {
     let description = clean(Some(description_ar));
+    let typed = clean(new_category_name);
     let category = clean(category_id);
-    if description.is_none() && category.is_none() {
+    if description.is_none() && category.is_none() && typed.is_none() {
         return Err(rule("task_empty", "a task needs a description or a category"));
     }
     write(pool, user_id, |a| {
         live_task(a.tx, task_id)?;
+        let (category, category_name) = resolve_category(a.tx, category.clone(), typed.clone())?;
+        let description = description.clone().or_else(|| category_name.clone());
+        learn_job(a.tx, category.as_deref(), description.as_deref())?;
         a.tx.execute(
-            "UPDATE work_order_tasks SET category_id=?2, description_ar=?3, updated_at=?4, updated_by_user_id=?5 WHERE id=?1",
-            params![task_id, category, description, now_iso(), user_id],
+            "UPDATE work_order_tasks SET category_id=?2, category_name_ar=?6, description_ar=?3, updated_at=?4, updated_by_user_id=?5 WHERE id=?1",
+            params![task_id, category, description, now_iso(), user_id, category_name],
         )?;
-        a.updated("work_order_tasks", task_id, &["category_id", "description_ar"])
+        a.updated("work_order_tasks", task_id, &["category_id", "category_name_ar", "description_ar"])
     })
 }
 

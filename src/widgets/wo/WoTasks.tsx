@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Check, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 
 import { commands, unwrap, type TaskRow, type WoDetail } from "@/shared/api/client";
-import { useCategories, useDomainMutation } from "@/shared/api/queries";
+import { useCatalog, useCategories, useDomainMutation } from "@/shared/api/queries";
 import { notifyError, notifySuccess } from "@/shared/lib/notify";
 import { fmtNumber } from "@/shared/lib/numbers";
 import { fmtCairo } from "@/shared/lib/time";
@@ -23,7 +23,7 @@ import { JobPicker } from "@/widgets/catalog/pickers";
 import { ListCard, Section } from "@/widgets/layout/PageShell";
 
 import { useCategoryName } from "./lib";
-import { CategorySelect, ClosedNote, PendingBadge, SectionTitle } from "./parts";
+import { ClosedNote, PendingBadge, SectionTitle, TaskTypePicker } from "./parts";
 
 /** The mechanic's list. Ticking a task is what restarts that maintenance's
  * clock, so the tick is a large labelled button and says what it does. */
@@ -213,68 +213,119 @@ function TaskList({ tasks, canEdit }: { tasks: TaskRow[]; canEdit: boolean }) {
   );
 }
 
-/** What gets stored when only a category was picked: the Arabic name — the
- * description is stored data on an Arabic-first record. */
-function useArabicCategoryName() {
+/** The type → job pair a task is written with (add form and edit dialog).
+ * The type comes first and narrows the jobs to its own; either can be typed. */
+function useTaskDraft(init: { text: string; categoryId: string }) {
+  const { i18n } = useTranslation();
   const categories = useCategories();
-  return (id: string) => categories.data?.find((c) => c.id === id)?.name_ar ?? "";
+  const catalog = useCatalog();
+  const [text, setText] = useState(init.text);
+  const [categoryId, setCategoryId] = useState(init.categoryId);
+  const [typed, setTyped] = useState("");
+
+  const cat = categoryId ? categories.data?.find((c) => c.id === categoryId) : undefined;
+  const typeName = cat
+    ? (i18n.language.startsWith("ar") ? cat.name_ar : cat.name_en) || cat.name_ar
+    : typed || null;
+
+  const pickType = (id: string, name: string) => {
+    // A listed job of another type does not follow the type change (it would
+    // count toward the wrong one); a typed job does, and is kept under it.
+    const job = catalog.data?.standard_jobs.find((j) => j.name_ar === text.trim());
+    if (job?.category_id && job.category_id !== id) setText("");
+    setCategoryId(id);
+    setTyped(name);
+  };
+  // With no type chosen every job is listed, and a listed job brings its type.
+  const pickJob = (description: string, jobCategory?: string | null) => {
+    setText(description);
+    if (jobCategory) {
+      setCategoryId(jobCategory);
+      setTyped("");
+    }
+  };
+  const reset = () => {
+    setText("");
+    setCategoryId("");
+    setTyped("");
+  };
+
+  return {
+    text,
+    categoryId,
+    typed,
+    typeName,
+    pickType,
+    pickJob,
+    reset,
+    /** What JobPicker lists: this type's jobs; none yet for a new type. */
+    jobsOf: categoryId || (typed ? null : undefined),
+    /** Stored when only a type is given: its Arabic name (the description is
+     * stored data on an Arabic-first record). */
+    description: text.trim() || (cat ? cat.name_ar : typed.trim()),
+    hasType: categoryId !== "" || typed !== "",
+  };
 }
+
+type TaskInput = { text: string; category: string | null; newType: string | null };
 
 function AddTask({ woId }: { woId: string }) {
   const { t } = useTranslation();
-  const [text, setText] = useState("");
-  const [category, setCategory] = useState("");
-  const arabicName = useArabicCategoryName();
+  const d = useTaskDraft({ text: "", categoryId: "" });
 
   const add = useDomainMutation(
-    (p: { text: string; category: string | null }) =>
-      unwrap(commands.woAddTask(woId, p.category, p.text)),
+    (p: TaskInput) => unwrap(commands.woAddTask(woId, p.category, p.newType, p.text)),
     {
-      // Both fields go back to empty: a category left behind would be saved
-      // on the next task and restart the wrong maintenance clock.
-      onSuccess: () => {
-        setText("");
-        setCategory("");
-      },
+      // Both fields go back to empty: a type left behind would be saved on
+      // the next task and restart the wrong maintenance clock.
+      onSuccess: d.reset,
       onError: notifyError,
     },
   );
 
-  // A standard job brings its maintenance type with it (the type can still
-  // be changed or cleared after); typed text leaves the type alone.
-  const pickJob = (description: string, categoryId?: string | null) => {
-    setText(description);
-    if (categoryId !== undefined) setCategory(categoryId ?? "");
-  };
-
-  const description = text.trim() || (category ? arabicName(category) : "");
-  const canAdd = description.length > 0 && !add.isPending;
+  const canAdd = d.description.length > 0 && !add.isPending;
   const submit = () => {
     if (!canAdd) return;
-    add.mutate({ text: description, category: category || null });
+    add.mutate({ text: d.description, category: d.categoryId || null, newType: d.typed || null });
   };
 
   return (
     <form
-      className="grid gap-3 bg-background/70 px-4 py-3 sm:grid-cols-[1fr_12rem_auto] sm:items-end"
+      className="grid gap-3 bg-background/70 px-4 py-3 sm:grid-cols-[minmax(0,2fr)_minmax(0,3fr)_auto] sm:items-end"
       onSubmit={(e) => {
         e.preventDefault();
         submit();
       }}
     >
       <div className="min-w-0 space-y-1">
-        <Label htmlFor="wo-task-text">{t("wo.taskText")}</Label>
-        <JobPicker id="wo-task-text" value={text} onChange={pickJob} disabled={add.isPending} />
+        <Label htmlFor="wo-task-category">{t("wo.taskCategory")}</Label>
+        <TaskTypePicker
+          id="wo-task-category"
+          categoryId={d.categoryId}
+          typed={d.typed}
+          onChange={d.pickType}
+          disabled={add.isPending}
+        />
       </div>
       <div className="min-w-0 space-y-1">
-        <Label htmlFor="wo-task-category">{t("wo.taskCategory")}</Label>
-        <CategorySelect id="wo-task-category" value={category} onChange={setCategory} />
+        <Label htmlFor="wo-task-text">{t("wo.taskText")}</Label>
+        <JobPicker
+          id="wo-task-text"
+          value={d.text}
+          onChange={d.pickJob}
+          typeId={d.jobsOf}
+          typeName={d.typeName}
+          disabled={add.isPending}
+        />
       </div>
       <Button type="submit" disabled={!canAdd}>
         {add.isPending ? <Loader2 className="animate-spin" /> : <Plus />}
         {t("wo.addTask")}
       </Button>
-      {category && (
+      {d.typed && (
+        <p className="text-xs font-medium text-primary sm:col-span-3">{t("wo.typeNewHint", { name: d.typed })}</p>
+      )}
+      {d.hasType && (
         <p className="text-xs text-muted-foreground sm:col-span-3">{t("wo.addTaskCategoryHint")}</p>
       )}
     </form>
@@ -283,13 +334,10 @@ function AddTask({ woId }: { woId: string }) {
 
 function EditTaskDialog({ task, onClose }: { task: TaskRow; onClose: () => void }) {
   const { t } = useTranslation();
-  const [text, setText] = useState(task.description_ar ?? "");
-  const [category, setCategory] = useState(task.category_id ?? "");
-  const arabicName = useArabicCategoryName();
+  const d = useTaskDraft({ text: task.description_ar ?? "", categoryId: task.category_id ?? "" });
 
   const save = useDomainMutation(
-    (p: { text: string; category: string | null }) =>
-      unwrap(commands.woTaskUpdate(task.id, p.category, p.text)),
+    (p: TaskInput) => unwrap(commands.woTaskUpdate(task.id, p.category, p.newType, p.text)),
     {
       onSuccess: () => {
         notifySuccess(t("wo.saved"));
@@ -299,8 +347,7 @@ function EditTaskDialog({ task, onClose }: { task: TaskRow; onClose: () => void 
     },
   );
 
-  const description = text.trim() || (category ? arabicName(category) : "");
-  const categoryChanged = (task.category_id ?? "") !== category;
+  const categoryChanged = (task.category_id ?? "") !== d.categoryId || d.typed !== "";
 
   return (
     <Dialog open onOpenChange={(o) => !o && !save.isPending && onClose()}>
@@ -313,25 +360,33 @@ function EditTaskDialog({ task, onClose }: { task: TaskRow; onClose: () => void 
           onSubmit={(e) => {
             e.preventDefault();
             e.stopPropagation();
-            if (!description || save.isPending) return;
-            save.mutate({ text: description, category: category || null });
+            if (!d.description || save.isPending) return;
+            save.mutate({ text: d.description, category: d.categoryId || null, newType: d.typed || null });
           }}
         >
+          <div className="space-y-1.5">
+            <Label htmlFor="wo-edit-task-category">{t("wo.taskCategory")}</Label>
+            <TaskTypePicker
+              id="wo-edit-task-category"
+              categoryId={d.categoryId}
+              typed={d.typed}
+              onChange={d.pickType}
+              disabled={save.isPending}
+            />
+            {d.typed && (
+              <p className="text-xs font-medium text-primary">{t("wo.typeNewHint", { name: d.typed })}</p>
+            )}
+          </div>
           <div className="space-y-1.5">
             <Label htmlFor="wo-edit-task-text">{t("wo.taskText")}</Label>
             <JobPicker
               id="wo-edit-task-text"
-              value={text}
-              onChange={(description, categoryId) => {
-                setText(description);
-                if (categoryId !== undefined) setCategory(categoryId ?? "");
-              }}
+              value={d.text}
+              onChange={d.pickJob}
+              typeId={d.jobsOf}
+              typeName={d.typeName}
               disabled={save.isPending}
             />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="wo-edit-task-category">{t("wo.taskCategory")}</Label>
-            <CategorySelect id="wo-edit-task-category" value={category} onChange={setCategory} />
           </div>
           {task.is_done && categoryChanged && (
             <p className="rounded-lg bg-status-due_soon-soft px-3 py-2 text-sm text-status-due_soon">
@@ -342,7 +397,7 @@ function EditTaskDialog({ task, onClose }: { task: TaskRow; onClose: () => void 
             <Button type="button" variant="outline" onClick={onClose} disabled={save.isPending}>
               {t("common.cancel")}
             </Button>
-            <Button type="submit" disabled={!description || save.isPending}>
+            <Button type="submit" disabled={!d.description || save.isPending}>
               {save.isPending && <Loader2 className="animate-spin" />}
               {t("common.save")}
             </Button>

@@ -37,6 +37,7 @@ fn e2e_env() -> Option<Env> {
 struct Device {
     pool: Arc<DbPool>,
     engine: SyncEngine,
+    http: Arc<HttpClient>,
     _dir: tempfile::TempDir,
 }
 
@@ -69,7 +70,7 @@ fn device(env: &Env, vehicle_id: i64) -> Device {
     }
     let config = Arc::new(AppConfig::load());
     let http = Arc::new(HttpClient::new(config, dir.path().to_path_buf()).expect("http client"));
-    Device { pool: pool.clone(), engine: SyncEngine::new(pool, http, 50, 200), _dir: dir }
+    Device { pool: pool.clone(), engine: SyncEngine::new(pool, http.clone(), 50, 200), http, _dir: dir }
 }
 
 fn vehicle() -> i64 {
@@ -117,7 +118,7 @@ async fn a_day_of_offline_work_syncs_and_a_second_device_sees_it() {
         .expect("chassis");
     let positions = views::chassis_get(&a.pool, v).unwrap().unwrap().positions;
     let wo = domain::wo_open(&a.pool, v, Some(100_500), USER).expect("wo");
-    let task = domain::wo_add_task(&a.pool, &wo, Some("brakes"), "تيل فرامل", USER).expect("task");
+    let task = domain::wo_add_task(&a.pool, &wo, Some("brakes"), None, "تيل فرامل", USER).expect("task");
     domain::wo_task_set_done(&a.pool, &task, true, USER).expect("tick");
     domain::oil_add(&a.pool, &wo, "E2E-OIL", 40.0, Some(100_500), USER).expect("oil");
     let (tire, asg) = mount_new(&a, v, &wo, &positions[0].id);
@@ -151,7 +152,7 @@ async fn a_lost_acknowledgement_loses_nothing_and_duplicates_nothing() {
     let v = vehicle();
     let a = device(&env, v);
     let wo = domain::wo_open(&a.pool, v, None, USER).unwrap();
-    let task = domain::wo_add_task(&a.pool, &wo, None, "x", USER).unwrap();
+    let task = domain::wo_add_task(&a.pool, &wo, None, None, "x", USER).unwrap();
     a.engine.drain().await.unwrap();
     assert_eq!(pending(&a), 0);
 
@@ -230,7 +231,7 @@ async fn a_mount_the_server_refuses_is_undone_and_explained() {
     let ch = views::chassis_get(&b.pool, v).unwrap().unwrap();
     assert_eq!(ch.positions[0].tire_id.as_deref(), Some(tire_a.as_str()), "B now shows what is really on the wheel");
     // And B can carry on working on that truck.
-    domain::wo_add_task(&b.pool, &wo, None, "بعد التصحيح", USER).unwrap();
+    domain::wo_add_task(&b.pool, &wo, None, None, "بعد التصحيح", USER).unwrap();
     sync(&b).await;
     assert_eq!(pending(&b), 0);
 }
@@ -267,4 +268,44 @@ async fn offline_keeps_the_work_and_spends_no_retries() {
     assert_eq!((status.pending, status.issues), (1, 0), "the write survives, nothing is refused");
     let conn = c.pool.get().unwrap();
     assert_eq!(outbox::queued(&conn, 10).unwrap()[0].attempts, 0, "offline spends no retry budget");
+}
+
+#[tokio::test]
+async fn a_typed_type_and_its_typed_job_reach_the_server_and_every_device() {
+    let Some(env) = e2e_env() else { return };
+    let v = vehicle();
+    let a = device(&env, v);
+    let tag = &uuid::Uuid::new_v4().simple().to_string()[..8];
+    let new_type = format!("نوع تجربة {tag}");
+    let new_job = format!("شغلانة تجربة {tag}");
+    let greasing_job = format!("تشحيم تجربة {tag}");
+    let wo = domain::wo_open(&a.pool, v, None, USER).unwrap();
+    // A typed name an existing type already has is that type.
+    domain::wo_add_task(&a.pool, &wo, None, Some(" تشحيم "), &greasing_job, USER).unwrap();
+    // A new type, with a job typed under it.
+    let task = domain::wo_add_task(&a.pool, &wo, None, Some(&new_type), &new_job, USER).unwrap();
+    sync(&a).await;
+    assert_eq!(pending(&a), 0, "{:?}", issues(&a));
+    assert!(issues(&a).is_empty(), "{:?}", issues(&a));
+
+    // The server created the type under the id the device minted…
+    let minted = format!("c-{}", uuid::Uuid::new_v5(&domain::CATEGORY_NAMESPACE, domain::norm_key(&new_type).as_bytes()));
+    let cats: Vec<serde_json::Value> = a.http.get("/categories").await.expect("categories");
+    let made = cats.iter().find(|c| c["id"] == minted.as_str()).unwrap_or_else(|| panic!("{minted} not in {cats:?}"));
+    assert_eq!(made["name_ar"], new_type.as_str());
+    // …and learned both typed jobs under their types.
+    let catalog: serde_json::Value = a.http.get("/catalog").await.expect("catalog");
+    let job_type = |name: &str| {
+        catalog["standard_jobs"].as_array().unwrap().iter().find(|j| j["name_ar"] == name).map(|j| j["category_id"].clone())
+    };
+    assert_eq!(job_type(&new_job), Some(serde_json::json!(minted)));
+    assert_eq!(job_type(&greasing_job), Some(serde_json::json!("greasing")));
+    assert_eq!(job_type(&new_type), None, "a type's own name is not one of its jobs");
+
+    // A second device gets the task under that type.
+    let b = device(&env, v);
+    sync(&b).await;
+    let d = views::wo_detail(&b.pool, &wo).unwrap().expect("wo on B");
+    let t = d.tasks.iter().find(|t| t.id == task).expect("task on B");
+    assert_eq!(t.category_id.as_deref(), Some(minted.as_str()));
 }

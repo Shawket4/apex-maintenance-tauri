@@ -761,10 +761,10 @@
         assert_eq!(rule_code(domain::wo_open(&p, 3, Some(-4), 9).unwrap_err()), "odometer_range");
         assert_eq!(rule_code(domain::oil_add(&p, &wo, "15W-40", 0.0, None, 9).unwrap_err()), "liters_range");
         assert_eq!(rule_code(domain::oil_add(&p, &wo, " ", 35.0, None, 9).unwrap_err()), "oil_type_required");
-        assert_eq!(rule_code(domain::wo_add_task(&p, &wo, None, "  ", 9).unwrap_err()), "task_empty");
+        assert_eq!(rule_code(domain::wo_add_task(&p, &wo, None, None, "  ", 9).unwrap_err()), "task_empty");
         assert_eq!(rule_code(domain::record_baseline(&p, 3, "oil_change", "2999-01-01", None, 9).unwrap_err()), "date_in_future");
         domain::wo_close(&p, &wo, 9).unwrap();
-        assert_eq!(rule_code(domain::wo_add_task(&p, &wo, None, "x", 9).unwrap_err()), "wo_closed");
+        assert_eq!(rule_code(domain::wo_add_task(&p, &wo, None, None, "x", 9).unwrap_err()), "wo_closed");
         assert_eq!(rule_code(domain::oil_add(&p, &wo, "15W-40", 35.0, None, 9).unwrap_err()), "wo_closed");
         assert_eq!(outbox_rows(&p).len(), before, "only the close was queued (folded into the unsent insert)");
     }
@@ -776,7 +776,7 @@
         seed_stock(&p);
         let wo = domain::wo_open(&p, 5, Some(4_999_000), 9).unwrap();
         assert_eq!(odometer_truth(&p, 5).unwrap().unwrap().km, 4_999_000, "its typo'd reading is the odometer");
-        domain::wo_add_task(&p, &wo, Some("brakes"), "x", 9).unwrap();
+        domain::wo_add_task(&p, &wo, Some("brakes"), None, "x", 9).unwrap();
         let (oil, _) = domain::oil_add(&p, &wo, "15W-40", 35.0, None, 9).unwrap();
         assert_eq!(rule_code(domain::wo_delete(&p, &wo, 9).unwrap_err()), "wo_not_empty");
 
@@ -827,7 +827,7 @@
         // A task ticked TODAY on a work order with no odometer restarts the
         // time clock from today and keeps the older km baseline.
         let wo = domain::wo_open(&p, 7, None, 9).unwrap();
-        let task = domain::wo_add_task(&p, &wo, Some("oil_change"), "", 9).unwrap();
+        let task = domain::wo_add_task(&p, &wo, Some("oil_change"), None, "", 9).unwrap();
         assert_eq!(due_board(&p, Some(7)).unwrap()[0].status, "overdue", "a planned task is not done work");
         domain::wo_task_set_done(&p, &task, true, 9).unwrap();
         let d = &due_board(&p, Some(7)).unwrap()[0];
@@ -836,6 +836,61 @@
         assert!((179..=180).contains(&d.days_remaining.unwrap()), "{:?}", d.days_remaining);
         domain::wo_task_set_done(&p, &task, false, 9).unwrap();
         assert_eq!(due_board(&p, Some(7)).unwrap()[0].status, "overdue", "unticking takes it back");
+    }
+
+    #[test]
+    fn a_typed_type_is_matched_or_created_and_typed_jobs_join_their_type() {
+        let p = pool();
+        seed_vehicle(&p, 11, "ف ل ص 11", 50_000);
+        let wo = domain::wo_open(&p, 11, None, 9).unwrap();
+        // A name a type already has is that type (spacing and letter variants
+        // aside): the seeded "تشحيم" is 'greasing'.
+        let t = domain::wo_add_task(&p, &wo, None, Some("  تشحيم "), "تشحيم كرنك", 9).unwrap();
+        let conn = p.get().unwrap();
+        let (cat, name): (Option<String>, Option<String>) = conn
+            .query_row("SELECT category_id, category_name_ar FROM work_order_tasks WHERE id = ?1", [&t], |r| Ok((r.get(0)?, r.get(1)?)))
+            .unwrap();
+        assert_eq!((cat.as_deref(), name), (Some("greasing"), None));
+        // The typed job joined the type's jobs at once.
+        let job_cat: String = conn.query_row("SELECT category_id FROM standard_jobs WHERE name_ar = 'تشحيم كرنك'", [], |r| r.get(0)).unwrap();
+        assert_eq!(job_cat, "greasing");
+        drop(conn);
+        // A new name makes a type, the same id on every device; only a type: no job of its name.
+        let t = domain::wo_add_task(&p, &wo, None, Some("كهربا"), "", 9).unwrap();
+        let conn = p.get().unwrap();
+        let (cat, name, desc): (String, Option<String>, Option<String>) = conn
+            .query_row("SELECT category_id, category_name_ar, description_ar FROM work_order_tasks WHERE id = ?1", [&t], |r| {
+                Ok((r.get(0)?, r.get(1)?, r.get(2)?))
+            })
+            .unwrap();
+        let expect = format!("c-{}", uuid::Uuid::new_v5(&domain::CATEGORY_NAMESPACE, domain::norm_key("كهربا").as_bytes()));
+        assert_eq!((cat.as_str(), name.as_deref(), desc.as_deref()), (expect.as_str(), Some("كهربا"), Some("كهربا")));
+        let listed: i64 = conn.query_row("SELECT COUNT(*) FROM maintenance_categories WHERE id = ?1", [&cat], |r| r.get(0)).unwrap();
+        assert_eq!(listed, 1);
+        let jobs: i64 = conn.query_row("SELECT COUNT(*) FROM standard_jobs WHERE name_ar = 'كهربا'", [], |r| r.get(0)).unwrap();
+        assert_eq!(jobs, 0);
+        drop(conn);
+        // A mirror refresh keeps it until the server has it.
+        crate::services::refdata::replace_categories(&p, &[]).unwrap();
+        let conn = p.get().unwrap();
+        let listed: i64 = conn.query_row("SELECT COUNT(*) FROM maintenance_categories WHERE id = ?1", [&cat], |r| r.get(0)).unwrap();
+        assert_eq!(listed, 1);
+        // A catalog refresh before the task is sent keeps the typed job; once
+        // the server lists it, it is the server's row (no twin).
+        let jobs_named = |p: &DbPool| -> Vec<String> {
+            let conn = p.get().unwrap();
+            let mut stmt = conn.prepare("SELECT id FROM standard_jobs WHERE name_ar = 'تشحيم كرنك'").unwrap();
+            stmt.query_map([], |r| r.get(0)).unwrap().map(Result::unwrap).collect()
+        };
+        let empty = serde_json::json!({"tire_products": [], "oil_products": [], "standard_jobs": []});
+        crate::services::refdata::replace_catalog(&p, &empty).unwrap();
+        assert_eq!(jobs_named(&p).len(), 1);
+        let server = serde_json::json!({"tire_products": [], "oil_products": [],
+            "standard_jobs": [{"id": "77", "name_ar": "تشحيم  كرنك", "category_id": "greasing", "uses": 1}]});
+        crate::services::refdata::replace_catalog(&p, &server).unwrap();
+        assert_eq!(jobs_named(&p), Vec::<String>::new(), "the server's spelling is the one row");
+        // The key folds what the server's maint_norm folds.
+        assert_eq!(domain::norm_key(" إصلاح  بنشر ٢ "), domain::norm_key("اصلاح بنشر 2"));
     }
 
     #[test]

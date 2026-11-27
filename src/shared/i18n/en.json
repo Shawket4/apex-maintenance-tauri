@@ -546,7 +546,10 @@
       "placeholder": "Type the job or choose from the list",
       "search": "Type the job…",
       "useNew": "Use it as typed: “{{text}}”",
-      "resets": "Counts toward “{{name}}”"
+      "resets": "Counts toward “{{name}}”",
+      "placeholderOfType": "Choose a “{{type}}” job or type one",
+      "noneOfType": "No jobs listed for this type yet: type one and it is kept for next time.",
+      "addToType": "Add to “{{type}}”: “{{text}}”"
     }
   }
 }

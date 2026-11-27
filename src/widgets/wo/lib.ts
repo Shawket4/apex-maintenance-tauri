@@ -4,9 +4,6 @@ import { useTranslation } from "react-i18next";
 import { useCategories } from "@/shared/api/queries";
 import { parseDecimalInput, parseIntInput, toAsciiDigits } from "@/shared/lib/numbers";
 
-/** Radix Select cannot hold an empty value — this stands for "no category". */
-export const NO_CATEGORY = "__none__";
-
 /** The usual sump fill. Outside it the Rust side flags the record
  * (`OIL_FLAG_MIN` / `OIL_FLAG_MAX` in services/domain.rs). */
 export const OIL_BAND_MIN = 34;

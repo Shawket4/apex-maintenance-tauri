@@ -6,10 +6,13 @@
 //! the commands layer fetches JSON online and hands it here; this module
 //! only touches SQLite.
 
+use std::collections::HashSet;
+
 use rusqlite::params;
 use serde_json::Value;
 
 use crate::db::DbPool;
+use crate::services::domain::norm_key;
 use crate::AppResult;
 
 fn s(v: &Value, k: &str) -> Option<String> {
@@ -43,6 +46,14 @@ pub fn replace_categories(pool: &DbPool, rows: &[Value]) -> AppResult<usize> {
             ],
         )?;
     }
+    // A type typed in here that the server has not created yet stays listed.
+    tx.execute(
+        "INSERT OR IGNORE INTO maintenance_categories (id, name_ar, name_en, sort_order)
+         SELECT category_id, MAX(category_name_ar), MAX(category_name_ar), 1000 FROM work_order_tasks
+          WHERE category_id LIKE 'c-%' AND category_name_ar IS NOT NULL AND deleted_at IS NULL
+          GROUP BY category_id",
+        [],
+    )?;
     tx.commit()?;
     Ok(rows.len())
 }
@@ -161,12 +172,35 @@ pub fn replace_catalog(pool: &DbPool, v: &Value) -> AppResult<()> {
             params![s(&r, "id"), s(&r, "name").unwrap_or_default(), i(&r, "uses").unwrap_or(0), f(&r, "on_hand")],
         )?;
     }
+    // A job typed here on a task not sent yet stays offered until the server,
+    // told of the task, lists it (it learns jobs from tasks).
+    let typed_here: Vec<(String, String, Option<String>)> = {
+        let mut stmt = tx.prepare(
+            "SELECT j.id, j.name_ar, j.category_id FROM standard_jobs j
+              WHERE j.id LIKE 'local-%' AND EXISTS (
+                    SELECT 1 FROM work_order_tasks t
+                      JOIN outbox o ON o.entity_type = 'work_order_tasks' AND o.entity_id = t.id
+                     WHERE o.status IN ('pending','inflight') AND t.description_ar = j.name_ar)",
+        )?;
+        let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?.collect::<Result<Vec<_>, _>>()?;
+        rows
+    };
     tx.execute("DELETE FROM standard_jobs", [])?;
+    let mut listed = HashSet::new();
     for r in list("standard_jobs") {
+        listed.insert(norm_key(&s(&r, "name_ar").unwrap_or_default()));
         tx.execute(
             "INSERT OR REPLACE INTO standard_jobs (id, name_ar, name_en, category_id, uses) VALUES (?1,?2,?3,?4,?5)",
             params![s(&r, "id"), s(&r, "name_ar").unwrap_or_default(), s(&r, "name_en"), s(&r, "category_id"), i(&r, "uses").unwrap_or(0)],
         )?;
+    }
+    for (id, name, category) in typed_here {
+        if !listed.contains(&norm_key(&name)) {
+            tx.execute(
+                "INSERT OR IGNORE INTO standard_jobs (id, name_ar, category_id, uses) VALUES (?1, ?2, ?3, 0)",
+                params![id, name, category],
+            )?;
+        }
     }
     tx.commit()?;
     Ok(())
