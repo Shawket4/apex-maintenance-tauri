@@ -43,6 +43,14 @@ pub fn replace_categories(pool: &DbPool, rows: &[Value]) -> AppResult<usize> {
             ],
         )?;
     }
+    // A type typed in here that the server has not created yet stays listed.
+    tx.execute(
+        "INSERT OR IGNORE INTO maintenance_categories (id, name_ar, name_en, sort_order)
+         SELECT category_id, MAX(category_name_ar), MAX(category_name_ar), 1000 FROM work_order_tasks
+          WHERE category_id LIKE 'c-%' AND category_name_ar IS NOT NULL AND deleted_at IS NULL
+          GROUP BY category_id",
+        [],
+    )?;
     tx.commit()?;
     Ok(rows.len())
 }

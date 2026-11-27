@@ -117,7 +117,7 @@ async fn a_day_of_offline_work_syncs_and_a_second_device_sees_it() {
         .expect("chassis");
     let positions = views::chassis_get(&a.pool, v).unwrap().unwrap().positions;
     let wo = domain::wo_open(&a.pool, v, Some(100_500), USER).expect("wo");
-    let task = domain::wo_add_task(&a.pool, &wo, Some("brakes"), "تيل فرامل", USER).expect("task");
+    let task = domain::wo_add_task(&a.pool, &wo, Some("brakes"), None, "تيل فرامل", USER).expect("task");
     domain::wo_task_set_done(&a.pool, &task, true, USER).expect("tick");
     domain::oil_add(&a.pool, &wo, "E2E-OIL", 40.0, Some(100_500), USER).expect("oil");
     let (tire, asg) = mount_new(&a, v, &wo, &positions[0].id);
@@ -151,7 +151,7 @@ async fn a_lost_acknowledgement_loses_nothing_and_duplicates_nothing() {
     let v = vehicle();
     let a = device(&env, v);
     let wo = domain::wo_open(&a.pool, v, None, USER).unwrap();
-    let task = domain::wo_add_task(&a.pool, &wo, None, "x", USER).unwrap();
+    let task = domain::wo_add_task(&a.pool, &wo, None, None, "x", USER).unwrap();
     a.engine.drain().await.unwrap();
     assert_eq!(pending(&a), 0);
 
@@ -230,7 +230,7 @@ async fn a_mount_the_server_refuses_is_undone_and_explained() {
     let ch = views::chassis_get(&b.pool, v).unwrap().unwrap();
     assert_eq!(ch.positions[0].tire_id.as_deref(), Some(tire_a.as_str()), "B now shows what is really on the wheel");
     // And B can carry on working on that truck.
-    domain::wo_add_task(&b.pool, &wo, None, "بعد التصحيح", USER).unwrap();
+    domain::wo_add_task(&b.pool, &wo, None, None, "بعد التصحيح", USER).unwrap();
     sync(&b).await;
     assert_eq!(pending(&b), 0);
 }

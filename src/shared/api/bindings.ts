@@ -462,9 +462,9 @@ async woSetOdometer(id: string, odometerAtOpen: number | null) : Promise<Result<
     else return { status: "error", error: e  as any };
 }
 },
-async woAddTask(workOrderId: string, categoryId: string | null, descriptionAr: string) : Promise<Result<string, CmdError>> {
+async woAddTask(workOrderId: string, categoryId: string | null, newCategoryName: string | null, descriptionAr: string) : Promise<Result<string, CmdError>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("wo_add_task", { workOrderId, categoryId, descriptionAr }) };
+    return { status: "ok", data: await TAURI_INVOKE("wo_add_task", { workOrderId, categoryId, newCategoryName, descriptionAr }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -518,9 +518,9 @@ async woSetNotes(id: string, title: string | null, notes: string | null) : Promi
     else return { status: "error", error: e  as any };
 }
 },
-async woTaskUpdate(taskId: string, categoryId: string | null, descriptionAr: string) : Promise<Result<null, CmdError>> {
+async woTaskUpdate(taskId: string, categoryId: string | null, newCategoryName: string | null, descriptionAr: string) : Promise<Result<null, CmdError>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("wo_task_update", { taskId, categoryId, descriptionAr }) };
+    return { status: "ok", data: await TAURI_INVOKE("wo_task_update", { taskId, categoryId, newCategoryName, descriptionAr }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };

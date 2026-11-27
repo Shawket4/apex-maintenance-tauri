@@ -189,11 +189,18 @@ pub async fn wo_add_task(
     engine: State<'_, EngineState>,
     work_order_id: String,
     category_id: Option<String>,
+    new_category_name: Option<String>,
     description_ar: String,
 ) -> CmdResult<String> {
     let uid = current_user_id(&state)?;
-    let id =
-        domain::wo_add_task(&state.db, &work_order_id, category_id.as_deref(), &description_ar, uid)?;
+    let id = domain::wo_add_task(
+        &state.db,
+        &work_order_id,
+        category_id.as_deref(),
+        new_category_name.as_deref(),
+        &description_ar,
+        uid,
+    )?;
     kick(&engine);
     Ok(id)
 }
@@ -360,10 +367,11 @@ pub async fn wo_task_update(
     engine: State<'_, EngineState>,
     task_id: String,
     category_id: Option<String>,
+    new_category_name: Option<String>,
     description_ar: String,
 ) -> CmdResult<()> {
     let uid = current_user_id(&state)?;
-    domain::wo_task_update(&state.db, &task_id, category_id.as_deref(), &description_ar, uid)?;
+    domain::wo_task_update(&state.db, &task_id, category_id.as_deref(), new_category_name.as_deref(), &description_ar, uid)?;
     kick(&engine);
     Ok(())
 }
